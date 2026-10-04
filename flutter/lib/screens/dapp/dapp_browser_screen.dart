@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../services/wallet_service.dart';
 import '../../services/network_service.dart';
+import '../../services/local_web_server_service.dart';
 
 /// In-app DApp browser with an embedded WebView and a `window.octra` provider.
 ///
@@ -108,6 +109,16 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
           if (change.url != null && mounted) {
             setState(() => _urlCtrl.text = change.url!);
           }
+        },
+        onNavigationRequest: (request) {
+          // Native oct:// protocol — resolve circle URLs ourselves since
+          // webview_flutter cannot intercept subresources. Top-level
+          // navigations are rendered via gateway or direct RPC fetch.
+          if (_isOctUrl(request.url)) {
+            _loadOctUrl(request.url);
+            return NavigationDecision.prevent;
+          }
+          return NavigationDecision.navigate;
         },
         onWebResourceError: (error) {
           if (mounted) setState(() => _isLoading = false);
@@ -405,12 +416,104 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
   void _navigateTo(String raw) {
     var url = raw.trim();
     if (url.isEmpty) return;
+    // oct:// circle URLs and about:blank pass through untouched.
+    if (_isOctUrl(url)) {
+      _loadOctUrl(url);
+      return;
+    }
+    if (url == 'about:blank') {
+      _urlCtrl.text = url;
+      _controller.loadRequest(Uri.parse(url));
+      return;
+    }
     // Auto-prefix scheme
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       url = 'https://$url';
     }
     _urlCtrl.text = url;
     _controller.loadRequest(Uri.parse(url));
+  }
+
+  // ── oct:// protocol support ──────────────────────────────────────────
+  //
+  // Octra circle URLs look like oct://<circleId>/<path> (bare circle ID
+  // defaults to /index.html). If the local web server is running, pages load
+  // through its /oct/ gateway with full subresource + /api support.
+  // Otherwise content is fetched directly over JSON-RPC (read-only render).
+
+  static const _octScheme = 'oct://';
+
+  bool _isOctUrl(String url) => url.toLowerCase().startsWith(_octScheme);
+
+  /// Split oct://circleId/path into [circleId, path], preserving base58 case.
+  List<String> _parseOctUrl(String url) {
+    var rest = url.substring(_octScheme.length);
+    final cut = rest.indexOf(RegExp(r'[?#]'));
+    if (cut != -1) rest = rest.substring(0, cut);
+    final idx = rest.indexOf('/');
+    if (idx == -1) return [rest, '/index.html'];
+    var path = rest.substring(idx);
+    if (path.isEmpty || path == '/') path = '/index.html';
+    return [rest.substring(0, idx), path];
+  }
+
+  bool _isTextMime(String mime) =>
+      mime.startsWith('text/') ||
+      mime.contains('javascript') ||
+      mime.contains('json') ||
+      mime.endsWith('+xml') ||
+      mime == 'image/svg+xml';
+
+  Future<void> _loadOctUrl(String octUrl) async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _urlCtrl.text = octUrl;
+    });
+    try {
+      final parts = _parseOctUrl(octUrl);
+      if (parts[0].isEmpty) throw Exception('circle_id required');
+      final server = LocalWebServerService.instance;
+      if (server.enabled && server.isRunning) {
+        // Full gateway: subresources + interactive /api/* work.
+        await _controller.loadRequest(Uri.parse(
+            'http://127.0.0.1:${LocalWebServerService.port}/oct/${parts[0]}${parts[1]}'));
+        return;
+      }
+      // Direct RPC fetch (read-only render, no server needed).
+      final ws = context.read<WalletService>();
+      final ns = context.read<NetworkService>();
+      final asset = await ws.rpcCall(
+          ns.activeNodeUrl, 'circle_asset', [parts[0], parts[1]]);
+      final map = (asset as Map?)?.cast<String, dynamic>() ?? {};
+      if (map.containsKey('error')) {
+        throw Exception(map['error'].toString());
+      }
+      var mime =
+          (map['content_type']?.toString() ?? 'application/octet-stream');
+      final semi = mime.indexOf(';');
+      if (semi != -1) mime = mime.substring(0, semi).trim();
+      if (mime.isEmpty) mime = 'application/octet-stream';
+      final raw = base64Decode(map['body_b64']?.toString() ?? '');
+      if (!mounted) return;
+      if (_isTextMime(mime)) {
+        await _controller.loadHtmlString(
+          utf8.decode(raw, allowMalformed: true),
+          baseUrl: octUrl,
+        );
+      } else if (mime.startsWith('image/')) {
+        await _controller.loadRequest(
+            Uri.dataFromBytes(raw, mimeType: mime));
+      } else {
+        throw Exception('Preview not supported for $mime');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Cannot open $octUrl: $e')),
+      );
+    }
   }
 
   static String _shortAddr(String addr) => addr.length > 16
