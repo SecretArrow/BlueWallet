@@ -638,8 +638,8 @@ class WalletService extends ChangeNotifier {
       _balanceRaw = int.tryParse(rawBalance) ?? 0;
       // Prefer pending_nonce (mirrors webcli) so in-flight txs get the right seq.
       // parseNonceValue accepts numbers and numeric strings; anything else → 0.
-      _currentNonce = parseNonceValue(
-          result['pending_nonce'] ?? result['nonce']);
+      _currentNonce =
+          parseNonceValue(result['pending_nonce'] ?? result['nonce']);
       _publicBalance = formatOct(_balanceRaw);
       _accountNotFound = false; // address found on-chain
 
@@ -871,8 +871,7 @@ class WalletService extends ChangeNotifier {
   static String requireTxHash(Map result) {
     final hash = result['tx_hash']?.toString().trim() ?? '';
     if (hash.isEmpty) {
-      throw Exception(
-          'Submit returned no tx_hash (node result: $result)');
+      throw Exception('Submit returned no tx_hash (node result: $result)');
     }
     return hash;
   }
@@ -884,10 +883,8 @@ class WalletService extends ChangeNotifier {
   Future<void> fetchFees(String nodeUrl) async {
     try {
       final result = await _rpc(nodeUrl, 'octra_recommendedFee', []) as Map;
-      _standardFee =
-          parseRecommendedFee(result['standard'] as Map?, 1000);
-      _stealthFee =
-          parseRecommendedFee(result['stealth'] as Map?, 5000);
+      _standardFee = parseRecommendedFee(result['standard'] as Map?, 1000);
+      _stealthFee = parseRecommendedFee(result['stealth'] as Map?, 5000);
       notifyListeners();
     } catch (e) {
       debugPrint('WalletService.fetchFees failed (keeping previous fees): $e');

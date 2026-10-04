@@ -15,9 +15,11 @@ void main() {
     test('pending_nonce precedence is decided by callers (map lookup)', () {
       // Mirrors refresh(): pending_nonce ?? nonce.
       Map<String, dynamic> r = {'pending_nonce': 8, 'nonce': 5};
-      expect(WalletService.parseNonceValue(r['pending_nonce'] ?? r['nonce']), 8);
+      expect(
+          WalletService.parseNonceValue(r['pending_nonce'] ?? r['nonce']), 8);
       r = {'nonce': 5};
-      expect(WalletService.parseNonceValue(r['pending_nonce'] ?? r['nonce']), 5);
+      expect(
+          WalletService.parseNonceValue(r['pending_nonce'] ?? r['nonce']), 5);
     });
 
     test('rejects null, garbage and negatives', () {
@@ -41,18 +43,17 @@ void main() {
           WalletService.parseRecommendedFee(
               {'recommended': '1500', 'minimum': '1000'}, 1000),
           1500);
-      expect(WalletService.parseRecommendedFee({'recommended': 2000}, 1000),
-          2000);
+      expect(
+          WalletService.parseRecommendedFee({'recommended': 2000}, 1000), 2000);
     });
 
     test('fallbacks', () {
       expect(WalletService.parseRecommendedFee({}, 1000), 1000);
-      expect(WalletService.parseRecommendedFee({'recommended': '0'}, 1000),
-          1000);
-      expect(WalletService.parseRecommendedFee({'recommended': '-5'}, 1000),
-          1000);
       expect(
-          WalletService.parseRecommendedFee({'recommended': 'lots'}, 1000),
+          WalletService.parseRecommendedFee({'recommended': '0'}, 1000), 1000);
+      expect(
+          WalletService.parseRecommendedFee({'recommended': '-5'}, 1000), 1000);
+      expect(WalletService.parseRecommendedFee({'recommended': 'lots'}, 1000),
           1000);
       expect(WalletService.parseRecommendedFee('nope', 1000), 1000);
       expect(WalletService.parseRecommendedFee(null, 1000), 1000);
@@ -61,20 +62,17 @@ void main() {
 
   group('requireTxHash', () {
     test('returns trimmed hash', () {
-      expect(WalletService.requireTxHash({'tx_hash': 'abc'}),
-          'abc');
-      expect(WalletService.requireTxHash({'tx_hash': '  abc  '}),
-          'abc');
+      expect(WalletService.requireTxHash({'tx_hash': 'abc'}), 'abc');
+      expect(WalletService.requireTxHash({'tx_hash': '  abc  '}), 'abc');
     });
 
     test('throws on missing/empty hash', () {
       expect(() => WalletService.requireTxHash({}), throwsException);
-      expect(() => WalletService.requireTxHash({'tx_hash': ''}), throwsException);
       expect(
-          () => WalletService.requireTxHash({'tx_hash': '   '}),
+          () => WalletService.requireTxHash({'tx_hash': ''}), throwsException);
+      expect(() => WalletService.requireTxHash({'tx_hash': '   '}),
           throwsException);
-      expect(
-          () => WalletService.requireTxHash({'tx_hash': null}),
+      expect(() => WalletService.requireTxHash({'tx_hash': null}),
           throwsException);
     });
   });
