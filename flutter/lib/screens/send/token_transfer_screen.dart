@@ -127,7 +127,7 @@ class _TokenTransferScreenState extends State<TokenTransferScreen> {
                 // Token input — dropdown when tokens are loaded, text field otherwise
                 if (ws.tokens.isNotEmpty) ...[
                   DropdownButtonFormField<String>(
-                    value: _selectedDropdownToken,
+                    initialValue: _selectedDropdownToken,
                     decoration: const InputDecoration(
                       labelText: 'Token',
                     ),
@@ -242,7 +242,8 @@ class _Banner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isError ? cs.errorContainer : Colors.green.withOpacity(0.1),
+        color:
+            isError ? cs.errorContainer : Colors.green.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(

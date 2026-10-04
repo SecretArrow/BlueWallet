@@ -33,13 +33,15 @@ class ThemePaletteScreen extends StatelessWidget {
                 color: p.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isSelected ? p.primary : p.textSecondary.withOpacity(0.2),
+                  color: isSelected
+                      ? p.primary
+                      : p.textSecondary.withValues(alpha: 0.2),
                   width: isSelected ? 2 : 1,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: p.primary.withOpacity(0.3),
+                          color: p.primary.withValues(alpha: 0.3),
                           blurRadius: 8,
                           spreadRadius: 0,
                         )
@@ -104,7 +106,8 @@ class _Swatch extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.white.withOpacity(0.15), width: 0.5),
+        border:
+            Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.5),
       ),
     );
   }

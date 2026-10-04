@@ -36,7 +36,11 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
   }
 
   Future<void> _doGenerate() async {
-    setState(() { _loading = true; _error = null; _status = 'Generating keypair...'; });
+    setState(() {
+      _loading = true;
+      _error = null;
+      _status = 'Generating keypair...';
+    });
     try {
       final kp = await CryptoService.generateKeyPair();
       final ws = context.read<WalletService>();
@@ -47,31 +51,53 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
         skBase64: kp['sk']!,
       );
       if (mounted) {
-        setState(() { _loading = false; _status = 'Wallet "$name" created!'; });
+        setState(() {
+          _loading = false;
+          _status = 'Wallet "$name" created!';
+        });
         await Future.delayed(const Duration(seconds: 1));
         if (mounted) context.pop();
       }
     } catch (e) {
-      setState(() { _loading = false; _error = e.toString().replaceFirst('Exception: ', ''); });
+      setState(() {
+        _loading = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
     }
   }
 
   Future<void> _doImportKey() async {
     final name = _nameCtrl.text.trim();
     final pk = _pkCtrl.text.trim();
-    if (name.isEmpty) { setState(() => _error = 'Enter a wallet name'); return; }
-    if (pk.isEmpty) { setState(() => _error = 'Paste your private key'); return; }
-    setState(() { _loading = true; _error = null; _status = 'Importing...'; });
+    if (name.isEmpty) {
+      setState(() => _error = 'Enter a wallet name');
+      return;
+    }
+    if (pk.isEmpty) {
+      setState(() => _error = 'Paste your private key');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+      _status = 'Importing...';
+    });
     try {
       final ws = context.read<WalletService>();
       await ws.importWallet(name: name, privateKey: pk);
       if (mounted) {
-        setState(() { _loading = false; _status = 'Wallet imported!'; });
+        setState(() {
+          _loading = false;
+          _status = 'Wallet imported!';
+        });
         await Future.delayed(const Duration(seconds: 1));
         if (mounted) context.pop();
       }
     } catch (e) {
-      setState(() { _loading = false; _error = 'Invalid key: ${e.toString().replaceFirst('Exception: ', '')}'; });
+      setState(() {
+        _loading = false;
+        _error = 'Invalid key: ${e.toString().replaceFirst('Exception: ', '')}';
+      });
     }
   }
 
@@ -88,7 +114,8 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
       // Try to parse as JSON backup
       try {
         final json = jsonDecode(content.trim()) as Map<String, dynamic>;
-        final pk = json['private_key']?.toString() ?? json['sk']?.toString() ?? '';
+        final pk =
+            json['private_key']?.toString() ?? json['sk']?.toString() ?? '';
         final name = json['name']?.toString() ?? 'Imported Wallet';
         _nameCtrl.text = name;
         _pkCtrl.text = pk;
@@ -96,7 +123,10 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
         // Plain text key
         _pkCtrl.text = content.trim();
       }
-      setState(() { _mode = _AddMode.importKey; _error = null; });
+      setState(() {
+        _mode = _AddMode.importKey;
+        _error = null;
+      });
     } catch (e) {
       setState(() => _error = 'Failed to read file: $e');
     }
@@ -123,113 +153,130 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
   }
 
   Widget _buildChoice(ColorScheme cs, TextTheme tt) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Text('Add Account', style: tt.headlineMedium),
-      const SizedBox(height: 8),
-      Text('Choose how to add a wallet account.',
-          style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
-      const SizedBox(height: 32),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Add Account', style: tt.headlineMedium),
+          const SizedBox(height: 8),
+          Text('Choose how to add a wallet account.',
+              style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+          const SizedBox(height: 32),
 
-      // ── Primary: Seed Phrase ─────────────────────────────────────────────
-      Card(
-        color: cs.primaryContainer,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Create with Seed Phrase',
-                  style: tt.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 6),
-              Text(
-                'Generate a 12-word recovery phrase for your wallet. '
-                'You can restore your wallet on any device using this phrase.',
-                style: tt.bodySmall?.copyWith(color: cs.onPrimaryContainer),
+          // ── Primary: Seed Phrase ─────────────────────────────────────────────
+          Card(
+            color: cs.primaryContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Create with Seed Phrase',
+                      style: tt.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Generate a 12-word recovery phrase for your wallet. '
+                    'You can restore your wallet on any device using this phrase.',
+                    style: tt.bodySmall?.copyWith(color: cs.onPrimaryContainer),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.auto_awesome_rounded),
+                      label: const Text('Create Seed Phrase Wallet'),
+                      onPressed: () => context.push('/mnemonic-wallet'),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.auto_awesome_rounded),
-                  label: const Text('Create Seed Phrase Wallet'),
-                  onPressed: () => context.push('/mnemonic-wallet'),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
 
-      const SizedBox(height: 20),
-      const Divider(),
-      const SizedBox(height: 8),
-      Text('Other options', style: tt.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
-      const SizedBox(height: 12),
+          const SizedBox(height: 20),
+          const Divider(),
+          const SizedBox(height: 8),
+          Text('Other options',
+              style: tt.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
+          const SizedBox(height: 12),
 
-      TonalButton(
-        label: 'Generate Random Wallet',
-        icon: Icons.shuffle_rounded,
-        loading: _loading,
-        onPressed: _loading ? null : _doGenerate,
-      ),
-      const SizedBox(height: 12),
-      TonalButton(
-        label: 'Import via Private Key',
-        icon: Icons.vpn_key_rounded,
-        onPressed: () => setState(() { _mode = _AddMode.importKey; _error = null; }),
-      ),
-      const SizedBox(height: 12),
-      TonalButton(
-        label: 'Import from File',
-        icon: Icons.file_open_rounded,
-        onPressed: _doImportFile,
-      ),
-      const SizedBox(height: 24),
-      if (_status != null) Text(_status!, style: TextStyle(color: cs.primary)),
-      if (_error != null) Text(_error!, style: TextStyle(color: cs.error)),
-    ],
-  );
+          TonalButton(
+            label: 'Generate Random Wallet',
+            icon: Icons.shuffle_rounded,
+            loading: _loading,
+            onPressed: _loading ? null : _doGenerate,
+          ),
+          const SizedBox(height: 12),
+          TonalButton(
+            label: 'Import via Private Key',
+            icon: Icons.vpn_key_rounded,
+            onPressed: () => setState(() {
+              _mode = _AddMode.importKey;
+              _error = null;
+            }),
+          ),
+          const SizedBox(height: 12),
+          TonalButton(
+            label: 'Import from File',
+            icon: Icons.file_open_rounded,
+            onPressed: _doImportFile,
+          ),
+          const SizedBox(height: 24),
+          if (_status != null)
+            Text(_status!, style: TextStyle(color: cs.primary)),
+          if (_error != null) Text(_error!, style: TextStyle(color: cs.error)),
+        ],
+      );
 
   Widget _buildImportKey(ColorScheme cs, TextTheme tt) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Text('Import Wallet', style: tt.headlineMedium),
-      const SizedBox(height: 24),
-      if (_error != null) ...[
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: cs.errorContainer, borderRadius: BorderRadius.circular(10)),
-          child: Text(_error!, style: TextStyle(color: cs.onErrorContainer)),
-        ),
-        const SizedBox(height: 12),
-      ],
-      TextField(
-        controller: _nameCtrl,
-        decoration: const InputDecoration(labelText: 'Wallet Name', hintText: 'e.g. My Main Wallet'),
-        textCapitalization: TextCapitalization.words,
-      ),
-      const SizedBox(height: 14),
-      TextField(
-        controller: _pkCtrl,
-        decoration: const InputDecoration(
-          labelText: 'Private Key (Base64 or Hex)',
-          hintText: 'Paste private key...',
-        ),
-        minLines: 3,
-        maxLines: 5,
-        style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-      ),
-      const SizedBox(height: 24),
-      Row(children: [
-        Expanded(child: TonalButton(label: 'Import', loading: _loading,
-            onPressed: _loading ? null : _doImportKey)),
-        const SizedBox(width: 12),
-        Expanded(child: TonalButton(label: 'Back',
-            onPressed: () => setState(() { _mode = _AddMode.none; _error = null; }))),
-      ]),
-    ],
-  );
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Import Wallet', style: tt.headlineMedium),
+          const SizedBox(height: 24),
+          if (_error != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                  color: cs.errorContainer,
+                  borderRadius: BorderRadius.circular(10)),
+              child:
+                  Text(_error!, style: TextStyle(color: cs.onErrorContainer)),
+            ),
+            const SizedBox(height: 12),
+          ],
+          TextField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(
+                labelText: 'Wallet Name', hintText: 'e.g. My Main Wallet'),
+            textCapitalization: TextCapitalization.words,
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _pkCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Private Key (Base64 or Hex)',
+              hintText: 'Paste private key...',
+            ),
+            minLines: 3,
+            maxLines: 5,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
+          const SizedBox(height: 24),
+          Row(children: [
+            Expanded(
+                child: TonalButton(
+                    label: 'Import',
+                    loading: _loading,
+                    onPressed: _loading ? null : _doImportKey)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: TonalButton(
+                    label: 'Back',
+                    onPressed: () => setState(() {
+                          _mode = _AddMode.none;
+                          _error = null;
+                        }))),
+          ]),
+        ],
+      );
 }

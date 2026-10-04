@@ -37,8 +37,9 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                         labelText: 'Proxy Name',
                         hintText: 'e.g. My Tor Node',
                       ),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Name is required' : null,
+                      validator: (v) => v == null || v.trim().isEmpty
+                          ? 'Name is required'
+                          : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -48,7 +49,8 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                         hintText: 'e.g. 127.0.0.1 or myproxy.com',
                       ),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Host is required';
+                        if (v == null || v.trim().isEmpty)
+                          return 'Host is required';
                         final trim = v.trim();
                         if (trim.contains(' ')) return 'Invalid hostname';
                         return null;
@@ -63,7 +65,8 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                         hintText: 'e.g. 9050',
                       ),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Port is required';
+                        if (v == null || v.trim().isEmpty)
+                          return 'Port is required';
                         final p = int.tryParse(v.trim());
                         if (p == null || p < 1 || p > 65535) {
                           return 'Port must be between 1 and 65535';
@@ -82,7 +85,8 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                               label: const Text('SOCKS5'),
                               selected: type == 'SOCKS',
                               onSelected: (selected) {
-                                if (selected) setModalState(() => type = 'SOCKS');
+                                if (selected)
+                                  setModalState(() => type = 'SOCKS');
                               },
                             ),
                             const SizedBox(width: 8),
@@ -90,7 +94,8 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                               label: const Text('HTTP'),
                               selected: type == 'HTTP',
                               onSelected: (selected) {
-                                if (selected) setModalState(() => type = 'HTTP');
+                                if (selected)
+                                  setModalState(() => type = 'HTTP');
                               },
                             ),
                           ],
@@ -118,7 +123,8 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                     ));
                     Navigator.pop(ctx);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Proxy server added successfully')),
+                      const SnackBar(
+                          content: Text('Proxy server added successfully')),
                     );
                   }
                 },
@@ -145,7 +151,9 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              context.read<TorProxyService>().removeProxyServer(server.host, server.port);
+              context
+                  .read<TorProxyService>()
+                  .removeProxyServer(server.host, server.port);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Proxy server removed')),
               );
@@ -190,8 +198,8 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                     height: 48,
                     decoration: BoxDecoration(
                       color: tor.enabled
-                          ? cs.primary.withOpacity(0.12)
-                          : cs.onSurface.withOpacity(0.08),
+                          ? cs.primary.withValues(alpha: 0.12)
+                          : cs.onSurface.withValues(alpha: 0.08),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -267,11 +275,13 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                 itemCount: tor.servers.length,
                 separatorBuilder: (_, __) => Divider(
                   height: 1,
-                  color: cs.onSurface.withOpacity(0.08),
+                  color: cs.onSurface.withValues(alpha: 0.08),
                 ),
                 itemBuilder: (context, i) {
                   final s = tor.servers[i];
-                  final isActive = tor.activeHost == s.host && tor.activePort == s.port && tor.activeType == s.type;
+                  final isActive = tor.activeHost == s.host &&
+                      tor.activePort == s.port &&
+                      tor.activeType == s.type;
 
                   return InkWell(
                     onTap: () {
@@ -284,12 +294,18 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                     },
                     borderRadius: BorderRadius.only(
                       topLeft: i == 0 ? const Radius.circular(20) : Radius.zero,
-                      topRight: i == 0 ? const Radius.circular(20) : Radius.zero,
-                      bottomLeft: i == tor.servers.length - 1 ? const Radius.circular(20) : Radius.zero,
-                      bottomRight: i == tor.servers.length - 1 ? const Radius.circular(20) : Radius.zero,
+                      topRight:
+                          i == 0 ? const Radius.circular(20) : Radius.zero,
+                      bottomLeft: i == tor.servers.length - 1
+                          ? const Radius.circular(20)
+                          : Radius.zero,
+                      bottomRight: i == tor.servers.length - 1
+                          ? const Radius.circular(20)
+                          : Radius.zero,
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0, vertical: 14.0),
                       child: Row(
                         children: [
                           // Active status indicator
@@ -298,13 +314,16 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                             height: 12,
                             decoration: BoxDecoration(
                               color: isActive
-                                  ? (tor.enabled ? Colors.green : cs.primary.withOpacity(0.4))
+                                  ? (tor.enabled
+                                      ? Colors.green
+                                      : cs.primary.withValues(alpha: 0.4))
                                   : Colors.transparent,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: isActive
                                     ? (tor.enabled ? Colors.green : cs.primary)
-                                    : cs.onSurfaceVariant.withOpacity(0.4),
+                                    : cs.onSurfaceVariant
+                                        .withValues(alpha: 0.4),
                                 width: 2,
                               ),
                             ),
@@ -320,17 +339,22 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                                       s.name,
                                       style: TextStyle(
                                         fontSize: 15,
-                                        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                                        fontWeight: isActive
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                         color: cs.onSurface,
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     if (s.isDefault)
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: cs.primary.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(4),
+                                          color:
+                                              cs.primary.withValues(alpha: 0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
                                         ),
                                         child: Text(
                                           'Default',
@@ -343,20 +367,27 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                                       ),
                                     if (isActive)
                                       Padding(
-                                        padding: const EdgeInsets.only(left: 4.0),
+                                        padding:
+                                            const EdgeInsets.only(left: 4.0),
                                         child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
                                           decoration: BoxDecoration(
                                             color: tor.enabled
-                                                ? Colors.green.withOpacity(0.1)
-                                                : cs.primary.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(4),
+                                                ? Colors.green
+                                                    .withValues(alpha: 0.1)
+                                                : cs.primary
+                                                    .withValues(alpha: 0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
                                           ),
                                           child: Text(
                                             tor.enabled ? 'ACTIVE' : 'SELECTED',
                                             style: TextStyle(
                                               fontSize: 9,
-                                              color: tor.enabled ? Colors.green : cs.primary,
+                                              color: tor.enabled
+                                                  ? Colors.green
+                                                  : cs.primary,
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
@@ -396,7 +427,8 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline_rounded, size: 16, color: cs.onSurfaceVariant),
+                  Icon(Icons.info_outline_rounded,
+                      size: 16, color: cs.onSurfaceVariant),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

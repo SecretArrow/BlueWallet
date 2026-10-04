@@ -138,8 +138,7 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-          title: const Text('Biometric Unlock'), centerTitle: true),
+      appBar: AppBar(title: const Text('Biometric Unlock'), centerTitle: true),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -198,7 +197,7 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
                         value: _enabled,
                         onChanged: _available ? _toggle : null,
                         contentPadding: EdgeInsets.zero,
-                        activeColor: cs.primary,
+                        activeThumbColor: cs.primary,
                       ),
 
                       // Active status banner
@@ -208,7 +207,7 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
-                            color: cs.primary.withOpacity(0.1),
+                            color: cs.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Row(
@@ -237,8 +236,8 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
                         'Biometrics are only used to verify your identity. '
                         'Your private keys are never shared with the system '
                         'biometric service.',
-                        style: TextStyle(
-                            fontSize: 12, color: cs.onSurfaceVariant),
+                        style:
+                            TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                       ),
                     ],
                   ),

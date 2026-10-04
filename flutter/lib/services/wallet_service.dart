@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -190,14 +189,14 @@ class WalletService extends ChangeNotifier {
   /// Mirrors webcli's pvac_bg thread and wallet.js polling
   Future<void> startBackgroundPolling(String nodeUrl) async {
     final pollingService = BackgroundPollingService.instance;
-    
+
     // Start with both finality polling and PVAC checks enabled
     await pollingService.start(
       nodeUrl: nodeUrl,
       pollFinality: true,
       checkPvac: true,
     );
-    
+
     debugPrint('[WalletService] Background polling started');
   }
 
@@ -298,8 +297,10 @@ class WalletService extends ChangeNotifier {
         final client = RpcClient();
         client.setUrl(nodeUrl);
 
-        final kp1 = MnemonicService.deriveKeypair(mnemonic: mnemonic, path: "m/44'/540'/0'/0'/0'");
-        final kp2 = MnemonicService.deriveKeypair(mnemonic: mnemonic, path: "m/44'/540'/0'/0'");
+        final kp1 = MnemonicService.deriveKeypair(
+            mnemonic: mnemonic, path: "m/44'/540'/0'/0'/0'");
+        final kp2 = MnemonicService.deriveKeypair(
+            mnemonic: mnemonic, path: "m/44'/540'/0'/0'");
 
         final futures = await Future.wait([
           client.getBalance(kp1['address']!),
@@ -334,8 +335,10 @@ class WalletService extends ChangeNotifier {
           }
         }
 
-        debugPrint('[HD Autodetect] V1 Address: ${kp1['address']} Balance: $bal1');
-        debugPrint('[HD Autodetect] V2 Address: ${kp2['address']} Balance: $bal2');
+        debugPrint(
+            '[HD Autodetect] V1 Address: ${kp1['address']} Balance: $bal1');
+        debugPrint(
+            '[HD Autodetect] V2 Address: ${kp2['address']} Balance: $bal2');
 
         if (bal2 > 0 && bal1 == 0) {
           chosenPath = "m/44'/540'/0'/0'";
@@ -345,7 +348,8 @@ class WalletService extends ChangeNotifier {
           debugPrint('[HD Autodetect] Auto-detected Version 1 path');
         } else if (bal2 > 0 && bal1 > 0) {
           chosenPath = "m/44'/540'/0'/0'";
-          debugPrint('[HD Autodetect] Both paths have funds, preferring Version 2');
+          debugPrint(
+              '[HD Autodetect] Both paths have funds, preferring Version 2');
         } else {
           // Check history if both balances are 0
           final histFutures = await Future.wait([
@@ -357,18 +361,21 @@ class WalletService extends ChangeNotifier {
 
           if (hist2 && !hist1) {
             chosenPath = "m/44'/540'/0'/0'";
-            debugPrint('[HD Autodetect] V2 has history, V1 does not. Choosing V2');
+            debugPrint(
+                '[HD Autodetect] V2 has history, V1 does not. Choosing V2');
           } else {
             chosenPath = "m/44'/540'/0'/0'/0'";
             debugPrint('[HD Autodetect] Defaulting to Version 1 path');
           }
         }
       } catch (e) {
-        debugPrint('[HD Autodetect] Failed to auto-detect: $e. Using default path: $path');
+        debugPrint(
+            '[HD Autodetect] Failed to auto-detect: $e. Using default path: $path');
       }
     }
 
-    final kp = MnemonicService.deriveKeypair(mnemonic: mnemonic, path: chosenPath);
+    final kp =
+        MnemonicService.deriveKeypair(mnemonic: mnemonic, path: chosenPath);
     final profile = await _addWalletInternal(
       name: name,
       address: kp['address']!,
@@ -379,7 +386,6 @@ class WalletService extends ChangeNotifier {
     await _storage.write(key: 'mnemonic_${profile.id}', value: mnemonic);
     return profile;
   }
-
 
   /// Returns the stored mnemonic for [walletId], or null if not available.
   Future<String?> getMnemonic(String walletId) async {
@@ -512,7 +518,8 @@ class WalletService extends ChangeNotifier {
     final cleanName = newName.trim();
     if (cleanName.isEmpty) return false;
 
-    final nameExists = _wallets.any((w) => w.id != id && w.name.toLowerCase() == cleanName.toLowerCase());
+    final nameExists = _wallets.any(
+        (w) => w.id != id && w.name.toLowerCase() == cleanName.toLowerCase());
     if (nameExists) return false;
 
     final index = _wallets.indexWhere((w) => w.id == id);
@@ -529,7 +536,8 @@ class WalletService extends ChangeNotifier {
     );
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('wallet_profile_$id', jsonEncode(updatedProfile.toJson()));
+    await prefs.setString(
+        'wallet_profile_$id', jsonEncode(updatedProfile.toJson()));
     _wallets[index] = updatedProfile;
     notifyListeners();
     return true;
@@ -1153,18 +1161,20 @@ class WalletService extends ChangeNotifier {
           final tokenList = <TokenBalance>[];
           for (final item in fastList) {
             if (item is! Map) continue;
-            final m = Map<String, dynamic>.from(item as Map);
+            final m = Map<String, dynamic>.from(item);
             final addr = m['address']?.toString() ?? '';
             final symbol = m['symbol']?.toString() ?? '';
             final balance = m['balance']?.toString() ?? '0';
-            if (addr.isEmpty || symbol.isEmpty || balance == '0' || balance.isEmpty) {
+            if (addr.isEmpty ||
+                symbol.isEmpty ||
+                balance == '0' ||
+                balance.isEmpty) {
               continue;
             }
             final name = (m['name']?.toString() ?? '').isEmpty
                 ? symbol
                 : m['name'].toString();
-            final decimals =
-                int.tryParse(m['decimals']?.toString() ?? '') ?? 0;
+            final decimals = int.tryParse(m['decimals']?.toString() ?? '') ?? 0;
             tokenList.add(TokenBalance(
               symbol: symbol,
               name: name,
@@ -1619,8 +1629,9 @@ class WalletService extends ChangeNotifier {
       final r = await _rpc(nodeUrl, 'octra_pvacPubkey', [address]) as Map;
       final remotePk =
           r['pvac_pubkey']?.toString() ?? r['pubkey']?.toString() ?? '';
-      if (remotePk.isNotEmpty && remotePk == localPk)
+      if (remotePk.isNotEmpty && remotePk == localPk) {
         return; // already up-to-date
+      }
     } catch (_) {}
     // Register (include aes_kat as 5th param — webcli parity)
     final sig = await CryptoService.signPvacRegister(address, sk);

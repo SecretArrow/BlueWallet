@@ -25,8 +25,10 @@ class PollingService extends ChangeNotifier {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     _intervalMs = prefs.getInt(_kIntervalKey) ?? defaultIntervalMs;
-    _thresholdSendMs = prefs.getInt(_kThresholdSendKey) ?? defaultThresholdSendMs;
-    _thresholdAdvancedMs = prefs.getInt(_kThresholdAdvancedKey) ?? defaultThresholdAdvancedMs;
+    _thresholdSendMs =
+        prefs.getInt(_kThresholdSendKey) ?? defaultThresholdSendMs;
+    _thresholdAdvancedMs =
+        prefs.getInt(_kThresholdAdvancedKey) ?? defaultThresholdAdvancedMs;
     notifyListeners();
   }
 
@@ -43,7 +45,7 @@ class PollingService extends ChangeNotifier {
     await prefs.setInt(_kIntervalKey, intervalMs);
     await prefs.setInt(_kThresholdSendKey, thresholdSendMs);
     await prefs.setInt(_kThresholdAdvancedKey, thresholdAdvancedMs);
-    
+
     notifyListeners();
   }
 }

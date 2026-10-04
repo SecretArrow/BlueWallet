@@ -277,7 +277,7 @@ class _StealthTaskDetailScreenState extends State<StealthTaskDetailScreen> {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Divider(
         height: 1,
-        color: cs.onSurface.withOpacity(0.15),
+        color: cs.onSurface.withValues(alpha: 0.15),
       ),
     );
   }

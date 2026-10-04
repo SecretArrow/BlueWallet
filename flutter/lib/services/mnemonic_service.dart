@@ -21,7 +21,9 @@ class MnemonicService {
 
   static final Map<String, int> _wordIndex = () {
     final m = <String, int>{};
-    for (int i = 0; i < kBip39English.length; i++) m[kBip39English[i]] = i;
+    for (int i = 0; i < kBip39English.length; i++) {
+      m[kBip39English[i]] = i;
+    }
     return m;
   }();
 
@@ -155,7 +157,7 @@ class MnemonicService {
     // Master key
     final masterI = _hmacSha512(utf8.encode('ed25519 seed'), seed);
     var key = Uint8List.fromList(masterI.sublist(0, 32));
-    var cc  = Uint8List.fromList(masterI.sublist(32));
+    var cc = Uint8List.fromList(masterI.sublist(32));
 
     final components = _parsePath(path);
     for (final index in components) {
@@ -168,7 +170,7 @@ class MnemonicService {
       data[36] = index & 0xff;
       final childI = _hmacSha512(cc, data);
       key = Uint8List.fromList(childI.sublist(0, 32));
-      cc  = Uint8List.fromList(childI.sublist(32));
+      cc = Uint8List.fromList(childI.sublist(32));
     }
     return key;
   }
@@ -213,7 +215,7 @@ class MnemonicService {
       // U1 = HMAC(password, salt || INT(i))
       final saltBlock = Uint8List(salt.length + 4);
       saltBlock.setRange(0, salt.length, salt);
-      saltBlock[salt.length]     = (i >> 24) & 0xff;
+      saltBlock[salt.length] = (i >> 24) & 0xff;
       saltBlock[salt.length + 1] = (i >> 16) & 0xff;
       saltBlock[salt.length + 2] = (i >> 8) & 0xff;
       saltBlock[salt.length + 3] = i & 0xff;
@@ -222,7 +224,9 @@ class MnemonicService {
       final block = List<int>.from(u);
       for (int j = 1; j < iterations; j++) {
         u = _hmacSha512(password, u);
-        for (int k = 0; k < hLen; k++) block[k] ^= u[k];
+        for (int k = 0; k < hLen; k++) {
+          block[k] ^= u[k];
+        }
       }
       dk.addAll(block);
     }

@@ -3,10 +3,13 @@ class WalletProfile {
   final String id;
   final String name;
   final String address;
+
   /// 'mnemonic' | 'random' | 'imported' | 'child' | null (legacy)
   final String? walletType;
+
   /// BIP-32/SLIP-0010 derivation path, e.g. "m/44'/540'/0'/0'/0'"
   final String? derivationPath;
+
   /// ID of the parent mnemonic wallet (only for child wallets)
   final String? parentId;
 
@@ -37,5 +40,6 @@ class WalletProfile {
         parentId: json['parentId'] as String?,
       );
 
-  bool get isMnemonicWallet => walletType == 'mnemonic' || walletType == 'child';
+  bool get isMnemonicWallet =>
+      walletType == 'mnemonic' || walletType == 'child';
 }

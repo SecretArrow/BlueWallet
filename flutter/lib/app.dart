@@ -11,7 +11,7 @@ import 'services/local_web_server_service.dart';
 import 'router/app_router.dart';
 
 class OctopusWalletApp extends StatelessWidget {
-  OctopusWalletApp({super.key});
+  const OctopusWalletApp({super.key});
 
   @override
   Widget build(BuildContext context) {

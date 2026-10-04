@@ -46,8 +46,9 @@ class _DevReceiptScreenState extends State<DevReceiptScreen> {
             _receipt = const JsonEncoder.withIndent('  ').convert(result));
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -150,7 +151,8 @@ class _Banner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isError ? cs.errorContainer : Colors.green.withOpacity(0.1),
+        color:
+            isError ? cs.errorContainer : Colors.green.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(message,

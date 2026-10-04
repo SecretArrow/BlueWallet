@@ -70,7 +70,8 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
     );
   }
 
-  Future<void> _showRenameDialog(BuildContext context, WalletProfile? wallet) async {
+  Future<void> _showRenameDialog(
+      BuildContext context, WalletProfile? wallet) async {
     if (wallet == null) return;
     final controller = TextEditingController(text: wallet.name);
     final ws = context.read<WalletService>();
@@ -102,7 +103,8 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
                 } else {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Name already exists or invalid')),
+                      const SnackBar(
+                          content: Text('Name already exists or invalid')),
                     );
                   }
                 }
@@ -165,7 +167,8 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
                 Expanded(
                   child: Text(
                     name,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                 ),
                 IconButton(

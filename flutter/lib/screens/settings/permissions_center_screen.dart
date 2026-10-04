@@ -99,8 +99,8 @@ class _PermissionTile extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color:
-                  (value ? cs.primary : cs.onSurfaceVariant).withOpacity(0.12),
+              color: (value ? cs.primary : cs.onSurfaceVariant)
+                  .withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(

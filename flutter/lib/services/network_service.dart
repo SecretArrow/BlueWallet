@@ -87,7 +87,8 @@ class RpcClient {
   int _id = 0;
   final http.Client _httpClient;
 
-  RpcClient({http.Client? httpClient}) : _httpClient = httpClient ?? torProxyClient;
+  RpcClient({http.Client? httpClient})
+      : _httpClient = httpClient ?? torProxyClient;
 
   /// Parse RPC URL (e.g., "https://rpc.octrascan.io" or "http://165.227.225.79:8080")
   void setUrl(String url) {
@@ -351,7 +352,8 @@ class RpcClient {
       }
       if (json.containsKey('error')) {
         final error = json['error'];
-        final msg = error is Map ? error['message'] ?? 'RPC error' : error.toString();
+        final msg =
+            error is Map ? error['message'] ?? 'RPC error' : error.toString();
         return RpcResult.failure(msg.toString());
       }
       return RpcResult.failure('Unknown RPC response');
@@ -385,14 +387,11 @@ class NetworkService extends ChangeNotifier {
   List<NetworkProfile> get profiles => List.unmodifiable(_profiles);
 
   NetworkProfile? get activeProfile =>
-      _profiles.where((p) => p.isActive).firstOrNull ??
-      _profiles.firstOrNull;
+      _profiles.where((p) => p.isActive).firstOrNull ?? _profiles.firstOrNull;
 
-  String get activeNodeUrl =>
-      activeProfile?.nodeUrl ?? defaultRpc;
+  String get activeNodeUrl => activeProfile?.nodeUrl ?? defaultRpc;
 
-  String get activeExplorerUrl =>
-      activeProfile?.explorerUrl ?? defaultExplorer;
+  String get activeExplorerUrl => activeProfile?.explorerUrl ?? defaultExplorer;
 
   /// Returns the chain ID string based on active network.
   String get activeChainId {

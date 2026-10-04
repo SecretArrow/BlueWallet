@@ -85,8 +85,9 @@ class _DecryptBalanceScreenState extends State<DecryptBalanceScreen> {
         });
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -194,8 +195,9 @@ class _DecryptBalanceScreenState extends State<DecryptBalanceScreen> {
                   validator: (v) {
                     if (_pvacNotAvailable) return 'PVAC not available';
                     if (v == null || v.trim().isEmpty) return 'Enter amount';
-                    if (double.tryParse(v.trim()) == null)
+                    if (double.tryParse(v.trim()) == null) {
                       return 'Invalid amount';
+                    }
                     return null;
                   },
                 ),
@@ -231,7 +233,8 @@ class _Banner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isError ? cs.errorContainer : Colors.green.withOpacity(0.1),
+        color:
+            isError ? cs.errorContainer : Colors.green.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(

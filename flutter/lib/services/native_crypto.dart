@@ -155,12 +155,13 @@ typedef _PvacPedersenN = Int32 Function(Uint64, Pointer<Uint8>, Pointer<Uint8>);
 typedef _PvacPedersenD = int Function(int, Pointer<Uint8>, Pointer<Uint8>);
 
 // ── FHE Encryption / Decryption ──────────────────────────────────────────────
-typedef _FheEncN = Int32 Function(Uint64, Pointer<Uint8>, Int32, Pointer<Uint8>, Int32, Pointer<Uint8>, Int32);
-typedef _FheEncD = int Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int);
+typedef _FheEncN = Int32 Function(Uint64, Pointer<Uint8>, Int32, Pointer<Uint8>,
+    Int32, Pointer<Uint8>, Int32);
+typedef _FheEncD = int Function(
+    int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int);
 
 typedef _FheDecN = Int32 Function(Pointer<Uint8>, Int32, Pointer<Int64>);
 typedef _FheDecD = int Function(Pointer<Uint8>, int, Pointer<Int64>);
-
 
 // ── AES-KAT ──────────────────────────────────────────────────────────────────
 typedef _AesKatN = Void Function(Pointer<Uint8>);
@@ -359,7 +360,9 @@ class NativeCrypto {
   // ── Helper: copy bytes into native pointer ────────────────────────────────
 
   static void _copyTo(Pointer<Uint8> dst, Uint8List src) {
-    for (int i = 0; i < src.length; i++) dst[i] = src[i];
+    for (int i = 0; i < src.length; i++) {
+      dst[i] = src[i];
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -569,8 +572,9 @@ class NativeCrypto {
       _copyTo(tagPtr, tag);
       final rc = _i._aesDec(
           keyPtr, ivPtr, cipherPtr, ciphertext.length, tagPtr, plainPtr);
-      if (rc < 0)
+      if (rc < 0) {
         throw StateError('octra_aes256gcm_decrypt: authentication failed');
+      }
       return Uint8List.fromList(plainPtr.asTypedList(rc));
     } finally {
       calloc.free(keyPtr);
@@ -950,14 +954,16 @@ class NativeCrypto {
   static void startStealthScan() => _i._startStealthScan();
 
   // ---------- FHE API ----------
-  static ({String cipher, String commitment, String zeroProof})? fheEncrypt(int value) {
+  static ({String cipher, String commitment, String zeroProof})? fheEncrypt(
+      int value) {
     if (!pvacAvailable) return null;
     const maxBuf = 65536;
     final dcBuf = calloc<Uint8>(maxBuf);
     final cmtBuf = calloc<Uint8>(maxBuf);
     final zpBuf = calloc<Uint8>(maxBuf);
     try {
-      final rc = _i._fheEncrypt(value, dcBuf, maxBuf, cmtBuf, maxBuf, zpBuf, maxBuf);
+      final rc =
+          _i._fheEncrypt(value, dcBuf, maxBuf, cmtBuf, maxBuf, zpBuf, maxBuf);
       if (rc != 0) return null;
       return (
         cipher: dcBuf.cast<Utf8>().toDartString(),

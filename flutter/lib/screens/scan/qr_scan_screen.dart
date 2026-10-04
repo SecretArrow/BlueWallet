@@ -80,13 +80,11 @@ class _QrScanScreenState extends State<QrScanScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(Icons.content_paste_rounded,
-                  size: 48, color: cs.primary),
+              Icon(Icons.content_paste_rounded, size: 48, color: cs.primary),
               const SizedBox(height: 16),
               Text(
                 'Paste or type the recipient address',
-                style: TextStyle(
-                    color: cs.onSurfaceVariant, fontSize: 14),
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -153,7 +151,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(Icons.qr_code_scanner_rounded,
-                    size: 80, color: cs.primary.withOpacity(0.4)),
+                    size: 80, color: cs.primary.withValues(alpha: 0.4)),
               ),
               const SizedBox(height: 24),
               const Text(
@@ -164,8 +162,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
               if (!_simulating) ...[
                 OutlinedButton.icon(
                   onPressed: _simulate,
-                  icon: const Icon(Icons.qr_code_rounded,
-                      color: Colors.white),
+                  icon: const Icon(Icons.qr_code_rounded, color: Colors.white),
                   label: const Text('Simulate Scan (Demo)',
                       style: TextStyle(color: Colors.white)),
                   style: OutlinedButton.styleFrom(

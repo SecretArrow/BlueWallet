@@ -93,15 +93,22 @@ class _TxProgressScreenState extends State<TxProgressScreen>
       final result = await ws.lookupTransaction(ns.activeNodeUrl, txHash);
 
       // Android's queryFinalStatus: handle nested {transaction: {...}} wrapper
-      final Map<String, dynamic> txObj =
-          (result.containsKey('transaction') && result['transaction'] is Map<String, dynamic>)
-              ? result['transaction'] as Map<String, dynamic>
-              : result;
+      final Map<String, dynamic> txObj = (result.containsKey('transaction') &&
+              result['transaction'] is Map<String, dynamic>)
+          ? result['transaction'] as Map<String, dynamic>
+          : result;
 
       // Aggregate all possible status fields (mirrors Android extractStatusText)
       final status = _extractStatusText(txObj);
 
-      if (_containsAny(status, ['success', 'confirmed', 'final', 'committed', 'accepted', 'applied'])) {
+      if (_containsAny(status, [
+        'success',
+        'confirmed',
+        'final',
+        'committed',
+        'accepted',
+        'applied'
+      ])) {
         _pollTimer?.cancel();
         _spinCtrl.stop();
         if (mounted) {
@@ -208,8 +215,7 @@ class _TxProgressScreenState extends State<TxProgressScreen>
               // Status message
               Text(
                 _statusMessage,
-                style:
-                    tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -240,14 +246,12 @@ class _TxProgressScreenState extends State<TxProgressScreen>
                       Row(
                         children: [
                           Text('TX Hash',
-                              style:
-                                  TextStyle(color: cs.onSurfaceVariant)),
+                              style: TextStyle(color: cs.onSurfaceVariant)),
                           const Spacer(),
                           Flexible(
                             child: GestureDetector(
                               onTap: () {
-                                Clipboard.setData(
-                                    ClipboardData(text: _txHash));
+                                Clipboard.setData(ClipboardData(text: _txHash));
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                       content: Text('Hash copied'),
@@ -259,8 +263,7 @@ class _TxProgressScreenState extends State<TxProgressScreen>
                                     ? '${_txHash.substring(0, 8)}...${_txHash.substring(_txHash.length - 8)}'
                                     : _txHash,
                                 style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontSize: 11),
+                                    fontFamily: 'monospace', fontSize: 11),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),

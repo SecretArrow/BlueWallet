@@ -94,7 +94,8 @@ class BiometricService {
       if (!ok) return null;
       return await _storage.read(key: _kBiometricPin);
     } on PlatformException catch (e) {
-      debugPrint('BiometricService.authenticateAndGetPin PlatformException: $e');
+      debugPrint(
+          'BiometricService.authenticateAndGetPin PlatformException: $e');
       return null;
     } catch (e) {
       debugPrint('BiometricService.authenticateAndGetPin: $e');

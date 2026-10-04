@@ -45,9 +45,11 @@ class _ShimmerPlaceholderState extends State<ShimmerPlaceholder>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
-    final baseColor = isDark ? Colors.white12 : Colors.black.withOpacity(0.05);
-    final highlightColor = isDark ? Colors.white24 : Colors.black.withOpacity(0.15);
+
+    final baseColor =
+        isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05);
+    final highlightColor =
+        isDark ? Colors.white24 : Colors.black.withValues(alpha: 0.15);
 
     return Container(
       width: widget.width,

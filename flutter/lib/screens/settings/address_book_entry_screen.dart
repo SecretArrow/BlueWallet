@@ -54,8 +54,8 @@ class _AddressBookEntryScreenState extends State<AddressBookEntryScreen> {
     setState(() => _loading = true);
     final abs = context.read<AddressBookService>();
     if (widget.editId != null) {
-      await abs.update(AddressEntry(
-          id: widget.editId!, label: label, address: addr));
+      await abs.update(
+          AddressEntry(id: widget.editId!, label: label, address: addr));
     } else {
       await abs.add(AddressEntry(
         id: 'addr_${DateTime.now().millisecondsSinceEpoch}',
@@ -85,7 +85,8 @@ class _AddressBookEntryScreenState extends State<AddressBookEntryScreen> {
                   color: cs.errorContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(_error!, style: TextStyle(color: cs.onErrorContainer)),
+                child:
+                    Text(_error!, style: TextStyle(color: cs.onErrorContainer)),
               ),
               const SizedBox(height: 12),
             ],

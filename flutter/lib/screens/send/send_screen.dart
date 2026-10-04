@@ -73,8 +73,9 @@ class _SendScreenState extends State<SendScreen> {
         });
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -204,8 +205,9 @@ class _SendScreenState extends State<SendScreen> {
                   textInputAction: TextInputAction.next,
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return 'Enter amount';
-                    if (double.tryParse(v.trim()) == null)
+                    if (double.tryParse(v.trim()) == null) {
                       return 'Invalid amount';
+                    }
                     return null;
                   },
                 ),
@@ -245,9 +247,10 @@ class _SendScreenState extends State<SendScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: Colors.green.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.green.withOpacity(0.3)),
+                      border: Border.all(
+                          color: Colors.green.withValues(alpha: 0.3)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

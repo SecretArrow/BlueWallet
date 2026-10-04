@@ -20,6 +20,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _tabIndex = 0;
+
   /// True once the initial data load has been successfully dispatched
   /// (i.e. after wallets are loaded and activeWallet != null).
   bool _refreshDone = false;
@@ -137,62 +138,60 @@ class _MainScreenState extends State<MainScreen> {
         }
       },
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness:
-            Theme.of(context).brightness == Brightness.dark
-                ? Brightness.light
-                : Brightness.dark,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarContrastEnforced: false,
-        systemNavigationBarIconBrightness:
-            Theme.of(context).brightness == Brightness.dark
-                ? Brightness.light
-                : Brightness.dark,
-      ),
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Octra Wallet'),
-          centerTitle: true,
-          automaticallyImplyLeading: false,
-          actions: [
-            // Refresh button — always visible, essential on desktop
-            // where pull-to-refresh doesn't work with a mouse
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              onPressed: _refresh,
-              tooltip: 'Refresh',
-            ),
-          ],
+        value: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness:
+              Theme.of(context).brightness == Brightness.dark
+                  ? Brightness.light
+                  : Brightness.dark,
+          systemNavigationBarColor: Colors.transparent,
+          systemNavigationBarContrastEnforced: false,
+          systemNavigationBarIconBrightness:
+              Theme.of(context).brightness == Brightness.dark
+                  ? Brightness.light
+                  : Brightness.dark,
         ),
-        body: _isDesktop
-            ? Row(
-                children: [
-                  NavigationRail(
-                    selectedIndex: _tabIndex,
-                    onDestinationSelected: (i) =>
-                        setState(() => _tabIndex = i),
-                    labelType: NavigationRailLabelType.all,
-                    destinations: _railDestinations,
-                  ),
-                  const VerticalDivider(thickness: 1, width: 1),
-                  Expanded(
-                    child: IndexedStack(
-                        index: _tabIndex, children: _tabs),
-                  ),
-                ],
-              )
-            : IndexedStack(index: _tabIndex, children: _tabs),
-        bottomNavigationBar: _isDesktop
-            ? null
-            : NavigationBar(
-                selectedIndex: _tabIndex,
-                onDestinationSelected: (i) =>
-                    setState(() => _tabIndex = i),
-                destinations: _navItems,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Octra Wallet'),
+            centerTitle: true,
+            automaticallyImplyLeading: false,
+            actions: [
+              // Refresh button — always visible, essential on desktop
+              // where pull-to-refresh doesn't work with a mouse
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded),
+                onPressed: _refresh,
+                tooltip: 'Refresh',
               ),
+            ],
+          ),
+          body: _isDesktop
+              ? Row(
+                  children: [
+                    NavigationRail(
+                      selectedIndex: _tabIndex,
+                      onDestinationSelected: (i) =>
+                          setState(() => _tabIndex = i),
+                      labelType: NavigationRailLabelType.all,
+                      destinations: _railDestinations,
+                    ),
+                    const VerticalDivider(thickness: 1, width: 1),
+                    Expanded(
+                      child: IndexedStack(index: _tabIndex, children: _tabs),
+                    ),
+                  ],
+                )
+              : IndexedStack(index: _tabIndex, children: _tabs),
+          bottomNavigationBar: _isDesktop
+              ? null
+              : NavigationBar(
+                  selectedIndex: _tabIndex,
+                  onDestinationSelected: (i) => setState(() => _tabIndex = i),
+                  destinations: _navItems,
+                ),
+        ),
       ),
-    ),
     );
   }
 }

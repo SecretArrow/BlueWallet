@@ -58,10 +58,10 @@ class _AboutScreenState extends State<AboutScreen> {
                 width: 96,
                 height: 96,
                 decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.1),
+                  color: cs.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                      color: cs.primary.withOpacity(0.3), width: 1.5),
+                      color: cs.primary.withValues(alpha: 0.3), width: 1.5),
                 ),
                 child: Icon(Icons.account_balance_wallet_rounded,
                     size: 52, color: cs.primary),

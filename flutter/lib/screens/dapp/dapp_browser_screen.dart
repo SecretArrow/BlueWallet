@@ -79,8 +79,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.transparent)
       ..setNavigationDelegate(NavigationDelegate(
-        onProgress: (p) =>
-            setState(() => _loadingProgress = p),
+        onProgress: (p) => setState(() => _loadingProgress = p),
         onPageStarted: (url) => setState(() {
           _isLoading = true;
           _urlCtrl.text = url;
@@ -192,18 +191,21 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
           break;
 
         case 'octra_getBalance':
-          _bridgeResult(id, jsonEncode({
-            'balance': ws.publicBalance,
-            'encryptedBalance': ws.encryptedBalance,
-            'raw': ws.balanceRaw,
-            'encryptedRaw': ws.encryptedBalanceRaw,
-          }));
+          _bridgeResult(
+              id,
+              jsonEncode({
+                'balance': ws.publicBalance,
+                'encryptedBalance': ws.encryptedBalance,
+                'raw': ws.balanceRaw,
+                'encryptedRaw': ws.encryptedBalanceRaw,
+              }));
           break;
 
         case 'octra_callView':
           // params: [contractAddr, functionName, args, caller?]
           if (params.length < 2) {
-            _bridgeError(id, 'octra_callView requires [contractAddr, functionName, args]');
+            _bridgeError(id,
+                'octra_callView requires [contractAddr, functionName, args]');
             return;
           }
           final addr = params[0] as String;
@@ -410,8 +412,9 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
     _controller.loadRequest(Uri.parse(url));
   }
 
-  static String _shortAddr(String addr) =>
-      addr.length > 16 ? '${addr.substring(0, 8)}…${addr.substring(addr.length - 6)}' : addr;
+  static String _shortAddr(String addr) => addr.length > 16
+      ? '${addr.substring(0, 8)}…${addr.substring(addr.length - 6)}'
+      : addr;
 
   // ── Build ────────────────────────────────────────────────────────────────
 
@@ -437,16 +440,15 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 7, height: 7,
+                    width: 7,
+                    height: 7,
                     decoration: const BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle),
+                        color: Colors.green, shape: BoxShape.circle),
                   ),
                   const SizedBox(width: 4),
                   Text(
                     'Connected · ${_shortAddr(_connectedAddress!)}',
-                    style: TextStyle(
-                        fontSize: 11, color: cs.onSurfaceVariant),
+                    style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -463,9 +465,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
           preferredSize: const Size.fromHeight(4),
           child: _isLoading
               ? LinearProgressIndicator(
-                  value: _loadingProgress == 0
-                      ? null
-                      : _loadingProgress / 100,
+                  value: _loadingProgress == 0 ? null : _loadingProgress / 100,
                   minHeight: 3,
                   backgroundColor: cs.primary.withValues(alpha: 0.1),
                   color: cs.primary,
@@ -484,33 +484,31 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
                 // Back
                 IconButton(
                   icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                  onPressed: _canGoBack
-                      ? () => _controller.goBack()
-                      : null,
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  onPressed: _canGoBack ? () => _controller.goBack() : null,
+                  constraints:
+                      const BoxConstraints(minWidth: 36, minHeight: 36),
                   padding: EdgeInsets.zero,
                 ),
                 // Forward
                 IconButton(
                   icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
-                  onPressed: _canGoForward
-                      ? () => _controller.goForward()
-                      : null,
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  onPressed:
+                      _canGoForward ? () => _controller.goForward() : null,
+                  constraints:
+                      const BoxConstraints(minWidth: 36, minHeight: 36),
                   padding: EdgeInsets.zero,
                 ),
                 // Reload / stop
                 IconButton(
                   icon: Icon(
-                    _isLoading
-                        ? Icons.close_rounded
-                        : Icons.refresh_rounded,
+                    _isLoading ? Icons.close_rounded : Icons.refresh_rounded,
                     size: 18,
                   ),
                   onPressed: _isLoading
                       ? () => _controller.reload()
                       : () => _controller.reload(),
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  constraints:
+                      const BoxConstraints(minWidth: 36, minHeight: 36),
                   padding: EdgeInsets.zero,
                 ),
                 // URL field
@@ -540,8 +538,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
                               : cs.onSurfaceVariant,
                         ),
                       ),
-                      prefixIconConstraints:
-                          const BoxConstraints(minWidth: 28),
+                      prefixIconConstraints: const BoxConstraints(minWidth: 28),
                     ),
                     style: const TextStyle(fontSize: 13),
                     keyboardType: TextInputType.url,
@@ -604,8 +601,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
   }
 
   void _showOptionsMenu() async {
-    final RenderBox button =
-        context.findRenderObject() as RenderBox;
+    final RenderBox button = context.findRenderObject() as RenderBox;
     final RenderBox overlay =
         Overlay.of(context).context.findRenderObject() as RenderBox;
     final position = RelativeRect.fromRect(
@@ -621,14 +617,11 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       context: context,
       position: position,
       items: [
+        const PopupMenuItem(value: 'copy_url', child: Text('Copy URL')),
         const PopupMenuItem(
-          value: 'copy_url', child: Text('Copy URL')),
-        const PopupMenuItem(
-          value: 'disconnect', child: Text('Disconnect wallet')),
-        const PopupMenuItem(
-          value: 'reload', child: Text('Reload page')),
-        const PopupMenuItem(
-          value: 'clear', child: Text('Back to home')),
+            value: 'disconnect', child: Text('Disconnect wallet')),
+        const PopupMenuItem(value: 'reload', child: Text('Reload page')),
+        const PopupMenuItem(value: 'clear', child: Text('Back to home')),
       ],
     );
 
@@ -821,4 +814,3 @@ const String _octraProviderJs = r'''
   console.log('[Octra] window.octra provider injected');
 })();
 ''';
-
