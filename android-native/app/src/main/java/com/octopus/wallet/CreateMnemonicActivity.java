@@ -99,7 +99,7 @@ public class CreateMnemonicActivity extends BaseTxActivity {
         if (path.isEmpty()) path = DEFAULT_PATH;
 
         try {
-            bip39.parsePath(path);
+            Bip39.parsePath(path);
         } catch (Exception e) {
             showError("Invalid derivation path: " + e.getMessage());
             return;
@@ -317,7 +317,7 @@ public class CreateMnemonicActivity extends BaseTxActivity {
         if (path.isEmpty()) path = DEFAULT_PATH;
 
         try {
-            bip39.parsePath(path);
+            Bip39.parsePath(path);
         } catch (Exception e) {
             showError("Invalid derivation path: " + e.getMessage());
             return;
