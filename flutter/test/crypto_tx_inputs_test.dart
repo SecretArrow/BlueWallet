@@ -51,8 +51,7 @@ void main() {
       expect(() => check(valid(from: '')), throwsArgumentError);
       expect(() => check(valid(to: '')), throwsArgumentError);
       expect(
-          () => check(valid(to: 'octB', recipient: '')),
-          throwsArgumentError);
+          () => check(valid(to: 'octB', recipient: '')), throwsArgumentError);
     });
 
     test('rejects non-positive int amounts', () {
@@ -80,10 +79,8 @@ void main() {
   group('ecdh key sizes', () {
     test('rejects wrong-sized keys before touching FFI', () {
       final ok32 = Uint8List(32);
-      expect(() => NativeCrypto.ecdh(Uint8List(16), ok32),
-          throwsArgumentError);
-      expect(() => NativeCrypto.ecdh(ok32, Uint8List(64)),
-          throwsArgumentError);
+      expect(() => NativeCrypto.ecdh(Uint8List(16), ok32), throwsArgumentError);
+      expect(() => NativeCrypto.ecdh(ok32, Uint8List(64)), throwsArgumentError);
       expect(() => NativeCrypto.ecdh(Uint8List(0), Uint8List(0)),
           throwsArgumentError);
     });
