@@ -6,8 +6,7 @@ import 'package:octopus_wallet/services/pin_service.dart';
 /// secure storage, so they run without plugins. Success paths need the
 /// platform channel (integration-covered).
 void main() {
-  group('isValidPin (mirrors Android WalletPinVerifier: exactly 6 digits)',
-      () {
+  group('isValidPin (mirrors Android WalletPinVerifier: exactly 6 digits)', () {
     test('accepts 6 digits', () {
       expect(PinService.isValidPin('123456'), isTrue);
       expect(PinService.isValidPin('000000'), isTrue);
@@ -47,15 +46,12 @@ void main() {
     });
 
     test('rejects bad checksum (all-abandon)', () {
-      expect(
-          MnemonicService.validate(
-              List.filled(12, 'abandon').join(' ')),
+      expect(MnemonicService.validate(List.filled(12, 'abandon').join(' ')),
           isFalse);
     });
 
     test('rejects unknown words', () {
-      expect(
-          MnemonicService.validate(valid.replaceFirst('about', 'xyzzy')),
+      expect(MnemonicService.validate(valid.replaceFirst('about', 'xyzzy')),
           isFalse);
     });
 
@@ -68,10 +64,8 @@ void main() {
 
     test('rejects wrong word counts', () {
       final words = valid.split(' ');
-      expect(
-          MnemonicService.validate(words.sublist(0, 11).join(' ')), isFalse);
-      expect(
-          MnemonicService.validate('${valid} abandon'), isFalse);
+      expect(MnemonicService.validate(words.sublist(0, 11).join(' ')), isFalse);
+      expect(MnemonicService.validate('$valid abandon'), isFalse);
       expect(MnemonicService.validate(''), isFalse);
     });
   });
