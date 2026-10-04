@@ -442,8 +442,12 @@ class LocalWebServerService extends ChangeNotifier {
     if (path.endsWith('.html') || path.endsWith('.htm')) {
       return 'text/html; charset=utf-8';
     }
-    if (path.endsWith('.css')) return 'text/css; charset=utf-8';
-    if (path.endsWith('.js')) return 'application/javascript; charset=utf-8';
+    if (path.endsWith('.css')) {
+      return 'text/css; charset=utf-8';
+    }
+    if (path.endsWith('.js')) {
+      return 'application/javascript; charset=utf-8';
+    }
     if (path.endsWith('.png')) return 'image/png';
     if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
     if (path.endsWith('.gif')) return 'image/gif';

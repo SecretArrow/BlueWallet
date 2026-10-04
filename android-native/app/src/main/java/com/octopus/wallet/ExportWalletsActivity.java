@@ -1,6 +1,7 @@
 package com.octopus.wallet;
 
 import android.os.Bundle;
+import android.annotation.SuppressLint;
 import android.widget.TextView;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -142,6 +143,9 @@ public class ExportWalletsActivity extends AppCompatActivity {
     }
     @Override
     @Deprecated
+    // takeFlags is masked to READ|WRITE below; the annotation covers the
+    // int-flag pattern lint cannot verify.
+    @SuppressLint("WrongConstant")
     protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_EXPORT_FOLDER && resultCode == RESULT_OK && data != null) {

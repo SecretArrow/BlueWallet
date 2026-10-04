@@ -95,14 +95,16 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
           ),
           TextButton(
             onPressed: () async {
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
               final newName = controller.text.trim();
               if (newName.isNotEmpty) {
                 final ok = await ws.renameWallet(wallet.id, newName);
                 if (ok) {
-                  if (mounted) Navigator.pop(context, true);
+                  if (mounted) navigator.pop(true);
                 } else {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       const SnackBar(
                           content: Text('Name already exists or invalid')),
                     );

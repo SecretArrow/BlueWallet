@@ -84,6 +84,7 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
 
     if (!authenticated) return;
 
+    if (!mounted) return;
     setState(() {
       _loading = true;
     });

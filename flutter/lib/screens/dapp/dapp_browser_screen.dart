@@ -99,6 +99,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
             });
           }
           // Inject the wallet provider on every page load.
+          if (!mounted) return;
           final ns = context.read<NetworkService>();
           await _controller.runJavaScript(
               _octraProviderJs.replaceAll('__CHAIN_ID__', ns.activeChainId));

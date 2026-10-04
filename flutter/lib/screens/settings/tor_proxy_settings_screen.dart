@@ -53,7 +53,9 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                           return 'Host is required';
                         }
                         final trim = v.trim();
-                        if (trim.contains(' ')) return 'Invalid hostname';
+                        if (trim.contains(' ')) {
+                          return 'Invalid hostname';
+                        }
                         return null;
                       },
                     ),

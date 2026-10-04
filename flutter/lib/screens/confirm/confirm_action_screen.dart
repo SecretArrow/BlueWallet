@@ -4,7 +4,7 @@ import '../../widgets/tonal_button.dart';
 import '../../widgets/octopus_card.dart';
 
 /// Generic Confirm Action screen.
-/// Accepts a Map<String, dynamic> via router `extra`:
+/// Accepts a `Map<String, dynamic>` via router `extra`:
 ///   - title    (String) — modal title
 ///   - message  (String) — body text
 ///   - confirm  (String) — confirm button label  (default: 'Confirm')

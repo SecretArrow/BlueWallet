@@ -72,6 +72,7 @@ class _DecryptBalanceScreenState extends State<DecryptBalanceScreen> {
         throw Exception('PVAC not available on this device');
       }
 
+      if (!mounted) return;
       final ns = context.read<NetworkService>();
       final hash = await ws.sendDecryptTx(
         nodeUrl: ns.activeNodeUrl,

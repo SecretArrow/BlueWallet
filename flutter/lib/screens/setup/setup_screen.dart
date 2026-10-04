@@ -101,6 +101,7 @@ class _SetupScreenState extends State<SetupScreen> {
     });
     try {
       await PinService.setPin(pin1);
+      if (!mounted) return;
       final ws = context.read<WalletService>();
       await ws.addWalletRaw(
         name: _pendingName!,

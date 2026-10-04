@@ -43,6 +43,7 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
     });
     try {
       final kp = await CryptoService.generateKeyPair();
+      if (!mounted) return;
       final ws = context.read<WalletService>();
       final name = 'Wallet ${ws.wallets.length + 1}';
       await ws.addWalletRaw(

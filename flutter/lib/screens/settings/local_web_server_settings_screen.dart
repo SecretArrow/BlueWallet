@@ -81,9 +81,10 @@ class _LocalWebServerSettingsScreenState
                   Switch(
                     value: serverService.enabled,
                     onChanged: (val) async {
+                      final messenger = ScaffoldMessenger.of(context);
                       await serverService.setEnabled(val);
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text(val
                                 ? 'Local Web Server started'
@@ -267,9 +268,10 @@ class _LocalWebServerSettingsScreenState
                         );
 
                         if (confirm == true) {
+                          final messenger = ScaffoldMessenger.of(context);
                           await serverService.regenerateToken();
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               const SnackBar(
                                   content: Text(
                                       'Auth token regenerated successfully')),

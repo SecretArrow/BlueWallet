@@ -2,6 +2,7 @@ package com.octopus.wallet;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
+import android.annotation.SuppressLint;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -128,6 +129,9 @@ public class AutoScanWorker extends Worker {
         }
     }
 
+    // notify() is guarded by a POST_NOTIFICATIONS check at the call site;
+    // the annotation covers what lint cannot infer.
+    @SuppressLint("MissingPermission")
     private void postIncomingNotification(Context ctx, String from, String amountRaw,
                                            String symbol, String toAddress, String hash) {
         ensureChannel(ctx);
