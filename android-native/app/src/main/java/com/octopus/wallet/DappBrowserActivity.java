@@ -341,42 +341,16 @@ public class DappBrowserActivity extends AppCompatActivity {
     // Interactive circle features (upload, signing) stay on the
     // localhost gateway pages, which call /api/* on the local server.
 
-    private static final String OCT_SCHEME = "oct://";
-
     private boolean isOctUrl(String url) {
-        return url != null && url.regionMatches(true, 0, OCT_SCHEME, 0, OCT_SCHEME.length());
+        return OctUrlParser.isOctUrl(url);
     }
 
-    /**
-     * Split an oct:// URL into [circleId, path]. Manual parsing (not Uri)
-     * so base58 circle IDs keep their case.
-     */
     private String[] parseOctUrl(String url) {
-        String rest = url.substring(OCT_SCHEME.length());
-        int cut = rest.length();
-        for (int i = 0; i < rest.length(); i++) {
-            char c = rest.charAt(i);
-            if (c == '?' || c == '#') {
-                cut = i;
-                break;
-            }
-        }
-        rest = rest.substring(0, cut);
-        int idx = rest.indexOf('/');
-        if (idx == -1) {
-            return new String[]{rest, "/index.html"};
-        }
-        String path = rest.substring(idx);
-        if (path.isEmpty() || "/".equals(path)) {
-            path = "/index.html";
-        }
-        return new String[]{rest.substring(0, idx), path};
+        return OctUrlParser.parseOctUrl(url);
     }
 
     private boolean isTextMime(String mime) {
-        return mime.startsWith("text/") || mime.contains("javascript")
-                || mime.contains("json") || mime.endsWith("+xml")
-                || mime.equals("image/svg+xml");
+        return OctUrlParser.isTextMime(mime);
     }
 
     private WebResourceResponse octError(int code, String reason) {
