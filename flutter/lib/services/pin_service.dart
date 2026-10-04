@@ -8,6 +8,11 @@ const _kPinHashKey = 'pin_hash';
 const _kPinSet = 'pin_set';
 
 class PinService {
+  /// Wallet PIN policy: exactly 6 digits (mirrors Android WalletPinVerifier
+  /// and both apps' PIN screens). verifyPin intentionally does NOT enforce
+  /// this — previously stored PINs must always remain verifiable.
+  static bool isValidPin(String pin) => RegExp(r'^\d{6}$').hasMatch(pin);
+
   static Future<bool> isPinSet() async {
     try {
       final val = await _storage.read(key: _kPinSet);
@@ -19,6 +24,9 @@ class PinService {
   }
 
   static Future<void> setPin(String pin) async {
+    if (!isValidPin(pin)) {
+      throw ArgumentError('PIN must be exactly 6 digits');
+    }
     final hash = _hash(pin);
     try {
       await _storage.write(key: _kPinHashKey, value: hash);

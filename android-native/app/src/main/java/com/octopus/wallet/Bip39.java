@@ -70,11 +70,24 @@ public class Bip39 {
     /** Returns true if the mnemonic is valid (word list + checksum). */
     public boolean validate(String mnemonic) {
         try {
-            mnemonicToEntropy(mnemonic);
+            mnemonicToEntropy(normalize(mnemonic));
             return true;
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Normalize a pasted phrase: trim, lowercase, collapse all whitespace
+     * runs to single spaces. Pure and unit-tested.
+     *
+     * @throws IllegalArgumentException on null input
+     */
+    public static String normalize(String mnemonic) {
+        if (mnemonic == null) {
+            throw new IllegalArgumentException("Mnemonic must not be null");
+        }
+        return mnemonic.trim().toLowerCase(java.util.Locale.US).replaceAll("\\s+", " ");
     }
 
     /**
@@ -102,8 +115,9 @@ public class Bip39 {
     /**
      * Parses a derivation path string and returns the component indices
      * (without the hardened bit — deriveChildKey adds it internally).
+     * Static and pure (no wordlist needed) so it is unit-testable.
      */
-    public int[] parsePath(String path) {
+    public static int[] parsePath(String path) {
         String p = path.trim();
         if (p.startsWith("m/") || p.startsWith("M/")) p = p.substring(2);
         else if (p.equalsIgnoreCase("m")) return new int[0];

@@ -22,6 +22,8 @@ test per cabang, asumsi eksplisit).
 | A7 | Cabang `Log.w` Android tidak di-unit-test (stub Log crash di JVM polos); diverifikasi via inspeksi + lint |
 | A8 | Race nonce antar-send konkuren tidak diatasi di level repo (node menolak nonce duplikat; error dipermukaan). Serialisasi penuh via antrean nonce = backlog |
 | A9 | `submitTx`/send yang tanpa tx_hash = gagal (throw), bukan sukses kosong. Phantom-tx dilarang di kedua app |
+| A10 | Kebijakan PIN: tepat 6 digit saat SET (selaras kedua app + verifier). VERIFY tidak menegakkan format (PIN lama tetap bisa diverifikasi). PinStore Android menyimpan PIN mentah karena arsitektur butuh PIN untuk dekripsi wallet — dilindungi EncryptedSharedPreferences + keystore; fallback plaintext kini ber-Log.w |
+| A11 | Mnemonic disimpan ternormalisasi (lowercase, spasi tunggal) setelah lolos checksum; validasi import menormalkan dulu sehingga tempelan berantakan tetap diterima bila checksum benar |
 
 ## Inventaris modul × risiko × fase
 
@@ -35,8 +37,9 @@ test per cabang, asumsi eksplisit).
 | key_switch | `WalletRepository.submitKeySwitch` | `wallet_service.dart` submitKeySwitch | ✅ submit guard Fase 1.2; migrasi payload+proof penuh butuh uji node (backlog) |
 | Encrypt/decrypt/stealth balance | `signEncryptTx/signDecryptTx/signStealthSendTx` (JNI), `Encrypt/DecryptBalanceActivity`, `StealthSendActivity` | `crypto_service.dart`, `encrypt/decrypt_balance_screen.dart`, `stealth_send_screen.dart` | ✅ Fase 1.3 selesai (validasi input; bukti di bawah) |
 | PVAC decrypt + ECDH/stealth scan | `cpp/stealth.*`, `pvac_bridge.hpp`, `StealthScanActivity`, `StealthClaimService` | `native_crypto.dart` ecdh/stealth, `stealth_scan_screen.dart` | Belum diaudit |
-| RPC client (timeout/retry/error) | `OctraRpcClient.java`, `cpp/rpc_client.*` | `network_service.dart` RpcClient + `wallet_service.dart` _rpc | ✅ Fase 1.1 selesai (dispatch+parse; lihat bukti di bawah) || Wallet create/import/HD/mnemonic | `cpp/wallet.*`, `AddWalletActivity`, `Bip39.java`, `MnemonicStore`, `DeriveChildWalletActivity` | `mnemonic_service.dart`, `add/mnemonic/derive_child_wallet_screen.dart`, `bip39_wordlist.dart` | Belum diaudit |
-| Key storage + PIN | `OctraNative` (mlock/zero), `PinStore`, `WalletKeysLoader`, `WalletPinVerifier`, `UnlockActivity`, `ChangePinActivity` | `pin_service.dart`, `flutter_secure_storage` via `wallet_service.dart`, `pin_entry_screen.dart`, `change_pin_screen.dart` | Belum diaudit |
+| RPC client (timeout/retry/error) | `OctraRpcClient.java`, `cpp/rpc_client.*` | `network_service.dart` RpcClient + `wallet_service.dart` _rpc | ✅ Fase 1.1 selesai (dispatch+parse; lihat bukti di bawah) |
+| Wallet create/import/HD/mnemonic | `cpp/wallet.*`, `AddWalletActivity`, `Bip39.java`, `MnemonicStore`, `DeriveChildWalletActivity` | `mnemonic_service.dart`, `add/mnemonic/derive_child_wallet_screen.dart`, `bip39_wordlist.dart` | ✅ Fase 1.4 selesai (normalisasi, checksum, path; bukti di bawah) |
+| Key storage + PIN | `OctraNative` (mlock/zero), `PinStore`, `WalletKeysLoader`, `WalletPinVerifier`, `UnlockActivity`, `ChangePinActivity` | `pin_service.dart`, secure storage, `pin_entry/change_pin_screen.dart` | ✅ Fase 1.4 selesai (kebijakan 6-digit, hash Flutter; bukti di bawah) |
 
 ### TINGGI — bridge, server, jaringan, data (Fase 2)
 
@@ -75,6 +78,20 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+
+## Bukti Fase 1.4 — mnemonic, PIN, storage
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | tempelan berantakan (spasi/tab/newline, kapital) | `Bip39.normalize` + `validate()` menormalkan dulu (dulu: "Unknown word") | `_normalizeWords` (existing) | normalize test + vektor tempelan |
+| 2 | mnemonic null | `normalize` throw IAE; `validate` false | `validate('')` false (existing) | normalize_rejectsNull, wrong-count |
+| 3 | checksum salah / kata asing / jumlah salah | `validate` false (existing, kini +normalisasi) | `validate` false (existing) | vektor abandon×12, xyzzy, 11/13 kata |
+| 4 | path derivasi sampah | `parsePath` statik: throw spesifik per komponen | `normalizePath` (existing) | parsePath 4 valid + 5 invalid |
+| 5 | set PIN bukan 6-digit | `setDefaultPin` throw (UI sudah 6-digit; server unlock kini error eksplisit) | `setPin/changePin` throw `ArgumentError` | `isValidPin` 8 kasus + setPin 5 kasus |
+| 6 | verifikasi PIN lama | tak disentuh (back-compat, A10) | `verifyPin` tak disentuh | — (kontrak dijaga) |
+| 7 | keystore rusak → fallback plaintext | `Log.w` eksplisit (dulu: diam) di PinStore + MnemonicStore | `debugPrint` + rethrow/false (existing) | inspeksi + lint |
+| 8 | simpan mnemonic sampah | `saveMnemonic` tolak blank + checksum gagal (backstop UI) | entry-point tervalidasi via `MnemonicService.validate` di alur import (vektor di atas) | inspeksi + vektor |
+| 9 | success-path storage | butuh Context/keystore (E2E/manual) | butuh MethodChannel (E2E/manual) | integrasi |
 
 ## Bukti Fase 1.3 — input validation tx privacy
 
