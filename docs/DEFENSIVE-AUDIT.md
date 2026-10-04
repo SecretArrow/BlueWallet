@@ -32,8 +32,8 @@ test per cabang, asumsi eksplisit).
 | Tx build/sign/submit + canonical JSON | `cpp/tx_builder.*`, `octra_jni.cpp` (sign*), `WalletRepository.submitTx` | `crypto_service.dart` (buildSigned*), `native_crypto.dart`, `octra_ffi.cpp` | Belum diaudit |
 | Nonce handling | `BaseTxActivity`, `WalletRepository.fetchBalance` | `wallet_service.dart` refresh/`_currentNonce` | ✅ Fase 1.2 selesai (pending_nonce + parse + clamp; bukti di bawah) |
 | Fee oracle + fallback | `OctraRpcClient.fetchFee*`, `WalletRepository.fetchRecommendedOu` | `network_service.dart`, `wallet_service.dart` fetchFee* | Belum diaudit |
-| key_switch | `WalletRepository.submitKeySwitch` | `wallet_service.dart` submitKeySwitch | Belum diaudit |
-| Encrypt/decrypt/stealth balance | `signEncryptTx/signDecryptTx/signStealthSendTx` (JNI), `Encrypt/DecryptBalanceActivity`, `StealthSendActivity` | `crypto_service.dart`, `encrypt/decrypt_balance_screen.dart`, `stealth_send_screen.dart` | Belum diaudit |
+| key_switch | `WalletRepository.submitKeySwitch` | `wallet_service.dart` submitKeySwitch | ✅ submit guard Fase 1.2; migrasi payload+proof penuh butuh uji node (backlog) |
+| Encrypt/decrypt/stealth balance | `signEncryptTx/signDecryptTx/signStealthSendTx` (JNI), `Encrypt/DecryptBalanceActivity`, `StealthSendActivity` | `crypto_service.dart`, `encrypt/decrypt_balance_screen.dart`, `stealth_send_screen.dart` | ✅ Fase 1.3 selesai (validasi input; bukti di bawah) |
 | PVAC decrypt + ECDH/stealth scan | `cpp/stealth.*`, `pvac_bridge.hpp`, `StealthScanActivity`, `StealthClaimService` | `native_crypto.dart` ecdh/stealth, `stealth_scan_screen.dart` | Belum diaudit |
 | RPC client (timeout/retry/error) | `OctraRpcClient.java`, `cpp/rpc_client.*` | `network_service.dart` RpcClient + `wallet_service.dart` _rpc | ✅ Fase 1.1 selesai (dispatch+parse; lihat bukti di bawah) || Wallet create/import/HD/mnemonic | `cpp/wallet.*`, `AddWalletActivity`, `Bip39.java`, `MnemonicStore`, `DeriveChildWalletActivity` | `mnemonic_service.dart`, `add/mnemonic/derive_child_wallet_screen.dart`, `bip39_wordlist.dart` | Belum diaudit |
 | Key storage + PIN | `OctraNative` (mlock/zero), `PinStore`, `WalletKeysLoader`, `WalletPinVerifier`, `UnlockActivity`, `ChangePinActivity` | `pin_service.dart`, `flutter_secure_storage` via `wallet_service.dart`, `pin_entry_screen.dart`, `change_pin_screen.dart` | Belum diaudit |
@@ -75,6 +75,18 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+
+## Bukti Fase 1.3 — input validation tx privacy
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | amount hilang/sampah/nol/negatif | `TxInputValidator.requireAmountRaw` throw (dulu: jadi 0 diam-diam → tx nol bakar fee) | `requireTxInputs` + guard send* (`amount <= 0`) | `TxInputValidatorTest`, `requireTxInputs` grup |
+| 2 | recipient kosong | `requireRecipient` di doSend/doStealth (jalur token sudah punya) | guard `toAddress.isEmpty` + validator | kedua sisi |
+| 3 | view pubkey sampah/panjang salah | node/JNI menolak (loud); base64 gagal → throw | panjang != 32 → throw sebelum FFI (anti-overflow buffer 32B) | `viewPub` length implisit; ecdh size test |
+| 4 | kunci ECDH salah ukuran | JNI: assert + native check | `ArgumentError` eksplisit pra-FFI (assert release-proof) | `ecdh key sizes` grup |
+| 5 | sk/from/to/ou/nonce kosong-nol | — (ditangani JNI/node) | `requireTxInputs` di 6 builder, baris pertama (testable tanpa native lib) | `requireTxInputs` 6 cabang |
+| 6 | native timeout/interrupt | `executeNativeCallWithTimeout`: Timeout→cancel+throw; Execution→unwrap cause; Interrupt→flag+rethrow (dulu: wrapper noise + flag hilang) | builder gagal cepat pre-network; RPC `.timeout()` + tanpa sleep (Fase 1.1) | inspeksi |
+| 7 | ou/nonce String vs int | — | amountStr ≥ 0 (`'0'` legit key_switch/circle), nonce > 0 | amountStr/nonce tests |
 
 ## Bukti Fase 1.2 — nonce, fee oracle, submit guard
 
