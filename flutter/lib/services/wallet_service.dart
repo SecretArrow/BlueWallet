@@ -1555,7 +1555,8 @@ class WalletService extends ChangeNotifier {
     // OU from the fee oracle (upstream webcli parity), fallback 3000.
     String ou = '3000';
     try {
-      final feeRes = await _rpc(nodeUrl, 'octra_recommendedFee', ['key_switch']);
+      final feeRes =
+          await _rpc(nodeUrl, 'octra_recommendedFee', ['key_switch']);
       final rec = feeRes is Map ? feeRes['recommended']?.toString() ?? '' : '';
       if (rec.isNotEmpty && (int.tryParse(rec) ?? 0) > 0) ou = rec;
     } catch (_) {}
