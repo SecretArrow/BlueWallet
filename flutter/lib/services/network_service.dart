@@ -90,9 +90,14 @@ class RpcClient {
   RpcClient({http.Client? httpClient})
       : _httpClient = httpClient ?? torProxyClient;
 
-  /// Parse RPC URL (e.g., "https://rpc.octrascan.io" or "http://165.227.225.79:8080")
+  /// Parse RPC URL (e.g., "https://rpc.octrascan.io" or "http://165.227.225.79:8080").
+  /// Throws [ArgumentError] with a specific message for unusable input
+  /// (fail fast at configuration time, before any network is touched).
   void setUrl(String url) {
-    String u = url;
+    String u = url.trim();
+    if (u.isEmpty) {
+      throw ArgumentError('RPC URL must not be empty');
+    }
     _ssl = false;
     _port = 80;
 
@@ -113,19 +118,46 @@ class RpcClient {
       _host = u;
     }
 
+    if (_path.isEmpty) {
+      _path = '/rpc';
+    }
+
     final colonIndex = _host.indexOf(':');
     if (colonIndex != -1) {
-      _port = int.parse(_host.substring(colonIndex + 1));
+      final portStr = _host.substring(colonIndex + 1);
+      final port = int.tryParse(portStr);
+      if (port == null || port < 1 || port > 65535) {
+        throw ArgumentError('RPC URL has invalid port "$portStr": "$url"');
+      }
+      _port = port;
       _host = _host.substring(0, colonIndex);
+      if (_host.isEmpty) {
+        throw ArgumentError('RPC URL has no host: "$url"');
+      }
+    } else if (_host.isEmpty) {
+      throw ArgumentError('RPC URL has no host: "$url"');
     }
   }
 
-  /// Generic JSON-RPC call
+  /// Generic JSON-RPC call.
+  ///
+  /// Never throws: transport, timeout, encoding and protocol problems all
+  /// come back as [RpcResult.failure] with a specific message. No automatic
+  /// retry by design (a blind retry could double-submit a transaction —
+  /// callers decide; see assumption A6 in docs/DEFENSIVE-AUDIT.md).
   Future<RpcResult> call(
     String method, [
     List<dynamic>? params,
     int timeoutSec = 30,
   ]) async {
+    if (method.trim().isEmpty) {
+      return RpcResult.failure('RPC method must not be empty');
+    }
+    if (_host.isEmpty) {
+      return RpcResult.failure(
+          'RPC host is not configured — call setUrl() with a valid URL first');
+    }
+    final timeout = timeoutSec.clamp(1, 300).toInt();
     _id++;
     final request = {
       'jsonrpc': '2.0',
@@ -134,6 +166,13 @@ class RpcClient {
       'id': _id,
     };
 
+    final String body;
+    try {
+      body = jsonEncode(request);
+    } catch (e) {
+      return RpcResult.failure('Request encoding failed: ${e.toString()}');
+    }
+
     try {
       final scheme = _ssl ? 'https' : 'http';
       final url = Uri.parse('$scheme://$_host:$_port$_path');
@@ -141,9 +180,9 @@ class RpcClient {
           .post(
             url,
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(request),
+            body: body,
           )
-          .timeout(Duration(seconds: timeoutSec));
+          .timeout(Duration(seconds: timeout));
 
       return _parseResponse(response.body);
     } catch (e) {
@@ -346,14 +385,19 @@ class RpcClient {
     return fees;
   }
 
-  /// Parse RPC response
+  /// Parse RPC response. Never throws; every shape maps to an explicit
+  /// success or failure (null results and null errors are failures, not
+  /// silent nulls passed downstream).
   RpcResult _parseResponse(String body) {
     try {
       final json = jsonDecode(body) as Map<String, dynamic>;
       if (json.containsKey('result')) {
+        if (json['result'] == null) {
+          return RpcResult.failure('Empty result in RPC response');
+        }
         return RpcResult.success(json['result']);
       }
-      if (json.containsKey('error')) {
+      if (json.containsKey('error') && json['error'] != null) {
         final error = json['error'];
         final msg =
             error is Map ? error['message'] ?? 'RPC error' : error.toString();
