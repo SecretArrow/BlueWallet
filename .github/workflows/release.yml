@@ -74,11 +74,19 @@ jobs:
       - name: Restore keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android/octra.jks
+          # Mirror android-native's fallbacks: resolve first key alias when
+          # KEY_ALIAS is empty, default keyPassword to storePassword.
+          ALIAS="${{ secrets.KEY_ALIAS }}"
+          if [ -z "$ALIAS" ]; then
+            ALIAS=$(keytool -list -keystore android/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>/dev/null | grep -m1 PrivateKeyEntry | cut -d, -f1 | tr -d ' ')
+          fi
+          KEYPASS="${{ secrets.KEY_PASSWORD }}"
+          if [ -z "$KEYPASS" ]; then KEYPASS="${{ secrets.KEYSTORE_PASSWORD }}"; fi
           {
             echo "storeFile=$GITHUB_WORKSPACE/flutter/android/octra.jks"
             echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}"
-            echo "keyAlias=${{ secrets.KEY_ALIAS }}"
-            echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
+            echo "keyAlias=$ALIAS"
+            echo "keyPassword=$KEYPASS"
           } > android/keystore.properties
       # arm64-only release via --target-platform (proven by CI debug
       # builds). NOTE: --split-per-abi is incompatible with ndk abiFilters
