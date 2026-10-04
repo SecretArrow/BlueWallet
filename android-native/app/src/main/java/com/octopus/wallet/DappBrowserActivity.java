@@ -10,6 +10,7 @@ import android.view.inputmethod.EditorInfo;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -27,6 +28,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -139,6 +142,10 @@ public class DappBrowserActivity extends AppCompatActivity {
     private void navigateToUrl() {
         String url = urlInput.getText().toString().trim();
         if (url.isEmpty()) return;
+        if (isOctUrl(url)) {
+            loadOctUrl(url);
+            return;
+        }
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
             url = "https://" + url;
         }
@@ -296,6 +303,11 @@ public class DappBrowserActivity extends AppCompatActivity {
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             String url = request.getUrl().toString();
+            // Native oct:// protocol — render circle content directly.
+            if (isOctUrl(url)) {
+                loadOctUrl(url);
+                return true;
+            }
             // Allow http/https, block others
             if (url.startsWith("http://") || url.startsWith("https://")) {
                 return false; // let WebView handle it
@@ -308,6 +320,155 @@ public class DappBrowserActivity extends AppCompatActivity {
             }
             return true;
         }
+
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            String url = request.getUrl().toString();
+            // Serve oct:// subresources (CSS/JS/images/fonts) straight from the node.
+            if (isOctUrl(url)) {
+                return fetchOctResource(url);
+            }
+            return super.shouldInterceptRequest(view, request);
+        }
+    }
+
+    // ─── oct:// protocol support ───────────────────────────────────────
+    //
+    // Octra circle URLs look like oct://<circleId>/<path> (bare circle ID
+    // defaults to /index.html, mirroring the local web server gateway).
+    // Content is fetched directly over JSON-RPC — no local web server
+    // required — so circle pages work even with the server toggled off.
+    // Interactive circle features (upload, signing) stay on the
+    // localhost gateway pages, which call /api/* on the local server.
+
+    private static final String OCT_SCHEME = "oct://";
+
+    private boolean isOctUrl(String url) {
+        return url != null && url.regionMatches(true, 0, OCT_SCHEME, 0, OCT_SCHEME.length());
+    }
+
+    /**
+     * Split an oct:// URL into [circleId, path]. Manual parsing (not Uri)
+     * so base58 circle IDs keep their case.
+     */
+    private String[] parseOctUrl(String url) {
+        String rest = url.substring(OCT_SCHEME.length());
+        int cut = rest.length();
+        for (int i = 0; i < rest.length(); i++) {
+            char c = rest.charAt(i);
+            if (c == '?' || c == '#') {
+                cut = i;
+                break;
+            }
+        }
+        rest = rest.substring(0, cut);
+        int idx = rest.indexOf('/');
+        if (idx == -1) {
+            return new String[]{rest, "/index.html"};
+        }
+        String path = rest.substring(idx);
+        if (path.isEmpty() || "/".equals(path)) {
+            path = "/index.html";
+        }
+        return new String[]{rest.substring(0, idx), path};
+    }
+
+    private boolean isTextMime(String mime) {
+        return mime.startsWith("text/") || mime.contains("javascript")
+                || mime.contains("json") || mime.endsWith("+xml")
+                || mime.equals("image/svg+xml");
+    }
+
+    private WebResourceResponse octError(int code, String reason) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Cache-Control", "no-store");
+        return new WebResourceResponse("text/plain", "utf-8", code, reason,
+                headers, new java.io.ByteArrayInputStream(new byte[0]));
+    }
+
+    /**
+     * Fetch a circle asset over RPC. Safe to call on any thread
+     * (shouldInterceptRequest already runs off the UI thread).
+     */
+    private WebResourceResponse fetchOctResource(String url) {
+        try {
+            String[] parts = parseOctUrl(url);
+            if (parts[0].isEmpty()) {
+                return octError(400, "circle_id required");
+            }
+            JSONObject asset = OctraRpcClient.getInstance()
+                    .circleAsset(getNodeRpcUrl(), parts[0], parts[1]);
+            if (asset == null || asset.has("error")) {
+                return octError(404, "Circle asset not found");
+            }
+            String mime = asset.optString("content_type", "application/octet-stream");
+            int semi = mime.indexOf(';');
+            if (semi != -1) {
+                mime = mime.substring(0, semi).trim();
+            }
+            if (mime.isEmpty()) {
+                mime = "application/octet-stream";
+            }
+            byte[] raw = OctraNative.getInstance()
+                    .base64Decode(asset.optString("body_b64", ""));
+            if (raw == null) {
+                raw = new byte[0];
+            }
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Cache-Control", "no-store");
+            headers.put("X-Content-Type-Options", "nosniff");
+            String encoding = isTextMime(mime) ? "utf-8" : null;
+            return new WebResourceResponse(mime, encoding, 200, "OK",
+                    headers, new java.io.ByteArrayInputStream(raw));
+        } catch (Exception e) {
+            return octError(500, "Circle fetch failed");
+        }
+    }
+
+    private byte[] readAllBytes(java.io.InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) != -1) {
+            out.write(buf, 0, n);
+        }
+        return out.toByteArray();
+    }
+
+    /** Render a top-level oct:// navigation (HTML/text inline, images via data URI). */
+    private void loadOctUrl(final String octUrl) {
+        urlInput.setText(octUrl);
+        progressBar.setVisibility(View.VISIBLE);
+        ((OctraWalletApplication) getApplication()).getIoExecutor().execute(() -> {
+            final WebResourceResponse res = fetchOctResource(octUrl);
+            runOnUiThread(() -> {
+                progressBar.setVisibility(View.GONE);
+                int code = res != null ? res.getStatusCode() : 500;
+                if (res == null || code < 200 || code >= 300) {
+                    Toast.makeText(this, "Cannot open " + octUrl +
+                            " (circle not found, code " + code + ")",
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
+                try {
+                    byte[] raw = readAllBytes(res.getData());
+                    String mime = res.getMimeType();
+                    if (isTextMime(mime)) {
+                        String text = new String(raw, java.nio.charset.StandardCharsets.UTF_8);
+                        webView.loadDataWithBaseURL(octUrl, text, mime, "UTF-8", null);
+                    } else if (mime.startsWith("image/")) {
+                        String b64 = OctraNative.getInstance().base64Encode(raw);
+                        webView.loadUrl("data:" + mime + ";base64," + b64);
+                    } else {
+                        Toast.makeText(this, "Preview not supported for " + mime,
+                                Toast.LENGTH_LONG).show();
+                    }
+                } catch (Exception e) {
+                    Toast.makeText(this, "Failed to render circle page",
+                            Toast.LENGTH_LONG).show();
+                }
+            });
+        });
     }
 
     // ─── JavaScript Bridge ─────────────────────────────────────────────
