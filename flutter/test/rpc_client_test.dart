@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -46,8 +45,7 @@ void main() {
   group('call guards (no HTTP)', () {
     test('empty method fails without touching the network', () async {
       var calls = 0;
-      final c = RpcClient(
-          httpClient: MockClient((_) async {
+      final c = RpcClient(httpClient: MockClient((_) async {
         calls++;
         return json({'result': 1});
       }));
@@ -60,8 +58,7 @@ void main() {
 
     test('unconfigured host fails without touching the network', () async {
       var calls = 0;
-      final c = RpcClient(
-          httpClient: MockClient((_) async {
+      final c = RpcClient(httpClient: MockClient((_) async {
         calls++;
         return json({'result': 1});
       }));
@@ -72,8 +69,8 @@ void main() {
     });
 
     test('unencodable params report encoding, not connection', () async {
-      final c = RpcClient(
-          httpClient: MockClient((_) async => json({'result': 1})));
+      final c =
+          RpcClient(httpClient: MockClient((_) async => json({'result': 1})));
       c.setUrl('http://h:8080/rpc');
       final r = await c.call('m', [Object()]);
       expect(r.ok, isFalse);
@@ -85,7 +82,9 @@ void main() {
   group('call transport', () {
     test('success envelope', () async {
       final c = RpcClient(
-          httpClient: MockClient((_) async => json({'result': {'x': 1}})));
+          httpClient: MockClient((_) async => json({
+                'result': {'x': 1}
+              })));
       c.setUrl('http://h:8080/rpc');
       final r = await c.call('m');
       expect(r.ok, isTrue);
@@ -93,8 +92,8 @@ void main() {
     });
 
     test('scalar and falsy-but-valid results pass through', () async {
-      final c = RpcClient(
-          httpClient: MockClient((req) async => json({'result': 0})));
+      final c =
+          RpcClient(httpClient: MockClient((req) async => json({'result': 0})));
       c.setUrl('http://h:8080/rpc');
       final r = await c.call('m');
       expect(r.ok, isTrue);
@@ -127,12 +126,13 @@ void main() {
 
     test('error without message falls back, null error is unknown', () async {
       var c = RpcClient(
-          httpClient: MockClient((_) async => json({'error': {'code': 1}})));
+          httpClient: MockClient((_) async => json({
+                'error': {'code': 1}
+              })));
       c.setUrl('http://h:8080/rpc');
       expect((await c.call('m')).error, 'RPC error');
 
-      c = RpcClient(
-          httpClient: MockClient((_) async => json({'error': null})));
+      c = RpcClient(httpClient: MockClient((_) async => json({'error': null})));
       c.setUrl('http://h:8080/rpc');
       final r = await c.call('m');
       expect(r.ok, isFalse);
@@ -151,16 +151,16 @@ void main() {
       expect((await c.call('m')).error, contains('Parse error'));
 
       c = RpcClient(
-          httpClient:
-              MockClient((_) async => http.Response('[1,2]', 200)));
+          httpClient: MockClient((_) async => http.Response('[1,2]', 200)));
       c.setUrl('http://h:8080/rpc');
       expect((await c.call('m')).error, contains('Parse error'));
     });
 
     test('HTTP 500 with JSON error body surfaces the message', () async {
       final c = RpcClient(
-          httpClient: MockClient(
-              (_) async => json({'error': {'message': 'boom'}}, 500)));
+          httpClient: MockClient((_) async => json({
+                'error': {'message': 'boom'}
+              }, 500)));
       c.setUrl('http://h:8080/rpc');
       final r = await c.call('m');
       expect(r.ok, isFalse);
@@ -169,13 +169,12 @@ void main() {
 
     test('socket errors and timeouts are connection failures', () async {
       var c = RpcClient(
-          httpClient: MockClient(
-              (_) => throw const SocketException('refused')));
+          httpClient:
+              MockClient((_) => throw const SocketException('refused')));
       c.setUrl('http://h:8080/rpc');
       expect((await c.call('m')).error, contains('Connection failed'));
 
-      c = RpcClient(
-          httpClient: MockClient((_) async {
+      c = RpcClient(httpClient: MockClient((_) async {
         await Future.delayed(const Duration(seconds: 5));
         return json({'result': 1});
       }));
@@ -187,8 +186,7 @@ void main() {
 
     test('typed wrappers send the right method', () async {
       String? seen;
-      final c = RpcClient(
-          httpClient: MockClient((req) async {
+      final c = RpcClient(httpClient: MockClient((req) async {
         seen = (jsonDecode(req.body) as Map)['method'] as String?;
         return json({'result': {}});
       }));
