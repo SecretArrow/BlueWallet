@@ -90,15 +90,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // APK size: release ships arm64-v8a only (native libs are
-            // duplicated per ABI). Debug keeps all ABIs for the emulator.
-            // NOTE: do NOT pass --target-platform together with
-            // --split-per-abi; the Flutter Gradle plugin rejects the
-            // resulting conflicting ABI configuration.
-            ndk {
-                abiFilters.clear()
-                abiFilters += "arm64-v8a"
-            }
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
