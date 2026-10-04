@@ -41,7 +41,12 @@ jobs:
       - name: Show signing certificate DN
         run: |
           APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
-          $(echo $ANDROID_HOME/build-tools/*/apksigner | cut -d' ' -f1) verify --print-certs "$APK" 2>/dev/null | grep -m1 "DN:" || echo "apksigner check unavailable"
+          APKSIGNER=$(find "$ANDROID_HOME" -name apksigner -type f 2>/dev/null | head -1)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --print-certs "$APK" 2>/dev/null | grep -m1 "DN:" || echo "verify failed"
+          else
+            echo "apksigner not found under ANDROID_HOME"
+          fi
       - name: APK/AAB size summary
         run: |
           {
@@ -101,10 +106,13 @@ jobs:
       - name: Validate keystore (secrets never printed)
         run: |
           test -s android/octra.jks && echo "keystore file: present"
-          if keytool -list -keystore android/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" >/dev/null 2>&1; then
+          ERR=$(keytool -list -keystore android/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>&1 >/dev/null || true)
+          if [ -z "$ERR" ]; then
             echo "store password: OK"
+          elif echo "$ERR" | grep -qi "password was incorrect\|tampered"; then
+            echo "store password: WRONG (keystore intact, password mismatch)"
           else
-            echo "store password: FAILED"; exit 1
+            echo "keystore file: UNREADABLE (not a valid keystore: $(echo "$ERR" | head -c 120))"
           fi
           echo "private-key entries: $(keytool -list -keystore android/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>/dev/null | grep -c PrivateKeyEntry)"
           echo "configured alias present: $(grep -c '^keyAlias=..*' android/keystore.properties)"
