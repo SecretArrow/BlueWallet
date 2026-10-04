@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service to track network data usage for the app itself.
 class DataUsageService {
-  static const String _prefsName = 'data_usage_prefs';
   static const String _keyUsageHistory = 'usage_history';
   static const String _keySessionStartRx = 'session_start_rx';
   static const String _keySessionStartTx = 'session_start_tx';

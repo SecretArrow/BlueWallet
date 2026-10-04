@@ -78,6 +78,27 @@ jobs:
       # Fast checks only: no assembleDebug here (see android-build).
       # spotlessCheck is ratcheted to origin/main — only changed lines.
       - run: bash gradlew --no-daemon lintDebug testDebugUnitTest :app:spotlessCheck
+      # Always print every lint error (the console shows only the first).
+      - name: Dump all lint errors
+        if: always()
+        run: |
+          f=app/build/reports/lint-results-debug.xml
+          if [ -f "$f" ]; then
+            python3 -c "
+          import xml.etree.ElementTree as ET, sys
+          t = ET.parse('$f')
+          n = 0
+          for issue in t.getroot().iter('issue'):
+              if issue.get('severity') != 'Error':
+                  continue
+              n += 1
+              loc = issue.find('location')
+              print(f\"{loc.get('file','?')}:{loc.get('line','?')}: [{issue.get('id')}] {issue.get('message','')[:200]}\")
+          print(f'TOTAL lint errors: {n}')
+          "
+          else
+            echo "no lint report found"
+          fi
 
   android-build:
     needs: changes
@@ -154,6 +175,7 @@ jobs:
         with:
           channel: stable
           cache: true
+      - run: flutter pub get
       - run: dart fix --apply
       - run: dart format lib test integration_test
       - name: Commit fixes

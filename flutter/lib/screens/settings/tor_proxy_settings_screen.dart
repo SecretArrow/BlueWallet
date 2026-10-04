@@ -23,7 +23,6 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) {
-          final cs = Theme.of(context).colorScheme;
           return AlertDialog(
             title: const Text('Add Custom Proxy'),
             content: Form(

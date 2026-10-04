@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import '../models/wallet_profile.dart';
 import '../models/token_balance.dart';
 import '../models/tx_record.dart';
@@ -539,7 +538,7 @@ class WalletService extends ChangeNotifier {
   Future<String?> getPrivateKey(String walletId) async {
     try {
       return await _storage.read(key: 'sk_$walletId') ??
-          _storage.read(key: 'pk_$walletId');
+          await _storage.read(key: 'pk_$walletId');
     } catch (e) {
       debugPrint('SecureStorage read error: $e');
       return null;
@@ -1140,10 +1139,16 @@ class WalletService extends ChangeNotifier {
       // Fast path (webcli GET /api/tokens parity): single
       // octra_tokensByAddress call instead of probing every contract.
       try {
-        final fast = await _rpc(nodeUrl, 'octra_tokensByAddress', [wallet.address]);
-        final List fastList = fast is List
-            ? fast
-            : (fast is Map ? (fast['tokens'] as List? ?? []) : []);
+        final dynamic fast =
+            await _rpc(nodeUrl, 'octra_tokensByAddress', [wallet.address]);
+        List fastList;
+        if (fast is List) {
+          fastList = fast;
+        } else if (fast is Map && fast['tokens'] is List) {
+          fastList = fast['tokens'];
+        } else {
+          fastList = [];
+        }
         if (fastList.isNotEmpty) {
           final tokenList = <TokenBalance>[];
           for (final item in fastList) {

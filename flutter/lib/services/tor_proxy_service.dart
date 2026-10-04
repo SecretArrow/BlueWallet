@@ -145,7 +145,7 @@ class TorProxyService extends ChangeNotifier {
       }
     }
     if (idx != -1) {
-      final removedServer = _servers.removeAt(idx);
+      _servers.removeAt(idx);
       await _saveServers();
       // If we deleted the currently active proxy, fallback to Orbot SOCKS default
       if (_activeHost == host && _activePort == port) {

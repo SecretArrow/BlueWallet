@@ -77,7 +77,7 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
           }
 
           phrase = candidate;
-          kp = MnemonicService.deriveKeypair(mnemonic: phrase!, path: path);
+          kp = MnemonicService.deriveKeypair(mnemonic: phrase, path: path);
 
           // Validate address format
           final addr = kp['address'];

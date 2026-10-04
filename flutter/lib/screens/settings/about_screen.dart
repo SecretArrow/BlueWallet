@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../widgets/octra_card.dart';
-import '../../widgets/tonal_button.dart';
 import '../../widgets/adaptive_body.dart';
 
 const _kDonationAddress =

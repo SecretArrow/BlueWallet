@@ -10,7 +10,6 @@ class ThemePaletteScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tm = context.watch<ThemeManager>();
-    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Theme')),

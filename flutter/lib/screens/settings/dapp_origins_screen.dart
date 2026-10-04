@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/octopus_card.dart';
-import '../../widgets/tonal_button.dart';
 
 /// dApp Origins management screen.  Matches DappOriginsActivity.
 class DappOriginsScreen extends StatefulWidget {

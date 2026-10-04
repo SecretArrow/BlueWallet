@@ -44,7 +44,6 @@ class _StealthTaskDetailScreenState extends State<StealthTaskDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final ws = context.watch<WalletService>();
 
     // Find the transaction in history

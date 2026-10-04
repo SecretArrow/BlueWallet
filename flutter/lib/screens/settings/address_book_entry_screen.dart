@@ -68,7 +68,6 @@ class _AddressBookEntryScreenState extends State<AddressBookEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     final isEdit = widget.editId != null;
 

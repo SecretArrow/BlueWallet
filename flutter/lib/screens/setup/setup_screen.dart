@@ -28,7 +28,6 @@ class _SetupScreenState extends State<SetupScreen> {
   final _pin2Ctrl = TextEditingController();
 
   bool _loading = false;
-  bool _obscurePk = true;
   String? _error;
 
   // Imported wallet data — held in memory until PIN is set
@@ -263,89 +262,3 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-class _LabeledField extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool monospace;
-  final bool canCopy;
-  final bool revealed;
-  final VoidCallback? onReveal;
-
-  const _LabeledField({
-    required this.label,
-    required this.value,
-    this.monospace = false,
-    this.canCopy = false,
-    this.revealed = false,
-    this.onReveal,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 6),
-        Container(
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    fontFamily: monospace ? 'monospace' : null,
-                    fontSize: 11,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (onReveal != null)
-                IconButton(
-                  icon: Icon(revealed ? Icons.visibility_off : Icons.visibility,
-                      size: 18),
-                  onPressed: onReveal,
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                ),
-              if (canCopy && revealed)
-                IconButton(
-                  icon: const Icon(Icons.copy, size: 18),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: value));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Copied'),
-                          duration: Duration(seconds: 2)),
-                    );
-                  },
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                ),
-              if (canCopy && !revealed && onReveal == null)
-                IconButton(
-                  icon: const Icon(Icons.copy, size: 18),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: value));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Copied'),
-                          duration: Duration(seconds: 2)),
-                    );
-                  },
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}

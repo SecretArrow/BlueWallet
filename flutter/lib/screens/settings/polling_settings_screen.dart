@@ -69,8 +69,6 @@ class _PollingSettingsScreenState extends State<PollingSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(title: const Text('Polling Settings')),
       body: SingleChildScrollView(

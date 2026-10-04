@@ -158,7 +158,6 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
         return AlertDialog(
           title: const Text('Enter Wallet PIN'),
           content: Form(

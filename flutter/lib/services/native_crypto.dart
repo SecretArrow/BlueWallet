@@ -49,12 +49,6 @@ typedef _AesDecD = int Function(Pointer<Uint8>, Pointer<Uint8>, Pointer<Uint8>,
     int, Pointer<Uint8>, Pointer<Uint8>);
 
 // ── Encoding helpers ─────────────────────────────────────────────────────────
-typedef _B64EncN = Int32 Function(Pointer<Uint8>, Int32, Pointer<Uint8>, Int32);
-typedef _B64EncD = int Function(Pointer<Uint8>, int, Pointer<Uint8>, int);
-
-typedef _B64DecN = Int32 Function(Pointer<Uint8>, Int32, Pointer<Uint8>, Int32);
-typedef _B64DecD = int Function(Pointer<Uint8>, int, Pointer<Uint8>, int);
-
 typedef _HexEncN = Int32 Function(Pointer<Uint8>, Int32, Pointer<Uint8>, Int32);
 typedef _HexEncD = int Function(Pointer<Uint8>, int, Pointer<Uint8>, int);
 
