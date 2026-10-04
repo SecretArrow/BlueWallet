@@ -2,6 +2,9 @@ name: E2E
 
 on:
   workflow_dispatch:
+  schedule:
+    # Nightly — emulator E2E is slow, never run it per-push.
+    - cron: '0 2 * * *'
 
 jobs:
   e2e:
@@ -17,12 +20,21 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
       - run: flutter pub get
         working-directory: flutter
-      - name: Run on Android emulator
+      # Cache the AVD snapshot so nightly runs skip cold emulator creation.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/avd
+          key: avd-api29-${{ runner.os }}-v1
+      - name: Run integration tests on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: 29
           target: google_apis
+          arch: x86_64
           profile: pixel_7
+          force-avd-creation: false
+          disable-animations: true
           script: cd flutter && flutter test integration_test

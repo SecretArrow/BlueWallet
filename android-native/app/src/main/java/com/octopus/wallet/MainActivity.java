@@ -604,6 +604,34 @@ public class MainActivity extends AppCompatActivity {
      * are probed concurrently instead of sequentially (O(N×4) → O(ceil(N/8)×4)).</p>
      */
     private List<TokenRow> fetchContractTokens() throws Exception {
+        // Fast path (webcli GET /api/tokens parity): try the dedicated
+        // octra_tokensByAddress index first — single RPC instead of probing
+        // every deployed contract. Falls through to listContracts probing below.
+        try {
+            JSONArray fast = repo().fetchTokensFast(rpcUrl, walletAddress);
+            if (fast != null && fast.length() > 0) {
+                List<TokenRow> out = new ArrayList<>(fast.length());
+                for (int i = 0; i < fast.length(); i++) {
+                    JSONObject t = fast.optJSONObject(i);
+                    if (t == null) continue;
+                    String addr = t.optString("address", "");
+                    String symbol = t.optString("symbol", "");
+                    if (addr.isEmpty() || symbol.isEmpty() || "0".equals(symbol)) continue;
+                    String balance = t.optString("balance", "0");
+                    if (balance.isEmpty() || "0".equals(balance)) continue;
+                    String name = t.optString("name", symbol);
+                    int decimals = 0;
+                    try { decimals = Integer.parseInt(t.optString("decimals", "0")); }
+                    catch (Exception ignored) {}
+                    String formatted = formatTokenWithDecimals(balance, decimals);
+                    out.add(new TokenRow(symbol, name, "Token", balance, formatted, false, addr, decimals));
+                }
+                if (!out.isEmpty()) return out;
+            }
+        } catch (Exception ignored) {
+            // fall through to probing
+        }
+
         JSONObject listResult = repo().listContracts(rpcUrl);
         if (listResult == null) return new ArrayList<>();
 

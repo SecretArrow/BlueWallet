@@ -214,6 +214,16 @@ class LocalWebServerService extends ChangeNotifier {
         return;
       }
 
+      // Public: batch fee estimation (webcli GET /api/fee parity).
+      if (uriPath == '/api/fee') {
+        if (request.method == 'GET') {
+          await _handleFee(response);
+        } else {
+          await _sendJsonError(response, HttpStatus.methodNotAllowed, 'Method not allowed');
+        }
+        return;
+      }
+
       // Authenticated APIs (Bearer token check)
       if (!_isAuthorized(request)) {
         await _sendJsonError(response, HttpStatus.unauthorized, 'Unauthorized');
@@ -302,6 +312,18 @@ class LocalWebServerService extends ChangeNotifier {
 
       if (uriPath == '/api/bridge/signer' && request.method == 'POST') {
         await _handleBridgeSigner(request, response);
+        return;
+      }
+
+      // PVAC key rotation (webcli POST /api/key_switch parity)
+      if (uriPath == '/api/key_switch' && request.method == 'POST') {
+        await _handleKeySwitch(request, response);
+        return;
+      }
+
+      // Fast token listing (webcli GET /api/tokens parity)
+      if (uriPath == '/api/tokens' && request.method == 'GET') {
+        await _handleTokens(response);
         return;
       }
 
@@ -1255,8 +1277,66 @@ class LocalWebServerService extends ChangeNotifier {
     }
   }
 
-  Future<void> _handleBridgeSigner(HttpRequest request, HttpResponse response) async {
+  Future<void> _handleFee(HttpResponse response) async {
     try {
+      final ws = WalletService.instance;
+      final nodeUrl = NetworkService.instance.activeNodeUrl;
+      final fees = await ws.fetchFeeBatch(nodeUrl);
+      await _sendJson(response, HttpStatus.ok, fees);
+    } catch (e) {
+      await _sendJsonError(
+          response, HttpStatus.internalServerError, e.toString());
+    }
+  }
+
+  Future<void> _handleKeySwitch(
+      HttpRequest request, HttpResponse response) async {
+    try {
+      final ws = WalletService.instance;
+      final nodeUrl = NetworkService.instance.activeNodeUrl;
+      final result = await ws.submitKeySwitch(nodeUrl);
+      await _sendJson(response, HttpStatus.ok, result);
+    } catch (e) {
+      await _sendJsonError(
+          response, HttpStatus.internalServerError, 'key_switch failed: $e');
+    }
+  }
+
+  Future<void> _handleTokens(HttpResponse response) async {
+    try {
+      final ws = WalletService.instance;
+      final wallet = ws.activeWallet;
+      if (wallet == null) {
+        await _sendJsonError(
+            response, HttpStatus.badRequest, 'Wallet not loaded');
+        return;
+      }
+      final nodeUrl = NetworkService.instance.activeNodeUrl;
+      final client = RpcClient();
+      client.setUrl(nodeUrl);
+      final res = await client.getTokensByAddress(wallet.address);
+      if (!res.ok) {
+        await _sendJsonError(response, HttpStatus.badGateway,
+            res.error ?? 'tokens lookup failed');
+        return;
+      }
+      final tokens = res.result is List
+          ? res.result as List
+          : (res.result is Map
+              ? ((res.result as Map)['tokens'] as List? ?? [])
+              : []);
+      await _sendJson(response, HttpStatus.ok, {
+        'tokens': tokens,
+        'count': tokens.length,
+        'wallet_address': wallet.address,
+      });
+    } catch (e) {
+      await _sendJsonError(
+          response, HttpStatus.internalServerError, e.toString());
+    }
+  }
+
+  Future<void> _handleBridgeSigner(HttpRequest request, HttpResponse response) async {    try {
       final bodyStr = await utf8.decoder.bind(request).join();
       final body = jsonDecode(bodyStr) as Map<String, dynamic>;
 

@@ -447,14 +447,102 @@ public final class WalletRepository {
             }
         }
 
-        // Register
+        // Register (webcli sends aes_kat as 5th param — include it when available)
         String regSig = OctraNative.getInstance().signPvacRegister();
         String pubKeyB64 = OctraNative.getInstance().getPublicKeyB64();
         if (regSig.isEmpty() || pubKeyB64.isEmpty()) {
             throw new IllegalStateException("Failed to sign pvac registration");
         }
-        rpc.registerPvacPubkey(rpcUrl, address, localPk, regSig, pubKeyB64);
+        String aesKat = "";
+        try {
+            aesKat = OctraNative.getInstance().computeAesKat();
+        } catch (Exception e) {
+            Log.w(TAG, "computeAesKat failed, registering without kat: " + e.getMessage());
+        }
+        rpc.registerPvacPubkey(rpcUrl, address, localPk, regSig, pubKeyB64,
+                aesKat == null ? "" : aesKat);
         Log.d(TAG, "pvac pubkey registered successfully");
+    }
+
+    /**
+     * Submits a PVAC encryption-key rotation ({@code op_type:key_switch}),
+     * mirroring webcli {@code POST /api/key_switch}.
+     *
+     * <p>Builds the tx via {@code signGeneralTransaction} (self-transfer,
+     * amount 0, ou 3000) so the nonce is set correctly before signing —
+     * the legacy {@code signKeySwitchTx} JNI signs with nonce 0.</p>
+     *
+     * @return node submit result (contains {@code tx_hash} on success)
+     */
+    public JSONObject submitKeySwitch(String rpcUrl, String address) throws Exception {
+        String localPk = OctraNative.getInstance().getPvacPubkey();
+        if (localPk == null || localPk.isEmpty()) {
+            throw new IllegalStateException("PVAC not available");
+        }
+        String aesKat = OctraNative.getInstance().computeAesKat();
+        if (aesKat == null) aesKat = "";
+
+        // message = "encryption key switch | new_key:<sha256(pubkey)[0:8]hex>"
+        byte[] pkRaw = OctraNative.getInstance().base64Decode(localPk);
+        byte[] digest = sha256(pkRaw);
+        StringBuilder hex = new StringBuilder();
+        for (int i = 0; i < 8 && i < digest.length; i++) {
+            hex.append(String.format("%02x", digest[i] & 0xff));
+        }
+        String message = "encryption key switch | new_key:" + hex;
+
+        JSONObject encData = new JSONObject();
+        encData.put("new_pubkey", localPk);
+        encData.put("aes_kat", aesKat);
+
+        Result<BalanceSummary> bal = fetchBalance(rpcUrl, address);
+        if (!bal.isSuccess()) {
+            throw new IllegalStateException("Failed to fetch balance/nonce: " + bal.getError());
+        }
+        int nextNonce = bal.getValue().nonce + 1;
+
+        String signedTxStr = OctraNative.getInstance().signGeneralTransaction(
+                address, "0", nextNonce, "3000", "key_switch", message, encData.toString());
+        if (signedTxStr == null || signedTxStr.isEmpty()) {
+            throw new IllegalStateException("Failed to sign key_switch transaction");
+        }
+        JSONObject signedTx = new JSONObject(signedTxStr);
+        if (signedTx.has("error")) {
+            throw new IllegalStateException(signedTx.optString("error", "Failed to sign key_switch"));
+        }
+        return rpc.submitTx(rpcUrl, signedTx);
+    }
+
+    private byte[] sha256(byte[] data) throws Exception {
+        java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+        return md.digest(data);
+    }
+
+    /**
+     * Batch fee estimation for all op types (webcli {@code GET /api/fee}
+     * parity). Never throws — falls back per-op inside the RPC client.
+     */
+    public JSONObject fetchFeeBatch(String rpcUrl) {
+        try {
+            return rpc.fetchFeeBatch(rpcUrl);
+        } catch (Exception e) {
+            Log.w(TAG, "fetchFeeBatch failed: " + e.getMessage());
+            return new JSONObject();
+        }
+    }
+
+    /**
+     * Fast token listing via {@code octra_tokensByAddress} (webcli
+     * {@code GET /api/tokens} parity). Returns raw token array; callers
+     * fall back to {@code listContracts} probing when empty.
+     */
+    public JSONArray fetchTokensFast(String rpcUrl, String address) {
+        try {
+            return rpc.getTokensByAddress(rpcUrl, address);
+        } catch (Exception e) {
+            Log.w(TAG, "fetchTokensFast failed, caller should probe listContracts: " + e.getMessage());
+            return new JSONArray();
+        }
     }
 
     // ── Encrypted balance ──────────────────────────────────────────────────

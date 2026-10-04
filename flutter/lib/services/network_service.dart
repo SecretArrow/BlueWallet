@@ -298,6 +298,50 @@ class RpcClient {
     return call('octra_transactionsByAddress', [addr, limit, offset], 15);
   }
 
+  /// Fast token listing (webcli GET /api/tokens parity).
+  Future<RpcResult> getTokensByAddress(String addr) {
+    return call('octra_tokensByAddress', [addr], 15);
+  }
+
+  /// Paginated token transfers (webcli GET /api/token-history parity).
+  Future<RpcResult> getTokenTransfersByAddress(
+    String addr, [
+    int limit = 50,
+    int offset = 0,
+  ]) {
+    return call('octra_tokenTransfersByAddress', [addr, limit, offset], 30);
+  }
+
+  /// Batch fee estimation for all op types (webcli GET /api/fee parity).
+  /// Returns a map op -> fee bucket; failed ops get safe defaults.
+  Future<Map<String, dynamic>> fetchFeeBatch() async {
+    const ops = [
+      'standard',
+      'encrypt',
+      'decrypt',
+      'stealth',
+      'claim',
+      'deploy',
+      'call'
+    ];
+    final fees = <String, dynamic>{};
+    for (final op in ops) {
+      try {
+        final r = await call('octra_recommendedFee', [op], 10);
+        if (r.ok && r.result != null) {
+          fees[op] = r.result;
+          continue;
+        }
+      } catch (_) {}
+      fees[op] = {
+        'minimum': '1000',
+        'recommended': '1000',
+        'fast': '2000',
+      };
+    }
+    return fees;
+  }
+
   /// Parse RPC response
   RpcResult _parseResponse(String body) {
     try {
