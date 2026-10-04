@@ -483,8 +483,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       // Direct RPC fetch (read-only render, no server needed).
       final ws = context.read<WalletService>();
       final ns = context.read<NetworkService>();
-      final asset = await ws.rpcCall(
-          ns.activeNodeUrl, 'circle_asset', [parts[0], parts[1]]);
+      final asset = await ws
+          .rpcCall(ns.activeNodeUrl, 'circle_asset', [parts[0], parts[1]]);
       final map = (asset as Map?)?.cast<String, dynamic>() ?? {};
       if (map.containsKey('error')) {
         throw Exception(map['error'].toString());
@@ -502,8 +502,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
           baseUrl: octUrl,
         );
       } else if (mime.startsWith('image/')) {
-        await _controller.loadRequest(
-            Uri.dataFromBytes(raw, mimeType: mime));
+        await _controller.loadRequest(Uri.dataFromBytes(raw, mimeType: mime));
       } else {
         throw Exception('Preview not supported for $mime');
       }
