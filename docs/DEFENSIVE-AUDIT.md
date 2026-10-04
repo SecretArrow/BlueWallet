@@ -18,6 +18,8 @@ test per cabang, asumsi eksplisit).
 | A3 | Uang = integer microcoins; tidak ada floating point di dekat uang |
 | A4 | Kunci privat tidak pernah keluar native memory / secure storage |
 | A5 | Endpoint lokal yang gagal → JSON error + HTTP status yang tepat |
+| A6 | Flutter: tanpa auto-retry (retry buta bisa double-submit; pemanggil yang memutuskan). Android: retry hanya untuk error transien, tidak untuk IAE, max 5, interrupt dikembalikan |
+| A7 | Cabang `Log.w` Android tidak di-unit-test (stub Log crash di JVM polos); diverifikasi via inspeksi + lint |
 
 ## Inventaris modul × risiko × fase
 
@@ -31,7 +33,7 @@ test per cabang, asumsi eksplisit).
 | key_switch | `WalletRepository.submitKeySwitch` | `wallet_service.dart` submitKeySwitch | Belum diaudit |
 | Encrypt/decrypt/stealth balance | `signEncryptTx/signDecryptTx/signStealthSendTx` (JNI), `Encrypt/DecryptBalanceActivity`, `StealthSendActivity` | `crypto_service.dart`, `encrypt/decrypt_balance_screen.dart`, `stealth_send_screen.dart` | Belum diaudit |
 | PVAC decrypt + ECDH/stealth scan | `cpp/stealth.*`, `pvac_bridge.hpp`, `StealthScanActivity`, `StealthClaimService` | `native_crypto.dart` ecdh/stealth, `stealth_scan_screen.dart` | Belum diaudit |
-| RPC client (timeout/retry/error) | `OctraRpcClient.java`, `cpp/rpc_client.*` | `network_service.dart` RpcClient + `wallet_service.dart` _rpc | Belum diaudit |
+| RPC client (timeout/retry/error) | `OctraRpcClient.java`, `cpp/rpc_client.*` | `network_service.dart` RpcClient + `wallet_service.dart` _rpc | ✅ Fase 1.1 selesai (dispatch+parse; lihat bukti di bawah) |
 | Wallet create/import/HD/mnemonic | `cpp/wallet.*`, `AddWalletActivity`, `Bip39.java`, `MnemonicStore`, `DeriveChildWalletActivity` | `mnemonic_service.dart`, `add/mnemonic/derive_child_wallet_screen.dart`, `bip39_wordlist.dart` | Belum diaudit |
 | Key storage + PIN | `OctraNative` (mlock/zero), `PinStore`, `WalletKeysLoader`, `WalletPinVerifier`, `UnlockActivity`, `ChangePinActivity` | `pin_service.dart`, `flutter_secure_storage` via `wallet_service.dart`, `pin_entry_screen.dart`, `change_pin_screen.dart` | Belum diaudit |
 
@@ -72,3 +74,25 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+
+## Bukti Fase 1.1 — RPC dispatch layer
+
+| # | Skenario | Android (`OctraRpcClient`) | Flutter (`RpcClient`) | Test |
+|---|---|---|---|---|
+| 1 | method null/kosong | `call()` → IAE, tanpa network | `call()` → failure, mock 0 call | `OctraRpcClientTest.call_rejects*`, `rpc_client_test.dart` guards |
+| 2 | params null | `[]` (existing) | `[]` (existing) | implisit via wrappers |
+| 3 | URL kosong/invalid | fallback DEFAULT + `Log.w` (kontrak lama, A7) | `ArgumentError` spesifik / failure `not configured` | validator test + `setUrl` tests |
+| 4 | port non-angka/di luar 1..65535 | N/A (OkHttp IAE → tanpa retry, kasus 6) | `ArgumentError` | `setUrl` tests |
+| 5 | HTTP non-2xx | `IOException` + kode + snippet body | `_parseResponse` atas body apa pun | Android: integrasi; Flutter: `HTTP 500` test |
+| 6 | error permanen (IAE) | tanpa retry, langsung throw | N/A (tanpa retry, A6) | `callWithRetry_doesNotRetryPermanentErrors` |
+| 7 | attempts ≤0 / >5 | clamp 1..5 (`MAX_ATTEMPTS`) | timeout clamp 1..300 | clamp timeout via timeout test; attempts via inspeksi |
+| 8 | interrupt saat backoff | flag dikembalikan + rethrow (dulu: ditelan) | N/A (tanpa sleep) | inspeksi + lint |
+| 9 | semua percobaan gagal | throw last / ISE | failure terakhir | integrasi |
+| 10 | body kosong/bukan JSON | `IllegalStateException` / `JSONException` berkonteks URL+method | `Parse error` | Flutter: garbage/array tests |
+| 11 | result obj/skalar/array | wrap `value` (existing) | pass-through, kecuali null | `extractResult_*` + scalar/`0` tests |
+| 12 | result null tanpa error | throw informatif | failure `Empty result` (baru) | `extractResult_nullResultThrows` + null-result test |
+| 13 | error obj/string/number | pesan diekstrak (existing) | pesan diekstrak (existing) | `throwOnRpcError_handlesAllShapes` + loop test |
+| 14 | error null eksplisit | pass (tanpa error) | failure `Unknown` (dulu: `failure('null')`) | `throwOnRpcError` + null-error test |
+| 15 | params tak-encodable | N/A (org.json ketat) | failure `Request encoding` (dulu: label `Connection` salah) | unencodable test |
+| 16 | timeout/socket | `IOException` via OkHttp+callTimeout 90s | failure `Connection failed` | Flutter: socket+timeout tests |
+| 17 | envelope tanpa result+error | failure `Unknown` | failure `Unknown` | unknown-shape tests |

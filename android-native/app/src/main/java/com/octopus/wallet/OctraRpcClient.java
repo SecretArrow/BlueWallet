@@ -60,11 +60,17 @@ public final class OctraRpcClient {
     private final OkHttpClient http;
     private final AtomicInteger idSeq = new AtomicInteger(0);
 
+    /** Hard ceiling for retry attempts (fail-safe: never loop unbounded). */
+    static final int MAX_ATTEMPTS = 5;
+
     private OctraRpcClient() {
         http = new OkHttpClient.Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(15, TimeUnit.SECONDS)
+                // Overall deadline per attempt (connect+write+read worst case
+                // is 60s, so 90s never fires in practice — pure fail-safe).
+                .callTimeout(90, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(true)
                 .proxySelector(new java.net.ProxySelector() {
                     @Override
@@ -107,12 +113,15 @@ public final class OctraRpcClient {
      */
     public JSONObject call(String rpcUrl, String method, JSONArray params)
             throws Exception {
+        if (method == null || method.trim().isEmpty()) {
+            throw new IllegalArgumentException("RPC method must be non-empty (got: " + method + ")");
+        }
         JSONObject envelope = new JSONObject();
         envelope.put("jsonrpc", "2.0");
         envelope.put("method", method);
         envelope.put("params", params != null ? params : new JSONArray());
         envelope.put("id", idSeq.incrementAndGet());
-        return post(buildRpcEndpoint(rpcUrl), envelope);
+        return post(buildRpcEndpoint(rpcUrl), envelope, method);
     }
 
     /**
@@ -129,14 +138,22 @@ public final class OctraRpcClient {
                                     JSONArray params, int attempts)
             throws Exception {
         Exception last = null;
-        int max = Math.max(1, attempts);
+        int max = Math.min(Math.max(1, attempts), MAX_ATTEMPTS);
         for (int i = 1; i <= max; i++) {
             try {
                 return call(rpcUrl, method, params);
+            } catch (IllegalArgumentException e) {
+                // Permanent (bad method/URL) — retrying can never succeed.
+                throw e;
             } catch (Exception e) {
                 last = e;
                 if (i < max) {
-                    try { Thread.sleep(250L * i); } catch (InterruptedException ignored) {}
+                    try {
+                        Thread.sleep(250L * i);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw ie;
+                    }
                 }
             }
         }
@@ -150,12 +167,25 @@ public final class OctraRpcClient {
      * @return parsed JSON body
      */
     public JSONObject restGet(String url) throws Exception {
-        Request req = new Request.Builder().url(url).get().build();
+        final Request req;
+        try {
+            req = new Request.Builder().url(url).get().build();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid REST URL '" + url + "': " + e.getMessage(), e);
+        }
         try (Response resp = http.newCall(req).execute()) {
+            if (!resp.isSuccessful()) {
+                throw new java.io.IOException("REST HTTP " + resp.code() + " " + resp.message()
+                        + " from " + url);
+            }
             if (resp.body() == null) {
                 throw new IllegalStateException("Empty response from " + url);
             }
-            return new JSONObject(resp.body().string());
+            try {
+                return new JSONObject(resp.body().string());
+            } catch (org.json.JSONException e) {
+                throw new org.json.JSONException("Invalid JSON from " + url + ": " + e.getMessage());
+            }
         }
     }
 
@@ -531,17 +561,48 @@ public final class OctraRpcClient {
                 .post(RequestBody.create(body.toString(), JSON_MEDIA))
                 .build();
         try (Response resp = http.newCall(req).execute()) {
+            if (!resp.isSuccessful()) {
+                String snippet = "";
+                try {
+                    if (resp.body() != null) {
+                        String raw = resp.body().string();
+                        snippet = raw.length() > 200 ? raw.substring(0, 200) : raw;
+                    }
+                } catch (Exception ignored) {
+                    Log.w(TAG, "Could not read error body (non-2xx already reported)");
+                }
+                throw new java.io.IOException("RPC HTTP " + resp.code() + " " + resp.message()
+                        + " from " + url + (snippet.isEmpty() ? "" : ": " + snippet));
+            }
             if (resp.body() == null) {
                 throw new IllegalStateException("Empty RPC response from " + url);
             }
-            return new JSONObject(resp.body().string());
+            try {
+                return new JSONObject(resp.body().string());
+            } catch (org.json.JSONException e) {
+                throw new org.json.JSONException("Invalid JSON from " + url + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /** Backwards-compatible overload (method unknown — prefer the 3-arg form). */
+    private JSONObject post(String url, JSONObject body, String method) throws Exception {
+        try {
+            return post(url, body);
+        } catch (Exception e) {
+            throw new Exception("RPC '" + method + "' failed at " + url + ": " + e.getMessage(), e);
         }
     }
 
     /** Build the JSON-RPC endpoint URL from a base node URL. */
     static String buildRpcEndpoint(String rpcUrl) {
         String norm = UrlSecurityValidator.normalizeRpcUrl(rpcUrl);
-        if (norm == null || norm.isEmpty()) norm = UrlSecurityValidator.DEFAULT_RPC;
+        if (norm == null || norm.isEmpty()) {
+            // Legacy contract: fall back instead of failing (callers depend on
+            // it); warn loudly so misconfiguration is visible in logcat.
+            Log.w(TAG, "Unusable RPC URL '" + rpcUrl + "', falling back to " + UrlSecurityValidator.DEFAULT_RPC);
+            norm = UrlSecurityValidator.DEFAULT_RPC;
+        }
         if (norm.endsWith("/rpc") || norm.endsWith("/rpc/")) return norm;
         return norm.endsWith("/") ? norm + "rpc" : norm + "/rpc";
     }
@@ -556,8 +617,8 @@ public final class OctraRpcClient {
         return norm;
     }
 
-    /** Extract the {@code "result"} field (throws if missing). */
-    private static JSONObject extractResult(JSONObject envelope) throws Exception {
+    /** Extract the {@code "result"} field (throws if missing). Package-visible for tests. */
+    static JSONObject extractResult(JSONObject envelope) throws Exception {
         if (!envelope.has("result") || envelope.isNull("result")) {
             throwOnRpcError(envelope);
             throw new IllegalStateException("Invalid RPC response: missing 'result'");
@@ -570,22 +631,23 @@ public final class OctraRpcClient {
         return wrapper;
     }
 
-    /** Extract the {@code "result"} field or return {@code null}. */
-    private static JSONObject extractResultOrNull(JSONObject envelope) {
+    /** Extract the {@code "result"} field or return {@code null}. Package-visible for tests. */
+    static JSONObject extractResultOrNull(JSONObject envelope) {
         try {
-            if (!envelope.has("result") || envelope.isNull("result")) return null;
+            if (envelope == null || !envelope.has("result") || envelope.isNull("result")) return null;
             Object r = envelope.get("result");
             if (r instanceof JSONObject) return (JSONObject) r;
             JSONObject wrapper = new JSONObject();
             wrapper.put("value", r);
             return wrapper;
         } catch (Exception e) {
+            Log.w(TAG, "extractResultOrNull failed, returning null: " + e.getMessage());
             return null;
         }
     }
 
-    /** If the envelope contains an {@code "error"} field, throw with its message. */
-    private static void throwOnRpcError(JSONObject envelope) throws Exception {
+    /** If the envelope contains an {@code "error"} field, throw with its message. Package-visible for tests. */
+    static void throwOnRpcError(JSONObject envelope) throws Exception {
         if (envelope.has("error") && !envelope.isNull("error")) {
             Object err = envelope.get("error");
             String msg;
