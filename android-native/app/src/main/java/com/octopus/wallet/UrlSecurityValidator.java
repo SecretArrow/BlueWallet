@@ -5,15 +5,40 @@ import android.net.Uri;
 import java.util.Locale;
 
 public final class UrlSecurityValidator {
-    public static final String DEFAULT_RPC = "https://rpc.octrascan.io";
+    public static final String DEFAULT_RPC = "https://octra.network/rpc";
     public static final String DEFAULT_EXPLORER = "https://octrascan.io";
 
-    public static final String DEVNET_RPC = "http://165.227.225.79:8080";
+    public static final String DEVNET_RPC = "https://devnet.octrascan.io/rpc";
     public static final String DEVNET_EXPLORER = "https://devnet.octrascan.io";
 
-    /** Mainnet endpoints per https://octrascan.io/docs.html */
-    public static final String MAINNET_RPC = "https://rpc.octrascan.io";
+    /** Mainnet endpoints (upstream webcli parity). */
+    public static final String MAINNET_RPC = "https://octra.network/rpc";
     public static final String MAINNET_EXPLORER = "https://octrascan.io";
+
+    /**
+     * Dead hosts migrated to live ones (upstream webcli parity — the old
+     * endpoints no longer respond). Applied inside {@link #normalizeUrl}
+     * so stored profiles heal automatically.
+     */
+    private static String migrateDeadHost(String url) {
+        if (url == null) return null;
+        String t = url.trim();
+        String low = t.toLowerCase(Locale.US);
+        while (low.endsWith("/")) {
+            low = low.substring(0, low.length() - 1);
+            t = t.substring(0, t.length() - 1);
+        }
+        if (low.equals("http://46.101.86.250:8080") || low.equals("http://46.101.86.250:8080/rpc")) {
+            return "https://octra.network/rpc";
+        }
+        if (low.equals("http://165.227.225.79:8080") || low.equals("http://165.227.225.79:8080/rpc")) {
+            return "https://devnet.octrascan.io/rpc";
+        }
+        if (low.equals("https://rpc.octrascan.io") || low.equals("https://rpc.octrascan.io/rpc")) {
+            return "https://octra.network/rpc";
+        }
+        return url;
+    }
 
     private UrlSecurityValidator() {
     }
@@ -49,7 +74,7 @@ public final class UrlSecurityValidator {
     }
 
     private static String normalizeUrl(String input, String fallback, boolean requireHttps) {
-        String candidate = input == null ? "" : input.trim();
+        String candidate = migrateDeadHost(input == null ? "" : input.trim());
         if (candidate.isEmpty()) {
             candidate = fallback == null ? "" : fallback;
         }

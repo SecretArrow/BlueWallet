@@ -1,15 +1,15 @@
-contract SimpleAMM {
+Program SimpleAMM {
   state {
     token_a: address
     token_b: address
-    reserve_a: int
-    reserve_b: int
-    total_lp: int
-    lp_balances: map[address]int
+    reserve_a: u128
+    reserve_b: u128
+    total_lp: u128
+    lp_balances: map[address]u128
   }
 
-  event Swap(who: address, token_in: address, amount_in: int, amount_out: int)
-  event AddLiquidity(who: address, a: int, b: int, lp: int)
+  event Swap(who: address, token_in: address, amount_in: u128, amount_out: u128)
+  event AddLiquidity(who: address, a: u128, b: u128, lp: u128)
 
   constructor(a: address, b: address) {
     self.token_a = a
@@ -19,7 +19,7 @@ contract SimpleAMM {
     self.total_lp = 0
   }
 
-  fn add_liquidity(amount_a: int, amount_b: int): int {
+  fn add_liquidity(amount_a: u128, amount_b: u128): u128 {
     require(amount_a > 0 && amount_b > 0, "amounts must be positive")
     let lp = amount_a * amount_b
     self.reserve_a += amount_a
@@ -30,7 +30,7 @@ contract SimpleAMM {
     return lp
   }
 
-  fn swap_a_for_b(amount_in: int): int {
+  fn swap_a_for_b(amount_in: u128): u128 {
     require(amount_in > 0, "zero input")
     let out = (amount_in * self.reserve_b) / (self.reserve_a + amount_in)
     require(out > 0, "output too small")
@@ -40,11 +40,11 @@ contract SimpleAMM {
     return out
   }
 
-  view fn get_reserves(): (int, int) {
+  view fn get_reserves(): (u128, u128) {
     return (self.reserve_a, self.reserve_b)
   }
 
-  view fn get_price(): int {
+  view fn get_price(): u128 {
     require(self.reserve_a > 0, "no liquidity")
     return (self.reserve_b * 1000000) / self.reserve_a
   }

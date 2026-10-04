@@ -501,8 +501,11 @@ public final class WalletRepository {
         }
         int nextNonce = bal.getValue().nonce + 1;
 
+        // OU from the fee oracle (upstream webcli parity), fallback 3000.
+        String ou = fetchRecommendedOu(rpcUrl, "key_switch", "3000");
+
         String signedTxStr = OctraNative.getInstance().signGeneralTransaction(
-                address, "0", nextNonce, "3000", "key_switch", message, encData.toString());
+                address, "0", nextNonce, ou, "key_switch", message, encData.toString());
         if (signedTxStr == null || signedTxStr.isEmpty()) {
             throw new IllegalStateException("Failed to sign key_switch transaction");
         }
@@ -516,6 +519,23 @@ public final class WalletRepository {
     private byte[] sha256(byte[] data) throws Exception {
         java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
         return md.digest(data);
+    }
+
+    /**
+     * Recommended OU for a single op via {@code octra_recommendedFee([op])}.
+     * Never throws — returns {@code fallback} on any failure.
+     */
+    public String fetchRecommendedOu(String rpcUrl, String op, String fallback) {
+        try {
+            JSONObject bucket = rpc.fetchFeeForOp(rpcUrl, op);
+            if (bucket != null) {
+                String rec = bucket.optString("recommended", "");
+                if (!rec.isEmpty() && Long.parseLong(rec) > 0) return rec;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "fetchRecommendedOu(" + op + ") failed: " + e.getMessage());
+        }
+        return fallback;
     }
 
     /**

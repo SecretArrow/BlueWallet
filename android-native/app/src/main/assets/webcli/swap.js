@@ -25,9 +25,9 @@
               2025-2026 Julia L.
 */
 
-var SWAP_ADDR = '';
-var TOKEN_ADDR = '';
-var SCANNER_URL = '';
+var SWAP_ADDR = 'octBjnQBicZs6iMwcRxrdzLYAzyVTi91KEiA8RGkVjco2w6';
+var TOKEN_ADDR = 'oct6J37Wx7Rb1putvfwFrFbGUStE8hGzsb33fhLgUdpTx6d';
+var SCANNER_URL = 'https://devnet.octrascan.io';
 var TOKEN_SYMBOL = 'tUSD';
 var TOKEN_DECIMALS = 6;
 var OCT_DECIMALS = 6;
@@ -441,3 +441,17 @@ $('pin-input').addEventListener('keydown', function(e) {
 });
 
 checkWallet();
+
+(function() {
+  var actions = { doUnlock, setDir, onInputChange, setMax, doSwap, cancelSwap, confirmSwap };
+  function run(e, attr) {
+    var el = e.target.closest('[' + attr + ']');
+    if (!el) return;
+    var fn = actions[el.getAttribute(attr)];
+    if (!fn) return;
+    if (el.getAttribute('data-prevent') === '1') e.preventDefault();
+    fn(el.getAttribute('data-arg'), el, e);
+  }
+  document.addEventListener('click', function(e) { run(e, 'data-action'); });
+  document.addEventListener('input', function(e) { run(e, 'data-input'); });
+})();

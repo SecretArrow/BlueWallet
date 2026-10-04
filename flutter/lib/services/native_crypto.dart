@@ -90,8 +90,8 @@ typedef _DeriveViewKpN = Void Function(
 typedef _DeriveViewKpD = void Function(
     Pointer<Uint8>, Pointer<Uint8>, Pointer<Uint8>);
 
-typedef _EcdhN = Void Function(Pointer<Uint8>, Pointer<Uint8>, Pointer<Uint8>);
-typedef _EcdhD = void Function(Pointer<Uint8>, Pointer<Uint8>, Pointer<Uint8>);
+typedef _EcdhN = Int32 Function(Pointer<Uint8>, Pointer<Uint8>, Pointer<Uint8>);
+typedef _EcdhD = int Function(Pointer<Uint8>, Pointer<Uint8>, Pointer<Uint8>);
 
 typedef _StealthTagN = Void Function(Pointer<Uint8>, Pointer<Uint8>);
 typedef _StealthTagD = void Function(Pointer<Uint8>, Pointer<Uint8>);
@@ -611,6 +611,8 @@ class NativeCrypto {
   }
 
   /// x25519 ECDH + SHA-256. Returns 32-byte shared secret.
+  /// Throws [StateError] when the peer key is rejected (low-order point),
+  /// mirroring upstream webcli behavior.
   static Uint8List ecdh(Uint8List ourXsk, Uint8List theirXpk) {
     assert(ourXsk.length == 32 && theirXpk.length == 32);
     final skPtr = calloc<Uint8>(32);
@@ -619,7 +621,10 @@ class NativeCrypto {
     try {
       _copyTo(skPtr, ourXsk);
       _copyTo(pkPtr, theirXpk);
-      _i._ecdh(skPtr, pkPtr, sharedPtr);
+      final ok = _i._ecdh(skPtr, pkPtr, sharedPtr);
+      if (ok == 0) {
+        throw StateError('x25519 low-order public key rejected');
+      }
       return Uint8List.fromList(sharedPtr.asTypedList(32));
     } finally {
       calloc.free(skPtr);
