@@ -1,6 +1,6 @@
 package com.octopus.wallet;
 
-import android.net.Uri;
+import java.net.URI;
 
 import java.util.Locale;
 
@@ -60,7 +60,7 @@ public final class UrlSecurityValidator {
     }
 
     public static boolean isCleartextRpc(String rpcUrl) {
-        Uri uri = parse(rpcUrl);
+        URI uri = parse(rpcUrl);
         if (uri == null) return false;
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.US);
         if (!"http".equals(scheme)) return false;
@@ -86,7 +86,7 @@ public final class UrlSecurityValidator {
             candidate = (requireHttps ? "https://" : "http://") + candidate;
         }
 
-        Uri uri = parse(candidate);
+        URI uri = parse(candidate);
         if (uri == null) {
             return null;
         }
@@ -102,7 +102,13 @@ public final class UrlSecurityValidator {
             return null;
         }
 
-        return uri.buildUpon().encodedPath(uri.getEncodedPath()).build().toString();
+        // Rebuild canonically (drops fragments; keeps path/query).
+        try {
+            return new URI(scheme, uri.getUserInfo(), host.toLowerCase(Locale.US),
+                    uri.getPort(), uri.getPath(), uri.getQuery(), null).toString();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static boolean isLocalOrTrustedCleartextHost(String host) {
@@ -117,9 +123,9 @@ public final class UrlSecurityValidator {
         return false;
     }
 
-    private static Uri parse(String input) {
+    private static URI parse(String input) {
         try {
-            return Uri.parse(input);
+            return new URI(input);
         } catch (Exception e) {
             return null;
         }
