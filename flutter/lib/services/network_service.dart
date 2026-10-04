@@ -157,7 +157,7 @@ class RpcClient {
       return RpcResult.failure(
           'RPC host is not configured — call setUrl() with a valid URL first');
     }
-    final timeout = timeoutSec.clamp(1, 300);
+    final timeout = timeoutSec.clamp(1, 300).toInt();
     _id++;
     final request = {
       'jsonrpc': '2.0',
