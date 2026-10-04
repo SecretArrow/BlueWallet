@@ -8,10 +8,12 @@ class LocalWebServerSettingsScreen extends StatefulWidget {
   const LocalWebServerSettingsScreen({super.key});
 
   @override
-  State<LocalWebServerSettingsScreen> createState() => _LocalWebServerSettingsScreenState();
+  State<LocalWebServerSettingsScreen> createState() =>
+      _LocalWebServerSettingsScreenState();
 }
 
-class _LocalWebServerSettingsScreenState extends State<LocalWebServerSettingsScreen> {
+class _LocalWebServerSettingsScreenState
+    extends State<LocalWebServerSettingsScreen> {
   bool _obscureToken = true;
 
   @override
@@ -39,13 +41,15 @@ class _LocalWebServerSettingsScreenState extends State<LocalWebServerSettingsScr
                     height: 48,
                     decoration: BoxDecoration(
                       color: serverService.isRunning
-                          ? cs.primary.withOpacity(0.12)
-                          : cs.onSurface.withOpacity(0.08),
+                          ? cs.primary.withValues(alpha: 0.12)
+                          : cs.onSurface.withValues(alpha: 0.08),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       Icons.dns_rounded,
-                      color: serverService.isRunning ? cs.primary : cs.onSurfaceVariant,
+                      color: serverService.isRunning
+                          ? cs.primary
+                          : cs.onSurfaceVariant,
                       size: 24,
                     ),
                   ),
@@ -77,9 +81,10 @@ class _LocalWebServerSettingsScreenState extends State<LocalWebServerSettingsScr
                   Switch(
                     value: serverService.enabled,
                     onChanged: (val) async {
+                      final messenger = ScaffoldMessenger.of(context);
                       await serverService.setEnabled(val);
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text(val
                                 ? 'Local Web Server started'
@@ -133,11 +138,13 @@ class _LocalWebServerSettingsScreenState extends State<LocalWebServerSettingsScr
                             const ClipboardData(text: 'http://127.0.0.1:8420'),
                           );
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Endpoint copied to clipboard')),
+                            const SnackBar(
+                                content: Text('Endpoint copied to clipboard')),
                           );
                         },
                         icon: const Icon(Icons.copy_rounded, size: 16),
-                        label: const Text('Copy', style: TextStyle(fontSize: 12)),
+                        label:
+                            const Text('Copy', style: TextStyle(fontSize: 12)),
                         style: TextButton.styleFrom(
                           padding: EdgeInsets.zero,
                           minimumSize: Size.zero,
@@ -156,7 +163,8 @@ class _LocalWebServerSettingsScreenState extends State<LocalWebServerSettingsScr
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Divider(height: 1, color: cs.onSurface.withOpacity(0.08)),
+                  Divider(
+                      height: 1, color: cs.onSurface.withValues(alpha: 0.08)),
                   const SizedBox(height: 16),
 
                   // Authorization Token info
@@ -175,7 +183,9 @@ class _LocalWebServerSettingsScreenState extends State<LocalWebServerSettingsScr
                         children: [
                           IconButton(
                             icon: Icon(
-                              _obscureToken ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                              _obscureToken
+                                  ? Icons.visibility_rounded
+                                  : Icons.visibility_off_rounded,
                               size: 18,
                             ),
                             onPressed: () {
@@ -193,11 +203,14 @@ class _LocalWebServerSettingsScreenState extends State<LocalWebServerSettingsScr
                                 ClipboardData(text: serverService.authToken),
                               );
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Auth token copied to clipboard')),
+                                const SnackBar(
+                                    content:
+                                        Text('Auth token copied to clipboard')),
                               );
                             },
                             icon: const Icon(Icons.copy_rounded, size: 16),
-                            label: const Text('Copy', style: TextStyle(fontSize: 12)),
+                            label: const Text('Copy',
+                                style: TextStyle(fontSize: 12)),
                             style: TextButton.styleFrom(
                               padding: EdgeInsets.zero,
                               minimumSize: Size.zero,
@@ -211,9 +224,10 @@ class _LocalWebServerSettingsScreenState extends State<LocalWebServerSettingsScr
                   const SizedBox(height: 4),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
-                      color: cs.onSurface.withOpacity(0.04),
+                      color: cs.onSurface.withValues(alpha: 0.04),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -233,6 +247,7 @@ class _LocalWebServerSettingsScreenState extends State<LocalWebServerSettingsScr
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
                         final confirm = await showDialog<bool>(
                           context: context,
                           builder: (ctx) => AlertDialog(
@@ -256,8 +271,10 @@ class _LocalWebServerSettingsScreenState extends State<LocalWebServerSettingsScr
                         if (confirm == true) {
                           await serverService.regenerateToken();
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Auth token regenerated successfully')),
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                  content: Text(
+                                      'Auth token regenerated successfully')),
                             );
                           }
                         }
@@ -277,7 +294,8 @@ class _LocalWebServerSettingsScreenState extends State<LocalWebServerSettingsScr
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline_rounded, size: 16, color: cs.onSurfaceVariant),
+                  Icon(Icons.info_outline_rounded,
+                      size: 16, color: cs.onSurfaceVariant),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

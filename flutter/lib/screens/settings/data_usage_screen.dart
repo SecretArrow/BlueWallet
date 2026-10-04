@@ -301,7 +301,7 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: cs.primary.withOpacity(0.12),
+                    color: cs.primary.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -407,7 +407,7 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
         Divider(
           height: 1,
           indent: 52,
-          color: cs.onSurface.withOpacity(0.08),
+          color: cs.onSurface.withValues(alpha: 0.08),
         ),
       ],
     );

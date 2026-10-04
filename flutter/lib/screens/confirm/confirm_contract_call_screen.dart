@@ -16,7 +16,8 @@ class ConfirmContractCallScreen extends StatefulWidget {
   const ConfirmContractCallScreen({super.key, required this.requestId});
 
   @override
-  State<ConfirmContractCallScreen> createState() => _ConfirmContractCallScreenState();
+  State<ConfirmContractCallScreen> createState() =>
+      _ConfirmContractCallScreenState();
 }
 
 class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
@@ -29,7 +30,8 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
     // If the screen is dismissed without action, reject the transaction safely
     final req = LocalWebServerService.pendingRequests[widget.requestId];
     if (req != null && !req.completer.isCompleted) {
-      req.completer.complete({'success': false, 'error': 'User cancelled request'});
+      req.completer
+          .complete({'success': false, 'error': 'User cancelled request'});
     }
     super.dispose();
   }
@@ -82,6 +84,7 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
 
     if (!authenticated) return;
 
+    if (!mounted) return;
     setState(() {
       _loading = true;
     });
@@ -143,7 +146,8 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
   Future<void> _handleCancel() async {
     final req = LocalWebServerService.pendingRequests[widget.requestId];
     if (req != null && !req.completer.isCompleted) {
-      req.completer.complete({'success': false, 'error': 'Transaction rejected by user'});
+      req.completer.complete(
+          {'success': false, 'error': 'Transaction rejected by user'});
     }
     if (mounted) {
       context.pop();
@@ -158,7 +162,6 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
         return AlertDialog(
           title: const Text('Enter Wallet PIN'),
           content: Form(
@@ -281,7 +284,8 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                         color: cs.primaryContainer,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.security_rounded, color: cs.onPrimaryContainer, size: 20),
+                      child: Icon(Icons.security_rounded,
+                          color: cs.onPrimaryContainer, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -290,11 +294,13 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                         children: [
                           const Text(
                             'External Request',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 14),
                           ),
                           Text(
                             'A local application or browser extension is requesting a smart contract call.',
-                            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                            style: TextStyle(
+                                fontSize: 11, color: cs.onSurfaceVariant),
                           ),
                         ],
                       ),
@@ -312,23 +318,33 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                   children: [
                     const Text(
                       'CONTRACT ADDRESS',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.0),
                     ),
                     const SizedBox(height: 4),
                     SelectableText(
                       req.address,
-                      style: const TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 16),
                     const Text(
                       'METHOD NAME',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.0),
                     ),
                     const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: cs.primary.withOpacity(0.08),
+                        color: cs.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -344,14 +360,17 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                     const SizedBox(height: 16),
                     const Text(
                       'PARAMETERS',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.0),
                     ),
                     const SizedBox(height: 6),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: cs.onSurface.withOpacity(0.04),
+                        color: cs.onSurface.withValues(alpha: 0.04),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       constraints: const BoxConstraints(maxHeight: 180),
@@ -375,12 +394,16 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                             children: [
                               const Text(
                                 'AMOUNT',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.0),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 '${req.amount} OCT',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 15),
                               ),
                             ],
                           ),
@@ -391,12 +414,16 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                             children: [
                               const Text(
                                 'GAS LIMIT (OU)',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.0),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 req.ou,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 15),
                               ),
                             ],
                           ),
@@ -423,7 +450,8 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                       Expanded(
                         child: Text(
                           _error!,
-                          style: TextStyle(color: cs.onErrorContainer, fontSize: 13),
+                          style: TextStyle(
+                              color: cs.onErrorContainer, fontSize: 13),
                         ),
                       ),
                     ],
@@ -437,9 +465,10 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.08),
+                    color: Colors.green.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green.withOpacity(0.2)),
+                    border:
+                        Border.all(color: Colors.green.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,19 +479,24 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                           SizedBox(width: 8),
                           Text(
                             'Transaction Submitted!',
-                            style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 15),
+                            style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15),
                           ),
                         ],
                       ),
                       const SizedBox(height: 8),
                       const Text(
                         'TRANSACTION HASH',
-                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
+                        style:
+                            TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 2),
                       SelectableText(
                         _successHash!,
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                        style: const TextStyle(
+                            fontFamily: 'monospace', fontSize: 11),
                       ),
                     ],
                   ),

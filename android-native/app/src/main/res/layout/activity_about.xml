@@ -105,7 +105,7 @@
                             android:contentDescription="Copy donation address"
                             android:padding="8dp"
                             android:src="@drawable/ic_content_copy"
-                            android:tint="?attr/colorPrimary" />
+                            app:tint="?attr/colorPrimary" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

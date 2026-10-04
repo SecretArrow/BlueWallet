@@ -11,7 +11,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      flutter: ${{ steps.filter.outputs.flutter }}
+      android: ${{ steps.filter.outputs.android }}
+      webcli: ${{ steps.filter.outputs.webcli }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            flutter:
+              - 'flutter/**'
+            android:
+              - 'android-native/**'
+            webcli:
+              - 'webcli/**'
+              - '.gitmodules'
+
   flutter:
+    needs: changes
+    if: needs.changes.outputs.flutter == 'true' || needs.changes.outputs.webcli == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,8 +51,58 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      # Validates the Android embedding + native (FFI/PVAC) compilation.
+      - run: flutter build apk --debug --target-platform android-arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flutter-debug-apk
+          path: flutter/build/app/outputs/flutter-apk/*.apk
 
-  android:
+  android-quick:
+    needs: changes
+    if: needs.changes.outputs.android == 'true' || needs.changes.outputs.webcli == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-native
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      # Fast checks only: no assembleDebug here (see android-build).
+      # spotlessCheck is ratcheted to origin/main — only changed lines.
+      - run: bash gradlew --no-daemon lintDebug testDebugUnitTest :app:spotlessCheck
+      # Always print every lint error (the console shows only the first).
+      - name: Dump all lint errors
+        if: always()
+        run: |
+          f=app/build/reports/lint-results-debug.xml
+          if [ -f "$f" ]; then
+            python3 -c "
+          import xml.etree.ElementTree as ET, sys
+          t = ET.parse('$f')
+          n = 0
+          for issue in t.getroot().iter('issue'):
+              if issue.get('severity') != 'Error':
+                  continue
+              n += 1
+              loc = issue.find('location')
+              print(f\"{loc.get('file','?')}:{loc.get('line','?')}: [{issue.get('id')}] {issue.get('message','')[:200]}\")
+          print(f'TOTAL lint errors: {n}')
+          "
+          else
+            echo "no lint report found"
+          fi
+
+  android-build:
+    needs: changes
+    if: needs.changes.outputs.android == 'true' || needs.changes.outputs.webcli == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,11 +116,51 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-      - run: bash gradlew --no-daemon lint test assembleDebug
+      - run: bash gradlew --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: android-native/app/build/outputs/apk/debug/*.apk
 
-  autofix:
+  size-report:
+    needs: [flutter, android-build]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*-debug-apk'
+          merge-multiple: true
+          path: apks
+      - name: APK size report
+        run: |
+          {
+            echo "## APK size report (debug)"
+            echo ""
+            echo "| APK | Size | Top entries |"
+            echo "| --- | --- | --- |"
+            for f in apks/*.apk; do
+              [ -e "$f" ] || continue
+              size=$(du -h "$f" | cut -f1)
+              top=$(unzip -l "$f" | sort -k4 -n | tail -5 | awk '{print $4 " (" $1 ")"}' | paste -sd '<br>' -)
+              echo "| $(basename "$f") | $size | $top |"
+            done
+            echo ""
+            echo "### webcli assets bundled"
+            for f in apks/*.apk; do
+              [ -e "$f" ] || continue
+              echo ""
+              echo "**$(basename "$f")**:"
+              echo '```'
+              unzip -l "$f" | grep -i 'webcli/' | awk '{print $4}' || echo "(none)"
+              echo '```'
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  autofix-flutter:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.flutter == 'true'
     permissions:
       contents: write
     defaults:
@@ -61,8 +175,9 @@ jobs:
         with:
           channel: stable
           cache: true
+      - run: flutter pub get
       - run: dart fix --apply
-      - run: dart format lib test
+      - run: dart format lib test integration_test
       - name: Commit fixes
         run: |
           if [ -n "$(git status --porcelain)" ]; then
@@ -70,5 +185,36 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add -A
             git commit -m "style: auto-fix lint and format"
+            git push
+          fi
+
+  autofix-java:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.android == 'true'
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: android-native
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: bash gradlew --no-daemon :app:spotlessApply
+      - name: Commit fixes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "style: auto-fix java format (spotless)"
             git push
           fi

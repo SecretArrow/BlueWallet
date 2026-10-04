@@ -48,7 +48,7 @@ target_include_directories(octra_native PRIVATE
 # Compiler flags — only -std=c++17 for C++ sources (not tweetnacl.c / randombytes.c)
 target_compile_options(octra_native PRIVATE
     -Wall
-    -O2
+    -Oz
     -fvisibility=hidden
     $<$<COMPILE_LANGUAGE:CXX>:-std=c++17>
 )

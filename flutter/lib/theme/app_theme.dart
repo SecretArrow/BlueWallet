@@ -14,7 +14,7 @@ class AppTheme {
       onPrimaryContainer: p.onPrimaryContainer,
       secondary: p.accent,
       onSecondary: p.isDark ? Colors.black : Colors.white,
-      secondaryContainer: p.accent.withOpacity(0.2),
+      secondaryContainer: p.accent.withValues(alpha: 0.2),
       onSecondaryContainer: p.accent,
       surface: p.surface,
       onSurface: p.textPrimary,
@@ -22,10 +22,10 @@ class AppTheme {
       onSurfaceVariant: p.textSecondary,
       error: p.error,
       onError: Colors.white,
-      errorContainer: p.error.withOpacity(0.15),
+      errorContainer: p.error.withValues(alpha: 0.15),
       onErrorContainer: p.error,
-      outline: p.textSecondary.withOpacity(0.4),
-      outlineVariant: p.textSecondary.withOpacity(0.2),
+      outline: p.textSecondary.withValues(alpha: 0.4),
+      outlineVariant: p.textSecondary.withValues(alpha: 0.2),
       shadow: Colors.black,
       scrim: Colors.black54,
       inverseSurface: p.textPrimary,
@@ -67,7 +67,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: p.primary.withOpacity(0.15),
+          backgroundColor: p.primary.withValues(alpha: 0.15),
           foregroundColor: p.primary,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -97,7 +97,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: p.primary,
-          side: BorderSide(color: p.primary.withOpacity(0.5)),
+          side: BorderSide(color: p.primary.withValues(alpha: 0.5)),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -115,7 +115,7 @@ class AppTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: p.textSecondary.withOpacity(0.2)),
+          borderSide: BorderSide(color: p.textSecondary.withValues(alpha: 0.2)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -154,7 +154,7 @@ class AppTheme {
         labelSmall: TextStyle(color: p.textSecondary, fontSize: 11),
       ),
       dividerTheme: DividerThemeData(
-        color: p.textSecondary.withOpacity(0.12),
+        color: p.textSecondary.withValues(alpha: 0.12),
         thickness: 1,
         space: 1,
       ),
@@ -167,9 +167,9 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: p.surface,
-        selectedColor: p.primary.withOpacity(0.2),
+        selectedColor: p.primary.withValues(alpha: 0.2),
         labelStyle: TextStyle(color: p.textPrimary, fontSize: 12),
-        side: BorderSide(color: p.textSecondary.withOpacity(0.2)),
+        side: BorderSide(color: p.textSecondary.withValues(alpha: 0.2)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -187,7 +187,7 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: p.surface,
-        indicatorColor: p.primary.withOpacity(0.15),
+        indicatorColor: p.primary.withValues(alpha: 0.15),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return IconThemeData(color: p.primary);
@@ -230,13 +230,13 @@ class AppTheme {
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return p.primary.withOpacity(0.3);
+            return p.primary.withValues(alpha: 0.3);
           }
-          return p.textSecondary.withOpacity(0.2);
+          return p.textSecondary.withValues(alpha: 0.2);
         }),
       ),
-      progressIndicatorTheme:
-          ProgressIndicatorThemeData(color: p.primary, linearTrackColor: p.primary.withOpacity(0.2)),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+          color: p.primary, linearTrackColor: p.primary.withValues(alpha: 0.2)),
     );
   }
 }

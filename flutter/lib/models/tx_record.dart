@@ -1,14 +1,14 @@
 /// A transaction history record matching the node API response shape.
 class TxRecord {
   final String hash;
-  final String type;       // 'sent' | 'received' | 'encrypted' | 'decrypted'
+  final String type; // 'sent' | 'received' | 'encrypted' | 'decrypted'
   final String amount;
   final String fromAddress;
   final String toAddress;
-  final int timestamp;     // unix milliseconds
-  final String status;     // 'confirmed' | 'pending' | 'failed'
+  final int timestamp; // unix milliseconds
+  final String status; // 'confirmed' | 'pending' | 'failed'
   final String? memo;
-  final String? opType;    // 'standard' | 'encrypt' | 'decrypt' | 'stealth'
+  final String? opType; // 'standard' | 'encrypt' | 'decrypt' | 'stealth'
   final String? fee;
   final String? blockHash;
 

@@ -210,8 +210,20 @@ public final class OctraRpcClient {
     public JSONObject registerPvacPubkey(String rpcUrl, String address,
                                          String pvacPk, String signature,
                                          String pubKeyB64) throws Exception {
+        return registerPvacPubkey(rpcUrl, address, pvacPk, signature, pubKeyB64, "");
+    }
+
+    /**
+     * {@code octra_registerPvacPubkey} — register a new PVAC public key,
+     * including the AES-KAT hex (mirrors webcli {@code register_pvac_pubkey}
+     * which sends {@code [addr, pk_b64, sig_b64, pub_b64, aes_kat_hex]}).
+     */
+    public JSONObject registerPvacPubkey(String rpcUrl, String address,
+                                         String pvacPk, String signature,
+                                         String pubKeyB64, String aesKatHex) throws Exception {
         JSONArray p = new JSONArray();
         p.put(address).put(pvacPk).put(signature).put(pubKeyB64);
+        if (aesKatHex != null && !aesKatHex.isEmpty()) p.put(aesKatHex);
         JSONObject root = callWithRetry(rpcUrl, "octra_registerPvacPubkey", p, 3);
         throwOnRpcError(root);
         return extractResultOrNull(root);
@@ -456,6 +468,41 @@ public final class OctraRpcClient {
             Log.w(TAG, "fetchFee (octra_recommendedFee) failed: " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Batch fee estimation for all operation types, mirroring webcli
+     * {@code GET /api/fee} ({@code standard, encrypt, decrypt, stealth,
+     * claim, deploy, call}). Each op is queried as
+     * {@code octra_recommendedFee([op])}; failures fall back to
+     * {@code {"minimum":"1000","recommended":"1000","fast":"2000"}}.
+     *
+     * @return fee map keyed by operation, never null
+     */
+    public JSONObject fetchFeeBatch(String rpcUrl) {
+        String[] ops = {"standard", "encrypt", "decrypt", "stealth", "claim", "deploy", "call"};
+        JSONObject fees = new JSONObject();
+        for (String op : ops) {
+            try {
+                JSONArray p = new JSONArray().put(op);
+                JSONObject root = callWithRetry(rpcUrl, "octra_recommendedFee", p, 2);
+                JSONObject bucket = extractResult(root);
+                if (bucket != null) {
+                    fees.put(op, bucket);
+                    continue;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "fetchFeeBatch op " + op + " failed: " + e.getMessage());
+            }
+            try {
+                JSONObject fb = new JSONObject();
+                fb.put("minimum", "1000");
+                fb.put("recommended", "1000");
+                fb.put("fast", "2000");
+                fees.put(op, fb);
+            } catch (Exception ignored) {}
+        }
+        return fees;
     }
 
     // ════════════════════════════════════════════════════════════════════════

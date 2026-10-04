@@ -49,8 +49,9 @@ class _DevDeployScreenState extends State<DevDeployScreen> {
       );
       if (mounted) setState(() => _txHash = hash);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -169,7 +170,7 @@ class _SuccessBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-          color: Colors.green.withOpacity(0.1),
+          color: Colors.green.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10)),
       child: Text(message,
           style: const TextStyle(color: Colors.green, fontSize: 13)),

@@ -8,11 +8,10 @@
 
 -dontwarn okhttp3.**
 -dontwarn okio.**
--keep class okhttp3.** { *; }
--keep class okio.** { *; }
+# NOTE: blanket -keep for okhttp3/okio removed for APK size — OkHttp ships
+# its own consumer ProGuard rules; R8 keeps everything reachable.
 
--keep class org.bouncycastle.** { *; }
--dontwarn org.bouncycastle.**
+# NOTE: bcprov removed — crypto lives in the native TweetNaCl/PVAC layer.
 
 # SQLCipher ProGuard Rules
 -keep class net.sqlcipher.** { *; }

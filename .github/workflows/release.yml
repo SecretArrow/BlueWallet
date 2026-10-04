@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  android-build:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -31,8 +31,84 @@ jobs:
             echo "keyAlias=${{ secrets.KEY_ALIAS }}"
             echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
           } > keystore.properties
-      - run: bash gradlew --no-daemon assembleRelease
+      # Release splits are arm64-only (see app/build.gradle) — smallest APK.
+      # AAB is for Play Store, APKs are for direct download.
+      - run: bash gradlew --no-daemon -PsplitAbi=true assembleRelease bundleRelease
+      - name: APK/AAB size summary
+        run: |
+          {
+            echo "## Release artifact sizes"
+            echo ""
+            echo "| File | Size |"
+            echo "| --- | --- |"
+            for f in app/build/outputs/apk/release/*.apk app/build/outputs/bundle/release/*.aab; do
+              [ -e "$f" ] || continue
+              echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: |
+            android-native/app/build/outputs/apk/release/*.apk
+            android-native/app/build/outputs/bundle/release/*.aab
+
+  flutter-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Restore keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android/octra.jks
+          {
+            echo "storeFile=$GITHUB_WORKSPACE/flutter/android/octra.jks"
+            echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}"
+            echo "keyAlias=${{ secrets.KEY_ALIAS }}"
+            echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
+          } > android/keystore.properties
+      # arm64-only, per-ABI splits, obfuscated, debug symbols stripped.
+      - run: flutter build apk --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=build/debug-info --tree-shake-icons
+      - name: APK size summary
+        run: |
+          {
+            echo "## Flutter release artifact sizes"
+            echo ""
+            echo "| File | Size |"
+            echo "| --- | --- |"
+            for f in build/app/outputs/flutter-apk/*.apk; do
+              [ -e "$f" ] || continue
+              echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flutter-release
+          path: flutter/build/app/outputs/flutter-apk/*.apk
+
+  publish:
+    needs: [android-build, flutter-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*-release'
+          merge-multiple: true
+          path: dist
       - uses: softprops/action-gh-release@v2
         with:
-          files: android-native/app/build/outputs/apk/release/*.apk
+          files: dist/*
           generate_release_notes: true

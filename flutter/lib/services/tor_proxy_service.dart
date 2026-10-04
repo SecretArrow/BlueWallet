@@ -65,7 +65,8 @@ class TorProxyService extends ChangeNotifier {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     _enabled = prefs.getBool('${_kPrefsName}_$_kEnabled') ?? false;
-    _activeHost = prefs.getString('${_kPrefsName}_$_kActiveHost') ?? '127.0.0.1';
+    _activeHost =
+        prefs.getString('${_kPrefsName}_$_kActiveHost') ?? '127.0.0.1';
     _activePort = prefs.getInt('${_kPrefsName}_$_kActivePort') ?? 9050;
     _activeType = prefs.getString('${_kPrefsName}_$_kActiveType') ?? 'SOCKS';
 
@@ -139,13 +140,15 @@ class TorProxyService extends ChangeNotifier {
     int idx = -1;
     for (int i = 0; i < _servers.length; i++) {
       if (_servers[i].host == host && _servers[i].port == port) {
-        if (_servers[i].isDefault) return false; // Default servers cannot be removed
+        if (_servers[i].isDefault) {
+          return false; // Default servers cannot be removed
+        }
         idx = i;
         break;
       }
     }
     if (idx != -1) {
-      final removedServer = _servers.removeAt(idx);
+      _servers.removeAt(idx);
       await _saveServers();
       // If we deleted the currently active proxy, fallback to Orbot SOCKS default
       if (_activeHost == host && _activePort == port) {

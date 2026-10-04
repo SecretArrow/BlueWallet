@@ -4,10 +4,10 @@ project("octra_wallet_native")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -fPIC -Wall")
-set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections -Wl,--strip-all")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O1 -fPIC -ffunction-sections -fdata-sections")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Oz -fPIC -Wall")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections -Wl,--strip-all -flto=thin")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Oz -fPIC -ffunction-sections -fdata-sections -flto=thin")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections -flto=thin -fvisibility=hidden")
 set(OCTRA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../webcli)
 
 add_library(octra_wallet_native SHARED

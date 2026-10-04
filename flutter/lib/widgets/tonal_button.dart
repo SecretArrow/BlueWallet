@@ -76,7 +76,7 @@ class CompactIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Material(
-      color: cs.primary.withOpacity(0.12),
+      color: cs.primary.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: onPressed,

@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import '../models/wallet_profile.dart';
 import '../models/token_balance.dart';
 import '../models/tx_record.dart';
@@ -191,14 +189,14 @@ class WalletService extends ChangeNotifier {
   /// Mirrors webcli's pvac_bg thread and wallet.js polling
   Future<void> startBackgroundPolling(String nodeUrl) async {
     final pollingService = BackgroundPollingService.instance;
-    
+
     // Start with both finality polling and PVAC checks enabled
     await pollingService.start(
       nodeUrl: nodeUrl,
       pollFinality: true,
       checkPvac: true,
     );
-    
+
     debugPrint('[WalletService] Background polling started');
   }
 
@@ -299,8 +297,10 @@ class WalletService extends ChangeNotifier {
         final client = RpcClient();
         client.setUrl(nodeUrl);
 
-        final kp1 = MnemonicService.deriveKeypair(mnemonic: mnemonic, path: "m/44'/540'/0'/0'/0'");
-        final kp2 = MnemonicService.deriveKeypair(mnemonic: mnemonic, path: "m/44'/540'/0'/0'");
+        final kp1 = MnemonicService.deriveKeypair(
+            mnemonic: mnemonic, path: "m/44'/540'/0'/0'/0'");
+        final kp2 = MnemonicService.deriveKeypair(
+            mnemonic: mnemonic, path: "m/44'/540'/0'/0'");
 
         final futures = await Future.wait([
           client.getBalance(kp1['address']!),
@@ -335,8 +335,10 @@ class WalletService extends ChangeNotifier {
           }
         }
 
-        debugPrint('[HD Autodetect] V1 Address: ${kp1['address']} Balance: $bal1');
-        debugPrint('[HD Autodetect] V2 Address: ${kp2['address']} Balance: $bal2');
+        debugPrint(
+            '[HD Autodetect] V1 Address: ${kp1['address']} Balance: $bal1');
+        debugPrint(
+            '[HD Autodetect] V2 Address: ${kp2['address']} Balance: $bal2');
 
         if (bal2 > 0 && bal1 == 0) {
           chosenPath = "m/44'/540'/0'/0'";
@@ -346,7 +348,8 @@ class WalletService extends ChangeNotifier {
           debugPrint('[HD Autodetect] Auto-detected Version 1 path');
         } else if (bal2 > 0 && bal1 > 0) {
           chosenPath = "m/44'/540'/0'/0'";
-          debugPrint('[HD Autodetect] Both paths have funds, preferring Version 2');
+          debugPrint(
+              '[HD Autodetect] Both paths have funds, preferring Version 2');
         } else {
           // Check history if both balances are 0
           final histFutures = await Future.wait([
@@ -358,18 +361,21 @@ class WalletService extends ChangeNotifier {
 
           if (hist2 && !hist1) {
             chosenPath = "m/44'/540'/0'/0'";
-            debugPrint('[HD Autodetect] V2 has history, V1 does not. Choosing V2');
+            debugPrint(
+                '[HD Autodetect] V2 has history, V1 does not. Choosing V2');
           } else {
             chosenPath = "m/44'/540'/0'/0'/0'";
             debugPrint('[HD Autodetect] Defaulting to Version 1 path');
           }
         }
       } catch (e) {
-        debugPrint('[HD Autodetect] Failed to auto-detect: $e. Using default path: $path');
+        debugPrint(
+            '[HD Autodetect] Failed to auto-detect: $e. Using default path: $path');
       }
     }
 
-    final kp = MnemonicService.deriveKeypair(mnemonic: mnemonic, path: chosenPath);
+    final kp =
+        MnemonicService.deriveKeypair(mnemonic: mnemonic, path: chosenPath);
     final profile = await _addWalletInternal(
       name: name,
       address: kp['address']!,
@@ -380,7 +386,6 @@ class WalletService extends ChangeNotifier {
     await _storage.write(key: 'mnemonic_${profile.id}', value: mnemonic);
     return profile;
   }
-
 
   /// Returns the stored mnemonic for [walletId], or null if not available.
   Future<String?> getMnemonic(String walletId) async {
@@ -513,7 +518,8 @@ class WalletService extends ChangeNotifier {
     final cleanName = newName.trim();
     if (cleanName.isEmpty) return false;
 
-    final nameExists = _wallets.any((w) => w.id != id && w.name.toLowerCase() == cleanName.toLowerCase());
+    final nameExists = _wallets.any(
+        (w) => w.id != id && w.name.toLowerCase() == cleanName.toLowerCase());
     if (nameExists) return false;
 
     final index = _wallets.indexWhere((w) => w.id == id);
@@ -530,7 +536,8 @@ class WalletService extends ChangeNotifier {
     );
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('wallet_profile_$id', jsonEncode(updatedProfile.toJson()));
+    await prefs.setString(
+        'wallet_profile_$id', jsonEncode(updatedProfile.toJson()));
     _wallets[index] = updatedProfile;
     notifyListeners();
     return true;
@@ -539,7 +546,7 @@ class WalletService extends ChangeNotifier {
   Future<String?> getPrivateKey(String walletId) async {
     try {
       return await _storage.read(key: 'sk_$walletId') ??
-          _storage.read(key: 'pk_$walletId');
+          await _storage.read(key: 'pk_$walletId');
     } catch (e) {
       debugPrint('SecureStorage read error: $e');
       return null;
@@ -1137,6 +1144,67 @@ class WalletService extends ChangeNotifier {
     }
 
     try {
+      // Fast path (webcli GET /api/tokens parity): single
+      // octra_tokensByAddress call instead of probing every contract.
+      try {
+        final dynamic fast =
+            await _rpc(nodeUrl, 'octra_tokensByAddress', [wallet.address]);
+        List fastList;
+        if (fast is List) {
+          fastList = fast;
+        } else if (fast is Map && fast['tokens'] is List) {
+          fastList = fast['tokens'];
+        } else {
+          fastList = [];
+        }
+        if (fastList.isNotEmpty) {
+          final tokenList = <TokenBalance>[];
+          for (final item in fastList) {
+            if (item is! Map) continue;
+            final m = Map<String, dynamic>.from(item);
+            final addr = m['address']?.toString() ?? '';
+            final symbol = m['symbol']?.toString() ?? '';
+            final balance = m['balance']?.toString() ?? '0';
+            if (addr.isEmpty ||
+                symbol.isEmpty ||
+                balance == '0' ||
+                balance.isEmpty) {
+              continue;
+            }
+            final name = (m['name']?.toString() ?? '').isEmpty
+                ? symbol
+                : m['name'].toString();
+            final decimals = int.tryParse(m['decimals']?.toString() ?? '') ?? 0;
+            tokenList.add(TokenBalance(
+              symbol: symbol,
+              name: name,
+              balance: _formatTokenBalance(balance, decimals),
+              address: addr,
+            ));
+          }
+          if (tokenList.isNotEmpty) {
+            _tokens = tokenList;
+            notifyListeners();
+            try {
+              await DatabaseService.instance.cacheTokens(
+                wallet.id,
+                tokenList
+                    .map((t) => {
+                          'symbol': t.symbol,
+                          'name': t.name,
+                          'balance': t.balance,
+                          'address': t.address,
+                        })
+                    .toList(),
+              );
+            } catch (_) {}
+            return;
+          }
+        }
+      } catch (_) {
+        // fall through to listContracts probing
+      }
+
       // octra_listContracts returns {contracts: [...]}, not a bare JSON array.
       final raw = await _rpc(nodeUrl, 'octra_listContracts', []) as Map;
       final contracts =
@@ -1444,11 +1512,88 @@ class WalletService extends ChangeNotifier {
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
     final sig = await CryptoService.signPvacRegister(wallet.address, sk);
-    // Node requires 4 params: address, pvacPubkey, sig, pubKeyB64 (mirrors Android ensurePvacRegistered)
+    // Node accepts 5 params with aes_kat (webcli parity); mirrors Android ensurePvacRegistered
     final pubKeyB64 = await CryptoService.publicKeyFromSk(sk);
-    final r = await _rpc(nodeUrl, 'octra_registerPvacPubkey',
-        [wallet.address, pvacPubkey, sig, pubKeyB64]) as Map;
+    String aesKat = '';
+    try {
+      aesKat = NativeCrypto.computeAesKat();
+    } catch (_) {}
+    final params = [wallet.address, pvacPubkey, sig, pubKeyB64];
+    if (aesKat.isNotEmpty) params.add(aesKat);
+    final r = await _rpc(nodeUrl, 'octra_registerPvacPubkey', params) as Map;
     return r['status']?.toString() ?? '';
+  }
+
+  /// Submits a PVAC encryption-key rotation (op_type:key_switch),
+  /// mirroring webcli POST /api/key_switch. Built with the generic
+  /// transaction signer so the nonce is set correctly before signing.
+  Future<Map<String, dynamic>> submitKeySwitch(String nodeUrl) async {
+    final wallet = activeWallet;
+    if (wallet == null) throw Exception('No active wallet');
+    final sk = await getPrivateKey(wallet.id);
+    if (sk == null) throw Exception('Private key not found');
+    final localPk = CryptoService.pvacGetPubkeyB64();
+    if (localPk == null || localPk.isEmpty) {
+      throw Exception('PVAC not available on this device/ABI');
+    }
+    final aesKat = NativeCrypto.computeAesKat();
+    final pkRaw = base64.decode(localPk);
+    final digest = NativeCrypto.sha256(Uint8List.fromList(pkRaw));
+    final hexChars = '0123456789abcdef';
+    final hex = StringBuffer();
+    for (int i = 0; i < 8 && i < digest.length; i++) {
+      hex.write(hexChars[(digest[i] >> 4) & 0xF]);
+      hex.write(hexChars[digest[i] & 0xF]);
+    }
+    final message = 'encryption key switch | new_key:$hex';
+    final encryptedData = jsonEncode({
+      'new_pubkey': localPk,
+      'aes_kat': aesKat,
+    });
+    await refresh(nodeUrl);
+    final nonce = _currentNonce + 1;
+    final signedTx = await CryptoService.buildSignedGeneralTransaction(
+      skBase64: sk,
+      fromAddress: wallet.address,
+      toAddress: wallet.address,
+      amount: '0',
+      nonce: nonce,
+      ou: '3000',
+      opType: 'key_switch',
+      message: message,
+      encryptedData: encryptedData,
+    );
+    final result = await _rpc(nodeUrl, 'octra_submit', [signedTx]) as Map;
+    return Map<String, dynamic>.from(result);
+  }
+
+  /// Batch fee estimation for all op types (webcli GET /api/fee parity).
+  Future<Map<String, dynamic>> fetchFeeBatch(String nodeUrl) async {
+    const ops = [
+      'standard',
+      'encrypt',
+      'decrypt',
+      'stealth',
+      'claim',
+      'deploy',
+      'call'
+    ];
+    final fees = <String, dynamic>{};
+    for (final op in ops) {
+      try {
+        final r = await _rpc(nodeUrl, 'octra_recommendedFee', [op]);
+        if (r != null) {
+          fees[op] = r;
+          continue;
+        }
+      } catch (_) {}
+      fees[op] = {
+        'minimum': '1000',
+        'recommended': '1000',
+        'fast': '2000',
+      };
+    }
+    return fees;
   }
 
   /// Registers the view public key (x25519 from ed25519 sk) with the node.
@@ -1484,14 +1629,19 @@ class WalletService extends ChangeNotifier {
       final r = await _rpc(nodeUrl, 'octra_pvacPubkey', [address]) as Map;
       final remotePk =
           r['pvac_pubkey']?.toString() ?? r['pubkey']?.toString() ?? '';
-      if (remotePk.isNotEmpty && remotePk == localPk)
+      if (remotePk.isNotEmpty && remotePk == localPk) {
         return; // already up-to-date
+      }
     } catch (_) {}
-    // Register
+    // Register (include aes_kat as 5th param — webcli parity)
     final sig = await CryptoService.signPvacRegister(address, sk);
     final pubKeyB64 = await CryptoService.publicKeyFromSk(sk);
-    await _rpc(nodeUrl, 'octra_registerPvacPubkey',
-        [address, localPk, sig, pubKeyB64]);
+    final params = [address, localPk, sig, pubKeyB64];
+    try {
+      final kat = NativeCrypto.computeAesKat();
+      if (kat.isNotEmpty) params.add(kat);
+    } catch (_) {}
+    await _rpc(nodeUrl, 'octra_registerPvacPubkey', params);
   }
 
   /// Fetches the encrypted balance cipher via an authenticated RPC call.

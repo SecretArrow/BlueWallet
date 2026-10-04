@@ -92,7 +92,8 @@ class DatabaseService {
   // ── Transaction history ────────────────────────────────────────────────────
 
   /// Insert or replace a list of raw transaction maps for a wallet.
-  Future<void> upsertTxHistory(String walletId, List<Map<String, dynamic>> txList) async {
+  Future<void> upsertTxHistory(
+      String walletId, List<Map<String, dynamic>> txList) async {
     final db = await database;
     final batch = db.batch();
     for (final tx in txList) {
@@ -101,24 +102,36 @@ class DatabaseService {
       batch.insert(
         'tx_history',
         {
-          'wallet_id':  walletId,
-          'hash':       hash,
-          'timestamp':  _parseTs(tx['timestamp']),
-          'from_addr':  tx['from']?.toString()
-                     ?? tx['from_']?.toString()
-                     ?? tx['sender']?.toString() ?? '',
-          'to_addr':    (tx['to_'] ?? tx['to'] ?? tx['recipient']
-                     ?? tx['receiver'])?.toString() ?? '',
-          'amount':     (tx['amount_raw'] ?? tx['value_raw']
-                     ?? tx['raw_amount'] ?? tx['value']
-                     ?? tx['amount'])?.toString() ?? '0',
-          'fee':        tx['fee']?.toString(),
-          'op_type':    (tx['op_type'] ?? tx['type']
-                     ?? tx['tx_type'])?.toString() ?? 'standard',
-          'status':     (tx['status'] ?? tx['state'] ?? tx['tx_status']
-                     ?? tx['final_status'])?.toString() ?? 'confirmed',
+          'wallet_id': walletId,
+          'hash': hash,
+          'timestamp': _parseTs(tx['timestamp']),
+          'from_addr': tx['from']?.toString() ??
+              tx['from_']?.toString() ??
+              tx['sender']?.toString() ??
+              '',
+          'to_addr':
+              (tx['to_'] ?? tx['to'] ?? tx['recipient'] ?? tx['receiver'])
+                      ?.toString() ??
+                  '',
+          'amount': (tx['amount_raw'] ??
+                      tx['value_raw'] ??
+                      tx['raw_amount'] ??
+                      tx['value'] ??
+                      tx['amount'])
+                  ?.toString() ??
+              '0',
+          'fee': tx['fee']?.toString(),
+          'op_type':
+              (tx['op_type'] ?? tx['type'] ?? tx['tx_type'])?.toString() ??
+                  'standard',
+          'status': (tx['status'] ??
+                      tx['state'] ??
+                      tx['tx_status'] ??
+                      tx['final_status'])
+                  ?.toString() ??
+              'confirmed',
           'block_hash': tx['block_hash']?.toString(),
-          'json_raw':   jsonEncode(tx),
+          'json_raw': jsonEncode(tx),
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
@@ -157,7 +170,8 @@ class DatabaseService {
 
   Future<void> clearTxHistory(String walletId) async {
     final db = await database;
-    await db.delete('tx_history', where: 'wallet_id = ?', whereArgs: [walletId]);
+    await db
+        .delete('tx_history', where: 'wallet_id = ?', whereArgs: [walletId]);
   }
 
   // ── Balance cache ──────────────────────────────────────────────────────────
@@ -172,11 +186,11 @@ class DatabaseService {
     await db.insert(
       'balance_cache',
       {
-        'wallet_id':         walletId,
-        'balance_raw':       balanceRaw,
-        'nonce':             nonce,
+        'wallet_id': walletId,
+        'balance_raw': balanceRaw,
+        'nonce': nonce,
         'encrypted_balance': encryptedBalance,
-        'updated_at':        DateTime.now().millisecondsSinceEpoch,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -205,10 +219,10 @@ class DatabaseService {
     await db.insert(
       'address_book',
       {
-        'wallet_id':  walletId,
-        'address':    address,
-        'label':      label,
-        'note':       note,
+        'wallet_id': walletId,
+        'address': address,
+        'label': label,
+        'note': note,
         'created_at': DateTime.now().millisecondsSinceEpoch,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -233,14 +247,15 @@ class DatabaseService {
   // ── Token cache ────────────────────────────────────────────────────────────
 
   /// Saves a list of token balance maps for the given wallet.
-  Future<void> cacheTokens(String walletId, List<Map<String, dynamic>> tokens) async {
+  Future<void> cacheTokens(
+      String walletId, List<Map<String, dynamic>> tokens) async {
     final db = await database;
     await db.insert(
       'token_cache',
       {
-        'wallet_id':   walletId,
+        'wallet_id': walletId,
         'tokens_json': jsonEncode(tokens),
-        'updated_at':  DateTime.now().millisecondsSinceEpoch,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -275,7 +290,8 @@ class DatabaseService {
   /// Clears the token cache for a given wallet.
   Future<void> clearTokenCache(String walletId) async {
     final db = await database;
-    await db.delete('token_cache', where: 'wallet_id = ?', whereArgs: [walletId]);
+    await db
+        .delete('token_cache', where: 'wallet_id = ?', whereArgs: [walletId]);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

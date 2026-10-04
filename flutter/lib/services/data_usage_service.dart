@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service to track network data usage for the app itself.
 class DataUsageService {
-  static const String _prefsName = 'data_usage_prefs';
   static const String _keyUsageHistory = 'usage_history';
   static const String _keySessionStartRx = 'session_start_rx';
   static const String _keySessionStartTx = 'session_start_tx';
@@ -164,8 +163,9 @@ class DataUsage {
   String formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(2)} KB';
-    if (bytes < 1024 * 1024 * 1024)
+    if (bytes < 1024 * 1024 * 1024) {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+    }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
@@ -201,8 +201,9 @@ class DataUsageEntry {
   String formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(2)} KB';
-    if (bytes < 1024 * 1024 * 1024)
+    if (bytes < 1024 * 1024 * 1024) {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+    }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 

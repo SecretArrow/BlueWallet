@@ -75,7 +75,8 @@ class _ChangePinScreenState extends State<ChangePinScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Update your security PIN', style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+            Text('Update your security PIN',
+                style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
             const SizedBox(height: 24),
             if (_error != null) ...[
               _Banner(message: _error!, isError: true),
@@ -139,7 +140,8 @@ class _Banner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isError ? cs.errorContainer : Colors.green.withOpacity(0.1),
+        color:
+            isError ? cs.errorContainer : Colors.green.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(

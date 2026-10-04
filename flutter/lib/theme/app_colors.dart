@@ -34,8 +34,6 @@ class AppPalette {
     required this.surfaceVariant,
   });
 
-  static const String _globalError = '#e94560';
-
   static const List<AppPalette> all = [
     // Zenith (default dark)
     AppPalette(

@@ -2,7 +2,7 @@ package com.octopus.wallet;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
-import android.app.NotificationManager;
+import android.annotation.SuppressLint;import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
@@ -198,6 +198,9 @@ public class AutoScanService extends Service {
         }
     }
 
+    // The notify() call below is already guarded by hasNotificationPermission();
+    // the annotation tells lint about the runtime check it cannot infer.
+    @SuppressLint("MissingPermission")
     private void maybeNotifyIncoming(String rpcUrl, String address) {
         try {
             List<JSONObject> history = repo().fetchHistory(rpcUrl, address, 20, 0);

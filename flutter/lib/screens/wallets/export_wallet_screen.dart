@@ -35,11 +35,12 @@ class _ExportWalletScreenState extends State<ExportWalletScreen> {
     final walletId = widget.walletId ?? ws.activeWallet?.id;
     if (walletId == null) return;
     final sk = await ws.getPrivateKey(walletId);
-    if (mounted)
+    if (mounted) {
       setState(() {
         _sk = sk;
         _loading = false;
       });
+    }
   }
 
   @override

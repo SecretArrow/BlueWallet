@@ -46,7 +46,7 @@ class StealthTasksScreen extends StatelessWidget {
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor:
-                              _statusColor(t.status, cs).withOpacity(0.2),
+                              _statusColor(t.status, cs).withValues(alpha: 0.2),
                           child: Icon(_statusIcon(t.status),
                               color: _statusColor(t.status, cs), size: 20),
                         ),

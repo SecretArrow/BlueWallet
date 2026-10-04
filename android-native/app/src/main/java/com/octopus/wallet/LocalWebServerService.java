@@ -249,6 +249,21 @@ public class LocalWebServerService extends Service {
                     return cors(jsonOk(handleContractCall(session)));
                 }
 
+                // Public: batch fee estimation (webcli GET /api/fee parity).
+                // No wallet needed — read-only node query with safe fallbacks.
+                if ("/api/fee".equals(uri) && Method.GET.equals(method)) {
+                    return cors(jsonOk(handleFee()));
+                }
+
+                // Legacy compat: old webcli UI posts to /key_switch (no /api prefix).
+                // Requires auth like the /api/* equivalent below.
+                if ("/key_switch".equals(uri) && Method.POST.equals(method)) {
+                    if (!isAuthorized(session)) {
+                        return cors(jsonError(401, "Unauthorized"));
+                    }
+                    return cors(jsonOk(handleKeySwitch()));
+                }
+
                 // Auth check for all other endpoints
                 if (!isAuthorized(session)) {
                     return cors(jsonError(401, "Unauthorized"));
@@ -323,6 +338,16 @@ public class LocalWebServerService extends Service {
                 }
                 if ("/api/bridge/signer".equals(uri) && Method.POST.equals(method)) {
                     return cors(handleBridgeSigner(session));
+                }
+
+                // PVAC key rotation (webcli POST /api/key_switch parity)
+                if ("/api/key_switch".equals(uri) && Method.POST.equals(method)) {
+                    return cors(jsonOk(handleKeySwitch()));
+                }
+
+                // Fast token listing (webcli GET /api/tokens parity)
+                if ("/api/tokens".equals(uri) && Method.GET.equals(method)) {
+                    return cors(jsonOk(handleTokens()));
                 }
 
                 // 404
@@ -629,7 +654,7 @@ public class LocalWebServerService extends Service {
                 uri = uri.substring(1);
             }
             if (uri.isEmpty()) {
-                uri = "index.html";
+                uri = "swap.html";
             }
             if (uri.contains("..")) {
                 return cors(jsonError(403, "Forbidden"));
@@ -1123,6 +1148,46 @@ public class LocalWebServerService extends Service {
                 return errorJson("Submit transaction returned null");
             }
             return submitRes;
+        }
+
+        private JSONObject handleFee() throws Exception {
+            String rpcUrl = UrlSecurityValidator.DEFAULT_RPC;
+            try {
+                JSONObject info = safeWalletInfo();
+                if (!info.has("error")) {
+                    rpcUrl = info.optString("rpc_url", rpcUrl);
+                }
+            } catch (Exception ignored) {}
+            WalletRepository repo = new WalletRepository(appContext);
+            return repo.fetchFeeBatch(rpcUrl);
+        }
+
+        private JSONObject handleKeySwitch() throws Exception {
+            JSONObject info = safeWalletInfo();
+            if (info.has("error")) return info;
+            String rpcUrl = info.optString("rpc_url", UrlSecurityValidator.DEFAULT_RPC);
+            String address = info.optString("address", "");
+            if (address.isEmpty()) return errorJson("Wallet address unavailable");
+            try {
+                WalletRepository repo = new WalletRepository(appContext);
+                return repo.submitKeySwitch(rpcUrl, address);
+            } catch (Exception e) {
+                return errorJson("key_switch failed: " + safeMessage(e));
+            }
+        }
+
+        private JSONObject handleTokens() throws Exception {
+            JSONObject info = safeWalletInfo();
+            if (info.has("error")) return info;
+            String rpcUrl = info.optString("rpc_url", UrlSecurityValidator.DEFAULT_RPC);
+            String address = info.optString("address", "");
+            WalletRepository repo = new WalletRepository(appContext);
+            org.json.JSONArray tokens = repo.fetchTokensFast(rpcUrl, address);
+            JSONObject out = new JSONObject();
+            out.put("tokens", tokens);
+            out.put("count", tokens.length());
+            out.put("wallet_address", address);
+            return out;
         }
 
         private JSONObject handleFheEncrypt(IHTTPSession session) throws Exception {

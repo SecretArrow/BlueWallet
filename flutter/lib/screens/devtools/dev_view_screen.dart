@@ -60,8 +60,9 @@ class _DevViewScreenState extends State<DevViewScreen> {
         });
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -182,7 +183,8 @@ class _Banner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isError ? cs.errorContainer : Colors.green.withOpacity(0.1),
+        color:
+            isError ? cs.errorContainer : Colors.green.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(message,

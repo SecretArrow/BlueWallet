@@ -28,7 +28,8 @@ class SettingsTab extends StatelessWidget {
       _Item('DApp Origins', Icons.language_rounded, '/dapp-origins'),
       if (_isDesktop)
         _Item('Developer Tools', Icons.code_rounded, '/dev-tools'),
-      _Item('Local Web Server', Icons.dns_rounded, '/local-web-server-settings'),
+      _Item(
+          'Local Web Server', Icons.dns_rounded, '/local-web-server-settings'),
       _Item('Networks', Icons.public_rounded, '/network-settings'),
       _Item('Polling Settings', Icons.history_rounded, '/polling-settings'),
       _Item('Permissions', Icons.notifications_rounded, '/permissions-center'),
@@ -70,7 +71,9 @@ class SettingsTab extends StatelessWidget {
     final prefs = await SharedPreferences.getInstance();
     final keys =
         prefs.getKeys().where((k) => k.startsWith('tx_history_')).toList();
-    for (final k in keys) await prefs.remove(k);
+    for (final k in keys) {
+      await prefs.remove(k);
+    }
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cache cleared')),
@@ -141,8 +144,8 @@ class _SettingsRow extends StatelessWidget {
                   height: 44,
                   decoration: BoxDecoration(
                     color: item.isLogout
-                        ? cs.error.withOpacity(0.12)
-                        : cs.primary.withOpacity(0.12),
+                        ? cs.error.withValues(alpha: 0.12)
+                        : cs.primary.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -172,7 +175,7 @@ class _SettingsRow extends StatelessWidget {
           height: 1,
           indent: 76,
           endIndent: 0,
-          color: cs.onSurface.withOpacity(0.08),
+          color: cs.onSurface.withValues(alpha: 0.08),
         ),
       ],
     );

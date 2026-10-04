@@ -66,7 +66,7 @@
                         android:contentDescription="Copy address"
                         android:padding="8dp"
                         android:src="@drawable/ic_content_copy"
-                        android:tint="?attr/colorPrimary" />
+                        app:tint="?attr/colorPrimary" />
                 </LinearLayout>
 
                 <!-- Public Key -->
@@ -101,7 +101,7 @@
                         android:contentDescription="Copy public key"
                         android:padding="8dp"
                         android:src="@drawable/ic_content_copy"
-                        android:tint="?attr/colorPrimary" />
+                        app:tint="?attr/colorPrimary" />
                 </LinearLayout>
 
                 <!-- View Pubkey -->
@@ -136,7 +136,7 @@
                         android:contentDescription="Show/hide view pubkey"
                         android:padding="8dp"
                         android:src="@drawable/ic_visibility"
-                        android:tint="?attr/colorPrimary" />
+                        app:tint="?attr/colorPrimary" />
                     <ImageButton
                         android:id="@+id/copy_view_pubkey_btn"
                         android:layout_width="40dp"
@@ -145,7 +145,7 @@
                         android:contentDescription="Copy view pubkey"
                         android:padding="8dp"
                         android:src="@drawable/ic_content_copy"
-                        android:tint="?attr/colorPrimary" />
+                        app:tint="?attr/colorPrimary" />
                 </LinearLayout>
 
                 <!-- Private Key -->
@@ -180,7 +180,7 @@
                         android:contentDescription="Show/hide private key"
                         android:padding="8dp"
                         android:src="@drawable/ic_visibility"
-                        android:tint="?attr/colorPrimary" />
+                        app:tint="?attr/colorPrimary" />
                     <ImageButton
                         android:id="@+id/copy_privkey_btn"
                         android:layout_width="40dp"
@@ -189,7 +189,7 @@
                         android:contentDescription="Copy private key"
                         android:padding="8dp"
                         android:src="@drawable/ic_content_copy"
-                        android:tint="?attr/colorPrimary" />
+                        app:tint="?attr/colorPrimary" />
                 </LinearLayout>
 
                 <!-- Seed Phrase (mnemonic) — only for mnemonic wallets, hidden by default -->
@@ -228,7 +228,7 @@
                         android:contentDescription="Show/hide seed phrase"
                         android:padding="8dp"
                         android:src="@drawable/ic_visibility"
-                        android:tint="?attr/colorPrimary" />
+                        app:tint="?attr/colorPrimary" />
                     <ImageButton
                         android:id="@+id/copy_mnemonic_btn"
                         android:layout_width="40dp"
@@ -237,7 +237,7 @@
                         android:contentDescription="Copy seed phrase"
                         android:padding="8dp"
                         android:src="@drawable/ic_content_copy"
-                        android:tint="?attr/colorPrimary" />
+                        app:tint="?attr/colorPrimary" />
                 </LinearLayout>
 
             </LinearLayout>

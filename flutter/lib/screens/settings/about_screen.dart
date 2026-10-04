@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../widgets/octra_card.dart';
-import '../../widgets/tonal_button.dart';
 import '../../widgets/adaptive_body.dart';
 
 const _kDonationAddress =
@@ -59,10 +58,10 @@ class _AboutScreenState extends State<AboutScreen> {
                 width: 96,
                 height: 96,
                 decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.1),
+                  color: cs.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                      color: cs.primary.withOpacity(0.3), width: 1.5),
+                      color: cs.primary.withValues(alpha: 0.3), width: 1.5),
                 ),
                 child: Icon(Icons.account_balance_wallet_rounded,
                     size: 52, color: cs.primary),

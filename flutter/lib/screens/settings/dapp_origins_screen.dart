@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/octopus_card.dart';
-import '../../widgets/tonal_button.dart';
 
 /// dApp Origins management screen.  Matches DappOriginsActivity.
 class DappOriginsScreen extends StatefulWidget {
@@ -82,7 +81,8 @@ class _DappOriginsScreenState extends State<DappOriginsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.web_rounded,
-                      size: 48, color: cs.onSurfaceVariant.withOpacity(0.4)),
+                      size: 48,
+                      color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
                   const SizedBox(height: 12),
                   Text('No allowed dApp origins',
                       style: TextStyle(color: cs.onSurfaceVariant)),

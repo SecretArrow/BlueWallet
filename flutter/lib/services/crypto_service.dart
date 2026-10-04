@@ -14,7 +14,6 @@ import 'native_crypto.dart';
 ///   Public key (pk) = 32 bytes
 ///   Address = "oct" + base58(sha256(pubkey))
 class CryptoService {
-
   // ══════════════════════════════════════════════════════════════════════════
   //  Address derivation
   // ══════════════════════════════════════════════════════════════════════════
@@ -31,9 +30,9 @@ class CryptoService {
   /// Generates a new random ed25519 keypair via TweetNaCl + /dev/urandom.
   /// Returns {'sk': base64(sk[64]), 'pk': base64(pk[32]), 'address': '...'}.
   static Future<Map<String, String>> generateKeyPair() async {
-    final kp      = NativeCrypto.generateKeyPair();
-    final sk      = kp['sk']!;
-    final pk      = kp['pk']!;
+    final kp = NativeCrypto.generateKeyPair();
+    final sk = kp['sk']!;
+    final pk = kp['pk']!;
     final address = NativeCrypto.deriveAddress(pk);
     return {
       'sk': base64.encode(sk),
@@ -62,7 +61,7 @@ class CryptoService {
 
     // 64-byte NaCl sk (seed[32] || pk[32]) — extract pk directly
     if (keyBytes.length == 64) {
-      final pk      = NativeCrypto.pkFromSk(keyBytes);
+      final pk = NativeCrypto.pkFromSk(keyBytes);
       final address = NativeCrypto.deriveAddress(pk);
       return {
         'sk': base64.encode(keyBytes),
@@ -127,7 +126,8 @@ class CryptoService {
   }
 
   /// Decrypts an arbitrary FHE ciphertext.
-  static int? fheDecrypt(String cipherStr) => NativeCrypto.fheDecrypt(cipherStr);
+  static int? fheDecrypt(String cipherStr) =>
+      NativeCrypto.fheDecrypt(cipherStr);
 
   // ══════════════════════════════════════════════════════════════════════════
   //  Transaction signing
@@ -136,7 +136,7 @@ class CryptoService {
   /// Signs a canonical transaction JSON string using the given 64-byte NaCl
   /// secret key (base64-encoded). Returns base64-encoded 64-byte signature.
   static Future<String> signMessage(String message, String skBase64) async {
-    final sk       = Uint8List.fromList(base64.decode(_padBase64(skBase64)));
+    final sk = Uint8List.fromList(base64.decode(_padBase64(skBase64)));
     final msgBytes = Uint8List.fromList(utf8.encode(message));
     if (sk.length != 64) throw ArgumentError('sk must be 64 bytes');
     final sig = NativeCrypto.sign(sk, msgBytes);
@@ -179,11 +179,11 @@ class CryptoService {
     };
     if (message.isNotEmpty) tx['message'] = message;
 
-    final canonical  = canonicalJson(tx);
-    final signature  = await signMessage(canonical, skBase64);
-    final pubKeyB64  = await publicKeyFromSk(skBase64);
+    final canonical = canonicalJson(tx);
+    final signature = await signMessage(canonical, skBase64);
+    final pubKeyB64 = await publicKeyFromSk(skBase64);
 
-    tx['signature']  = signature;
+    tx['signature'] = signature;
     tx['public_key'] = pubKeyB64;
     return tx;
   }
@@ -230,7 +230,7 @@ class CryptoService {
     final signature = await signMessage(canonical, skBase64);
     final pubKeyB64 = await publicKeyFromSk(skBase64);
 
-    tx['signature']  = signature;
+    tx['signature'] = signature;
     tx['public_key'] = pubKeyB64;
     return tx;
   }
@@ -275,7 +275,7 @@ class CryptoService {
     final signature = await signMessage(canonical, skBase64);
     final pubKeyB64 = await publicKeyFromSk(skBase64);
 
-    tx['signature']  = signature;
+    tx['signature'] = signature;
     tx['public_key'] = pubKeyB64;
     return tx;
   }
@@ -317,7 +317,7 @@ class CryptoService {
     final signature = await signMessage(canonical, skBase64);
     final pubKeyB64 = await publicKeyFromSk(skBase64);
 
-    tx['signature']  = signature;
+    tx['signature'] = signature;
     tx['public_key'] = pubKeyB64;
     return tx;
   }
@@ -348,11 +348,14 @@ class CryptoService {
 
     // FHE: build delta cipher, commitment, range proofs
     final delta = NativeCrypto.pvacBuildStealthDelta(amount, currentEncCipher);
-    if (delta == null) throw StateError('Failed to build stealth delta (insufficient balance?)');
+    if (delta == null) {
+      throw StateError('Failed to build stealth delta (insufficient balance?)');
+    }
 
     // Pedersen commitment for the stealth amount
     final blinding = base64.decode(prep['blinding_b64']!);
-    final amtCommit = NativeCrypto.pvacPedersenCommit(amount, Uint8List.fromList(blinding));
+    final amtCommit =
+        NativeCrypto.pvacPedersenCommit(amount, Uint8List.fromList(blinding));
 
     // encrypted amount (FHE cipher of the send amount for recipient)
     final encAmtResult = NativeCrypto.pvacEncryptAmount(amount);
@@ -388,7 +391,7 @@ class CryptoService {
     final signature = await signMessage(canonical, skBase64);
     final pubKeyB64 = await publicKeyFromSk(skBase64);
 
-    tx['signature']  = signature;
+    tx['signature'] = signature;
     tx['public_key'] = pubKeyB64;
     return tx;
   }
@@ -426,7 +429,7 @@ class CryptoService {
     final signature = await signMessage(canonical, skBase64);
     final pubKeyB64 = await publicKeyFromSk(skBase64);
 
-    tx['signature']  = signature;
+    tx['signature'] = signature;
     tx['public_key'] = pubKeyB64;
     return tx;
   }
@@ -453,9 +456,9 @@ class CryptoService {
 
   /// Derives a full keypair from a 32-byte seed using OpenSSL EVP Ed25519.
   static Future<Map<String, String>> _keypairFromSeed(Uint8List seed) async {
-    final kp      = NativeCrypto.keygenFromSeed(seed);
-    final sk      = kp['sk']!;
-    final pk      = kp['pk']!;
+    final kp = NativeCrypto.keygenFromSeed(seed);
+    final sk = kp['sk']!;
+    final pk = kp['pk']!;
     final address = NativeCrypto.deriveAddress(pk);
     return {
       'sk': base64.encode(sk),
@@ -474,9 +477,11 @@ class CryptoService {
     buf.write(',"nonce":${tx['nonce']}');
     buf.write(',"ou":"${_jsonEscape(tx['ou']?.toString() ?? '')}"');
     buf.write(',"timestamp":${_formatTimestamp(tx['timestamp'] as double)}');
-    buf.write(',"op_type":"${_jsonEscape(tx['op_type']?.toString() ?? 'standard')}"');
+    buf.write(
+        ',"op_type":"${_jsonEscape(tx['op_type']?.toString() ?? 'standard')}"');
     if (tx.containsKey('encrypted_data') && tx['encrypted_data'] != null) {
-      buf.write(',"encrypted_data":"${_jsonEscape(tx['encrypted_data'].toString())}"');
+      buf.write(
+          ',"encrypted_data":"${_jsonEscape(tx['encrypted_data'].toString())}"');
     }
     if (tx.containsKey('message') &&
         tx['message'] != null &&
@@ -496,14 +501,29 @@ class CryptoService {
     final buf = StringBuffer();
     for (final c in s.runes) {
       switch (c) {
-        case 0x22: buf.write(r'\"'); break;
-        case 0x5c: buf.write(r'\\'); break;
-        case 0x08: buf.write(r'\b'); break;
-        case 0x0c: buf.write(r'\f'); break;
-        case 0x0a: buf.write(r'\n'); break;
-        case 0x0d: buf.write(r'\r'); break;
-        case 0x09: buf.write(r'\t'); break;
-        default:   buf.writeCharCode(c);
+        case 0x22:
+          buf.write(r'\"');
+          break;
+        case 0x5c:
+          buf.write(r'\\');
+          break;
+        case 0x08:
+          buf.write(r'\b');
+          break;
+        case 0x0c:
+          buf.write(r'\f');
+          break;
+        case 0x0a:
+          buf.write(r'\n');
+          break;
+        case 0x0d:
+          buf.write(r'\r');
+          break;
+        case 0x09:
+          buf.write(r'\t');
+          break;
+        default:
+          buf.writeCharCode(c);
       }
     }
     return buf.toString();

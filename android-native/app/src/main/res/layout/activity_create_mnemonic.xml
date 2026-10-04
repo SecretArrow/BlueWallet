@@ -188,7 +188,7 @@
                             android:contentDescription="Copy seed phrase"
                             android:padding="8dp"
                             android:src="@drawable/ic_content_copy"
-                            android:tint="?attr/colorPrimary" />
+                            app:tint="?attr/colorPrimary" />
                     </LinearLayout>
 
                     <!-- Word grid - 12 words in 3 columns -->

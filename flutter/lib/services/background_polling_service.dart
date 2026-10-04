@@ -11,7 +11,7 @@ import 'crypto_service.dart';
 /// Mirrors webcli's pvac_bg thread implementation
 class BackgroundPollingService extends ChangeNotifier {
   static BackgroundPollingService? _instance;
-  
+
   static const _pollInterval = Duration(seconds: 15);
   static const _pvacCheckInterval = Duration(seconds: 60);
 
@@ -93,22 +93,23 @@ class BackgroundPollingService extends ChangeNotifier {
     try {
       // Get list of pending txs from local storage
       final pendingTxs = await _getPendingTransactions();
-      
+
       if (pendingTxs.isEmpty) return;
 
       for (final txHash in pendingTxs) {
         final result = await _rpcClient.getTransaction(txHash);
-        
+
         if (result.ok && result.result != null) {
           final status = result.result['status']?.toString().toLowerCase();
-          
+
           // Update local storage with new status
           await _updateTransactionStatus(txHash, status);
-          
+
           // If no longer pending, remove from pending list
           if (status != 'pending') {
             await _removeFromPending(txHash);
-            debugPrint('[BackgroundPolling] TX $txHash reached finality: $status');
+            debugPrint(
+                '[BackgroundPolling] TX $txHash reached finality: $status');
           }
         }
       }
@@ -123,7 +124,7 @@ class BackgroundPollingService extends ChangeNotifier {
     try {
       // Get all wallet addresses
       final walletIds = await _getWalletIds();
-      
+
       for (final walletId in walletIds) {
         await _checkWalletPvac(walletId);
       }
@@ -148,9 +149,9 @@ class BackgroundPollingService extends ChangeNotifier {
 
       // Check if PVAC pubkey is registered
       final pvacResult = await _rpcClient.getPvacPubkey(addr);
-      
+
       bool needsRegistration = true;
-      
+
       if (pvacResult.ok && pvacResult.result != null) {
         final registeredKey = pvacResult.result['pvac_pubkey']?.toString();
         if (registeredKey != null && registeredKey.isNotEmpty) {
@@ -215,7 +216,8 @@ class BackgroundPollingService extends ChangeNotifier {
       // Reset PVAC
       NativeCrypto.pvacReset();
 
-      debugPrint('[BackgroundPolling] PVAC registration needed for $addr (signature requires wallet unlock)');
+      debugPrint(
+          '[BackgroundPolling] PVAC registration needed for $addr (signature requires wallet unlock)');
       // Note: Full PVAC registration requires signing with private key
       // This should be done when wallet is unlocked via WalletService
     } catch (e) {
@@ -228,9 +230,9 @@ class BackgroundPollingService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final pendingJson = prefs.getString('pending_transactions');
-      
+
       if (pendingJson == null) return [];
-      
+
       final pending = List<String>.from(jsonDecode(pendingJson));
       return pending;
     } catch (e) {
@@ -254,15 +256,16 @@ class BackgroundPollingService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final pendingJson = prefs.getString('pending_transactions');
-      
+
       if (pendingJson == null) return;
-      
+
       final pending = List<String>.from(jsonDecode(pendingJson));
       pending.remove(txHash);
-      
+
       await prefs.setString('pending_transactions', jsonEncode(pending));
     } catch (e) {
-      debugPrint('[BackgroundPolling] Failed to remove $txHash from pending: $e');
+      debugPrint(
+          '[BackgroundPolling] Failed to remove $txHash from pending: $e');
     }
   }
 
@@ -271,9 +274,9 @@ class BackgroundPollingService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final walletIdsJson = prefs.getString('wallet_ids');
-      
+
       if (walletIdsJson == null) return [];
-      
+
       return List<String>.from(jsonDecode(walletIdsJson));
     } catch (e) {
       return [];
@@ -283,9 +286,12 @@ class BackgroundPollingService extends ChangeNotifier {
   /// Load wallet data from secure storage
   Future<Map<String, dynamic>?> _loadWalletData(String walletId) async {
     try {
-      final address = await _secureStorage.read(key: 'wallet_${walletId}_address');
-      final privateKeyB64 = await _secureStorage.read(key: 'wallet_${walletId}_private_key');
-      final publicKeyB64 = await _secureStorage.read(key: 'wallet_${walletId}_public_key');
+      final address =
+          await _secureStorage.read(key: 'wallet_${walletId}_address');
+      final privateKeyB64 =
+          await _secureStorage.read(key: 'wallet_${walletId}_private_key');
+      final publicKeyB64 =
+          await _secureStorage.read(key: 'wallet_${walletId}_public_key');
 
       if (address == null || privateKeyB64 == null || publicKeyB64 == null) {
         return null;

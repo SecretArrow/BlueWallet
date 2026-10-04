@@ -72,15 +72,31 @@ class _HistoryTabState extends State<HistoryTab> {
     if (diff == 1) return 'Yesterday';
     if (diff < 7) {
       const names = [
-        'Sunday', 'Monday', 'Tuesday', 'Wednesday',
-        'Thursday', 'Friday', 'Saturday'
+        'Sunday',
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday'
       ];
       return names[dt.weekday % 7];
     }
     // e.g. "March 9, 2026"
     final months = [
-      '', 'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      '',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
     ];
     return '${months[dt.month]} ${dt.day}, ${dt.year}';
   }
@@ -103,8 +119,7 @@ class _HistoryTabState extends State<HistoryTab> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.history_rounded,
-                size: 56,
-                color: cs.onSurfaceVariant.withValues(alpha: 0.3)),
+                size: 56, color: cs.onSurfaceVariant.withValues(alpha: 0.3)),
             const SizedBox(height: 12),
             Text('No transactions yet',
                 style: TextStyle(
@@ -137,8 +152,7 @@ class _HistoryTabState extends State<HistoryTab> {
                 if (item is Map && item['type'] == _dateHeaderType) {
                   return _DateHeader(label: item['label'] as String);
                 }
-                return _HistoryRow(
-                    tx: item as TxRecord, myAddress: myAddr);
+                return _HistoryRow(tx: item as TxRecord, myAddress: myAddr);
               },
             ),
             // Subtle top-of-list spinner when refreshing but list has data.
@@ -195,8 +209,7 @@ class _HistoryRow extends StatelessWidget {
   final String myAddress;
   const _HistoryRow({required this.tx, required this.myAddress});
 
-  bool get _isSent =>
-      tx.type == 'sent' || tx.fromAddress == myAddress;
+  bool get _isSent => tx.type == 'sent' || tx.fromAddress == myAddress;
 
   @override
   Widget build(BuildContext context) {
@@ -231,15 +244,13 @@ class _HistoryRow extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: _isSent
-                              ? Colors.red[300]
-                              : Colors.green[300],
+                          color: _isSent ? Colors.red[300] : Colors.green[300],
                         ),
                       ),
                       Text(
                         _formatTime(tx.timestamp),
-                        style: TextStyle(
-                            fontSize: 11, color: cs.onSurfaceVariant),
+                        style:
+                            TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -249,8 +260,8 @@ class _HistoryRow extends StatelessWidget {
                     children: [
                       Text(
                         _typeLabel(tx.opType),
-                        style: TextStyle(
-                            fontSize: 12, color: cs.onSurfaceVariant),
+                        style:
+                            TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                       ),
                       const SizedBox(width: 8),
                       _StatusChip(status: tx.status),
@@ -277,8 +288,7 @@ class _HistoryRow extends StatelessWidget {
     );
   }
 
-  String get _counterparty =>
-      _isSent ? tx.toAddress : tx.fromAddress;
+  String get _counterparty => _isSent ? tx.toAddress : tx.fromAddress;
 
   String _formatAmount(String amount) {
     if (amount.contains('.')) return amount;
@@ -296,14 +306,22 @@ class _HistoryRow extends StatelessWidget {
 
   String _typeLabel(String? opType) {
     switch (opType) {
-      case 'stake':   return 'Stake';
-      case 'unstake': return 'Unstake';
-      case 'encrypt': return 'Encrypt';
-      case 'decrypt': return 'Decrypt';
-      case 'stealth': return 'Stealth';
-      case 'deploy':  return 'Deploy';
-      case 'call':    return 'Contract call';
-      default:        return 'Transfer';
+      case 'stake':
+        return 'Stake';
+      case 'unstake':
+        return 'Unstake';
+      case 'encrypt':
+        return 'Encrypt';
+      case 'decrypt':
+        return 'Decrypt';
+      case 'stealth':
+        return 'Stealth';
+      case 'deploy':
+        return 'Deploy';
+      case 'call':
+        return 'Contract call';
+      default:
+        return 'Transfer';
     }
   }
 }
@@ -327,8 +345,8 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w600, color: color),
+        style:
+            TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }
@@ -349,5 +367,3 @@ class _StatusChip extends StatelessWidget {
     }
   }
 }
-
-

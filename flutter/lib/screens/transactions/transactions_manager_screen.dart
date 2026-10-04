@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../../services/wallet_service.dart';
 import '../../models/tx_record.dart';
 import '../../widgets/octopus_card.dart';
-import '../../widgets/tonal_button.dart';
 
 /// Transactions Manager — shows pending transactions with retry/cancel actions.
 /// Matches TransactionsManagerActivity.

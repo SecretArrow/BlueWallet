@@ -78,8 +78,8 @@ class HistoryDetailScreen extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 28,
-                      backgroundColor:
-                          (isSent ? cs.error : Colors.green).withOpacity(0.12),
+                      backgroundColor: (isSent ? cs.error : Colors.green)
+                          .withValues(alpha: 0.12),
                       child: Icon(
                         isSent
                             ? Icons.arrow_upward_rounded
@@ -102,7 +102,8 @@ class HistoryDetailScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _statusColor(tx!.status, cs).withOpacity(0.15),
+                        color: _statusColor(tx!.status, cs)
+                            .withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(

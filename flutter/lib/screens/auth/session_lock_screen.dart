@@ -87,16 +87,22 @@ class _SessionLockScreenState extends State<SessionLockScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      ..._options.map((minutes) => RadioListTile<int>(
-                            title: Text(_label(minutes)),
-                            value: minutes,
-                            groupValue: _selectedMinutes,
-                            activeColor: cs.primary,
-                            contentPadding: EdgeInsets.zero,
-                            onChanged: (val) {
-                              if (val != null) _select(val);
-                            },
-                          )),
+                      RadioGroup<int>(
+                        groupValue: _selectedMinutes,
+                        onChanged: (val) {
+                          if (val != null) _select(val);
+                        },
+                        child: Column(
+                          children: _options
+                              .map((minutes) => RadioListTile<int>(
+                                    title: Text(_label(minutes)),
+                                    value: minutes,
+                                    activeColor: cs.primary,
+                                    contentPadding: EdgeInsets.zero,
+                                  ))
+                              .toList(),
+                        ),
+                      ),
                     ],
                   ),
                 ),
