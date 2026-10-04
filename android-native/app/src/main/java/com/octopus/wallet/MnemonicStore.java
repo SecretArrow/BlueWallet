@@ -2,6 +2,7 @@ package com.octopus.wallet;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 
 import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKey;
@@ -30,7 +31,9 @@ public final class MnemonicStore {
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM);
         } catch (Exception e) {
-            // Fallback — plain prefs (rare, e.g. emulator without Keystore)
+            // Loud fallback — a stored mnemonic without Keystore protection
+            // is a security-relevant downgrade, never silent.
+            Log.w("MnemonicStore", "Keystore unavailable, mnemonic stored WITHOUT encryption: " + e.getMessage());
             return ctx.getSharedPreferences(PREFS_SECURE + "_plain", Context.MODE_PRIVATE);
         }
     }
@@ -61,10 +64,26 @@ public final class MnemonicStore {
     /**
      * Persists the mnemonic phrase encrypted under the device Keystore.
      * Also records this wallet's type as "mnemonic".
+     *
+     * @throws IllegalArgumentException when ids are blank or the phrase
+     *         fails BIP-39 validation (defense in depth — import screens
+     *         validate first, the store refuses garbage regardless)
      */
     public static void saveMnemonic(Context ctx, String walletId, String mnemonic) {
+        if (ctx == null) {
+            throw new IllegalArgumentException("Context must not be null");
+        }
+        if (walletId == null || walletId.trim().isEmpty()) {
+            throw new IllegalArgumentException("walletId must not be blank");
+        }
+        if (mnemonic == null || mnemonic.trim().isEmpty()) {
+            throw new IllegalArgumentException("mnemonic must not be blank");
+        }
+        if (!new Bip39(ctx).validate(mnemonic)) {
+            throw new IllegalArgumentException("mnemonic failed BIP-39 validation");
+        }
         securePrefs(ctx).edit()
-                .putString("mnemonic_" + walletId, mnemonic)
+                .putString("mnemonic_" + walletId, Bip39.normalize(mnemonic))
                 .apply();
         metaPrefs(ctx).edit()
                 .putString("type_" + walletId, "mnemonic")
