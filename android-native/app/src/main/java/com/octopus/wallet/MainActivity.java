@@ -1294,6 +1294,7 @@ public class MainActivity extends AppCompatActivity {
         initialRows.add(new SettingsActionRow("Permissions", "permissions", R.drawable.ic_notification));
         initialRows.add(new SettingsActionRow("Change PIN", "change_pin", R.drawable.ic_lock));
         initialRows.add(new SettingsActionRow("DApp Origins", "manage_origins", R.drawable.ic_dapp));
+        initialRows.add(new SettingsActionRow("DApp Browser", "dapp_browser", R.drawable.ic_dapp));
         initialRows.add(new SettingsActionRow("Cache", "maintenance", R.drawable.ic_cache));
         initialRows.add(new SettingsActionRow("Session", "session", R.drawable.ic_session));
         initialRows.add(new SettingsActionRow("Auto Scan", "auto_scan", R.drawable.ic_auto_scan));
@@ -1339,6 +1340,10 @@ public class MainActivity extends AppCompatActivity {
         }
         if ("manage_origins".equals(actionId)) {
             settingsActivityLauncher.launch(new Intent(this, DappOriginsActivity.class));
+            return;
+        }
+        if ("dapp_browser".equals(actionId)) {
+            settingsActivityLauncher.launch(new Intent(this, DappBrowserActivity.class));
             return;
         }
         if ("maintenance".equals(actionId)) {
