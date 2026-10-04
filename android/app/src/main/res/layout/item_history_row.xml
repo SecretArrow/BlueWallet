@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="10dp"
+    android:gravity="center_vertical"
+    android:background="?attr/selectableItemBackground">
+
+    <ImageView
+        android:id="@+id/history_direction_icon"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginEnd="12dp"
+        android:src="@drawable/ic_arrow_received"
+        android:contentDescription="Direction" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- Row 1: Amount + Time -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/history_amount_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="0 OCT"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/history_time_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- Row 2: Type + Status -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/history_type_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Standard"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/history_status_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text=""
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Row 3: Counterparty address (compact) -->
+        <TextView
+            android:id="@+id/history_parties_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text=""
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            android:maxLines="1"
+            android:ellipsize="middle" />
+
+    </LinearLayout>
+</LinearLayout>

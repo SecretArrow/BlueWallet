@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:colorBackground"
+    android:gravity="center"
+    android:padding="32dp">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <LinearLayout
+            android:id="@+id/choice_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="visible">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Octra Wallet"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No wallet found"
+                android:textColor="@color/text_secondary"
+                android:textSize="16sp"
+                android:layout_marginTop="8dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/create_button"
+                style="@style/Widget.OctraWallet.Button.Tonal"
+                android:layout_width="200dp"
+                android:layout_height="wrap_content"
+                android:text="Create by Seed Phrase"
+                android:layout_marginTop="32dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/import_button"
+                style="@style/Widget.OctraWallet.Button.Tonal"
+                android:layout_width="200dp"
+                android:layout_height="wrap_content"
+                android:text="Import Private Key"
+                android:layout_marginTop="16dp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/import_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Import Wallet"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Private Key (Base64)"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:layout_marginTop="24dp" />
+
+            <EditText
+                android:id="@+id/private_key_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Paste Base64 private key..."
+                android:textColor="?attr/colorOnSurface"
+                android:textColorHint="@color/text_secondary"
+                android:background="?attr/colorSurface"
+                android:padding="12dp"
+                android:fontFamily="monospace"
+                android:inputType="text"
+                android:minLines="3" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="24dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/do_import_button"
+                    style="@style/Widget.OctraWallet.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Import"
+                    android:layout_marginEnd="8dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/back_from_import_button"
+                    style="@style/Widget.OctraWallet.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Back"
+                    android:layout_marginStart="8dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/pin_setup_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Create PIN"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Enter a 6-digit PIN"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:layout_marginTop="24dp" />
+
+            <EditText
+                android:id="@+id/pin_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="------"
+                android:textColor="?attr/colorOnSurface"
+                android:textColorHint="@color/text_secondary"
+                android:background="?attr/colorSurface"
+                android:padding="12dp"
+                android:gravity="center"
+                android:letterSpacing="0.5"
+                android:textSize="24sp"
+                android:inputType="numberPassword"
+                android:maxLength="6" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Confirm PIN"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:layout_marginTop="16dp" />
+
+            <EditText
+                android:id="@+id/pin_confirm_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="------"
+                android:textColor="?attr/colorOnSurface"
+                android:textColorHint="@color/text_secondary"
+                android:background="?attr/colorSurface"
+                android:padding="12dp"
+                android:gravity="center"
+                android:letterSpacing="0.5"
+                android:textSize="24sp"
+                android:inputType="numberPassword"
+                android:maxLength="6" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="24dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/set_pin_button"
+                    style="@style/Widget.OctraWallet.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Set PIN"
+                    android:layout_marginEnd="8dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/back_from_pin_button"
+                    style="@style/Widget.OctraWallet.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Back"
+                    android:layout_marginStart="8dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+</LinearLayout>

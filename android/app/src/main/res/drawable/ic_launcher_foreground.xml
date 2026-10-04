@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="21dp"
+    android:insetTop="21dp"
+    android:insetRight="21dp"
+    android:insetBottom="21dp">
+
+    <bitmap
+        android:gravity="center"
+        android:src="@drawable/logo_app_octopus" />
+
+</inset>

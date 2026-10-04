@@ -1,0 +1,17 @@
+.gradle/
+build/
+app/build/
+app/.cxx/
+local.properties
+keystore.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+*.log
+*.idsig
+ss-error1.jpg
+ss-benar1.jpg
+sample-ui.jpg
+# keystore — never commit signing keys
+octra.jks

@@ -1,0 +1,63 @@
+# Build artifacts
+*.apk
+*.aab
+*.keystore
+*.jks
+*.log
+*.o
+*.so
+*.dylib
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+android/app/.cxx/
+android/local.properties
+android/keystore.properties
+android/build-logs/
+
+# Flutter
+flutter/.dart_tool/
+flutter/.flutter-plugins-dependencies
+flutter/build/app/
+flutter/build/.cxx/
+flutter/android/.gradle/
+flutter/android/.kotlin/
+flutter/android/local.properties
+
+# Webcli
+webcli/octra_wallet
+webcli/octra_wallet.exe
+webcli/*.o
+webcli/data/
+webcli/*.oct
+webcli/pvac/build/
+
+dapps/f_apps/relay/.next/
+dapps/f_apps/relay/node_modules/
+dapps/f_apps/apps/.next/
+dapps/f_apps/apps/node_modules/
+dapps/f_apps/sdk/.next/
+dapps/f_apps/sdk/node_modules/
+dapps/f_apps/scripts-with-token/node_modules/
+
+# dapps/new_apps Cloudflared state
+dapps/new_apps/.cloudflared/
+dapps/blue-fun/node_modules/
+dapps/blue-fun/.next/
+**/node_modules/
+
+android/scripts/octra.jks
+
+android/build-output.txt
+android/build_output.txt
+android/build_check.txt
+flutter/build_*.txt
+flutter/analyze_output.txt

@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:colorBackground"
+    android:fitsSystemWindows="true">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/lws_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurface"
+        app:navigationIconTint="?attr/colorOnSurface"
+        android:titleTextColor="?attr/colorOnSurface" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Toggle Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Local Web Server"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="16sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Access your wallet from any browser on this device"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="13sp" />
+
+                        </LinearLayout>
+
+                        <Switch
+                            android:id="@+id/lws_toggle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:checked="false" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/lws_status_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="○ Server is disabled"
+                        android:textSize="13sp"
+                        android:textColor="@android:color/darker_gray"
+                        android:fontFamily="monospace" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Info Card (shown only when enabled) -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/lws_info_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- URL Section -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="SERVER URL"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.1" />
+
+                    <TextView
+                        android:id="@+id/lws_url_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="http://localhost:8420"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="15sp"
+                        android:fontFamily="monospace"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/lws_open_browser_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="10dp"
+                        android:text="Open in Browser"
+                        android:textAllCaps="false"
+                        style="@style/Widget.Material3.Button.OutlinedButton" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="16dp"
+                        android:background="@color/text_secondary"
+                        android:alpha="0.15" />
+
+                    <!-- Auth Token Section -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="AUTH TOKEN (Bearer)"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.1" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Include this in all API requests as: Authorization: Bearer &lt;token&gt;"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/lws_token_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:padding="12dp"
+                        android:background="?attr/colorSurfaceVariant"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="13sp"
+                        android:fontFamily="monospace"
+                        android:textIsSelectable="true" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="10dp">
+
+                        <Button
+                            android:id="@+id/lws_copy_token_button"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="6dp"
+                            android:text="Copy Token"
+                            android:textAllCaps="false"
+                            style="@style/Widget.Material3.Button.OutlinedButton" />
+
+                        <Button
+                            android:id="@+id/lws_regenerate_button"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:layout_marginStart="6dp"
+                            android:text="Regenerate"
+                            android:textAllCaps="false"
+                            style="@style/Widget.Material3.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/text_secondary"
+                        android:alpha="0.15" />
+
+                    <!-- API Endpoints Info -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="AVAILABLE ENDPOINTS"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.1" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="GET  /api/status           (public)\nGET  /api/wallet/info\nGET  /api/balance\nGET  /api/history\nGET  /api/token-history\nGET  /api/keys/info\nGET  /api/wallets\nGET  /api/stealth/outputs\nPOST /api/wallet/rename"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="12sp"
+                        android:fontFamily="monospace"
+                        android:lineSpacingExtra="4dp" />
+
+                    <!-- Security Warning -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        app:cardBackgroundColor="#1AF59E0B"
+                        app:cardCornerRadius="12dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="#40F59E0B"
+                        app:strokeWidth="1dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:padding="12dp"
+                            android:text="⚠ Only accessible from this device (localhost). Private keys are never exposed via the API."
+                            android:textColor="#F59E0B"
+                            android:textSize="12sp" />
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="divider">#1A000000</color>
+    <color name="primary">#64ffda</color>
+    <color name="primary_dark">#0f3460</color>
+    <color name="accent">#64ffda</color>
+    <color name="background">#1a1a2e</color>
+    <color name="surface">#16213e</color>
+    <color name="text_primary">#ffffff</color>
+    <color name="text_secondary">#8892b0</color>
+    <color name="error">#e94560</color>
+
+    <color name="primary_light">#3A86FF</color>
+    <color name="primary_dark_light">#1D4ED8</color>
+    <color name="accent_light">#3A86FF</color>
+    <color name="background_light">#F8FAFC</color>
+    <color name="surface_light">#FFFFFF</color>
+    <color name="text_primary_light">#0F172A</color>
+    <color name="text_secondary_light">#475569</color>
+
+    <color name="primary_pastel">#A1C6EA</color>
+    <color name="primary_dark_pastel">#6B8FCE</color>
+    <color name="accent_pastel">#FFB6B9</color>
+    <color name="background_pastel">#FFF6E9</color>
+    <color name="surface_pastel">#FAE3D9</color>
+    <color name="text_primary_pastel">#4A4E69</color>
+    <color name="text_secondary_pastel">#6D6875</color>
+
+    <color name="primary_moonbloom">#BD93F9</color>
+    <color name="primary_dark_moonbloom">#6C5B7B</color>
+    <color name="accent_moonbloom">#FF79C6</color>
+    <color name="background_moonbloom">#282A36</color>
+    <color name="surface_moonbloom">#343746</color>
+    <color name="text_primary_moonbloom">#F8F8F2</color>
+    <color name="text_secondary_moonbloom">#B9BBD1</color>
+
+    <color name="primary_frostline">#5E81AC</color>
+    <color name="primary_dark_frostline">#4C6D95</color>
+    <color name="accent_frostline">#88C0D0</color>
+    <color name="background_frostline">#ECEFF4</color>
+    <color name="surface_frostline">#E5E9F0</color>
+    <color name="text_primary_frostline">#2E3440</color>
+    <color name="text_secondary_frostline">#4C566A</color>
+
+    <color name="primary_signal">#4F8CFF</color>
+    <color name="primary_dark_signal">#3B6FD1</color>
+    <color name="accent_signal">#FFB454</color>
+    <color name="background_signal">#1E2430</color>
+    <color name="surface_signal">#252D3D</color>
+    <color name="text_primary_signal">#E6EDF7</color>
+    <color name="text_secondary_signal">#A7B4C8</color>
+
+    <color name="primary_nightpulse">#8B5CF6</color>
+    <color name="primary_dark_nightpulse">#5B21B6</color>
+    <color name="accent_nightpulse">#22D3EE</color>
+    <color name="background_nightpulse">#0F1021</color>
+    <color name="surface_nightpulse">#1B1C3A</color>
+    <color name="text_primary_nightpulse">#F5F7FF</color>
+    <color name="text_secondary_nightpulse">#B4B8D3</color>
+
+    <color name="primary_obsidiangrid">#10B981</color>
+    <color name="primary_dark_obsidiangrid">#047857</color>
+    <color name="accent_obsidiangrid">#F59E0B</color>
+    <color name="background_obsidiangrid">#0B0D12</color>
+    <color name="surface_obsidiangrid">#151922</color>
+    <color name="text_primary_obsidiangrid">#EDF2F7</color>
+    <color name="text_secondary_obsidiangrid">#9AA4B2</color>
+
+    <color name="primary_neonforge">#FF5F56</color>
+    <color name="primary_dark_neonforge">#D94841</color>
+    <color name="accent_neonforge">#27C93F</color>
+    <color name="background_neonforge">#121212</color>
+    <color name="surface_neonforge">#202020</color>
+    <color name="text_primary_neonforge">#F2F2F2</color>
+    <color name="text_secondary_neonforge">#B8B8B8</color>
+
+    <color name="primary_ivorycircuit">#2563EB</color>
+    <color name="primary_dark_ivorycircuit">#1D4ED8</color>
+    <color name="accent_ivorycircuit">#0EA5E9</color>
+    <color name="background_ivorycircuit">#FFFEFB</color>
+    <color name="surface_ivorycircuit">#F7F9FF</color>
+    <color name="text_primary_ivorycircuit">#1E293B</color>
+    <color name="text_secondary_ivorycircuit">#5B6474</color>
+
+    <color name="primary_solarpaper">#C2410C</color>
+    <color name="primary_dark_solarpaper">#9A3412</color>
+    <color name="accent_solarpaper">#D97706</color>
+    <color name="background_solarpaper">#FFF9ED</color>
+    <color name="surface_solarpaper">#FFF3D6</color>
+    <color name="text_primary_solarpaper">#3F2A1D</color>
+    <color name="text_secondary_solarpaper">#73553F</color>
+
+    <color name="primary_mistterminal">#0F766E</color>
+    <color name="primary_dark_mistterminal">#115E59</color>
+    <color name="accent_mistterminal">#14B8A6</color>
+    <color name="background_mistterminal">#F1F5F9</color>
+    <color name="surface_mistterminal">#E8EEF3</color>
+    <color name="text_primary_mistterminal">#0F172A</color>
+    <color name="text_secondary_mistterminal">#475569</color>
+
+    <color name="token_item_stroke">#408892B0</color>
+    <color name="success_color">#10B981</color>
+    <color name="warning_color">#F59E0B</color>
+</resources>

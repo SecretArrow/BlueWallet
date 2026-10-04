@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OctraWallet" parent="Theme.OctraWallet.Zenith" />
+
+    <style name="Theme.OctraWallet.Zenith" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorOnPrimary">@color/text_primary</item>
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorOnSecondary">@color/text_primary</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:statusBarColor">@color/primary_dark</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="materialButtonStyle">@style/Widget.OctraWallet.Button.Round</item>
+        <!-- MD3 compat attrs -->
+        <item name="colorPrimaryContainer">#122B25</item>
+        <item name="colorOnPrimaryContainer">#64FFDA</item>
+        <item name="colorErrorContainer">#3D1020</item>
+        <item name="colorOnErrorContainer">#FFBEC8</item>
+        <item name="colorSurfaceVariant">#1E2A48</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+    </style>
+
+    <style name="Theme.OctraWallet.Moonbloom" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary_moonbloom</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_moonbloom</item>
+        <item name="colorOnPrimary">@color/text_primary_moonbloom</item>
+        <item name="colorSecondary">@color/accent_moonbloom</item>
+        <item name="colorOnSecondary">@color/text_primary_moonbloom</item>
+        <item name="android:colorBackground">@color/background_moonbloom</item>
+        <item name="colorSurface">@color/surface_moonbloom</item>
+        <item name="colorOnSurface">@color/text_primary_moonbloom</item>
+        <item name="android:textColorPrimary">@color/text_primary_moonbloom</item>
+        <item name="android:textColorSecondary">@color/text_secondary_moonbloom</item>
+        <item name="android:statusBarColor">@color/primary_dark_moonbloom</item>
+        <item name="android:navigationBarColor">@color/background_moonbloom</item>
+        <item name="materialButtonStyle">@style/Widget.OctraWallet.Button.Round</item>
+        <!-- MD3 compat attrs -->
+        <item name="colorPrimaryContainer">#29183F</item>
+        <item name="colorOnPrimaryContainer">#E9DEFF</item>
+        <item name="colorErrorContainer">#33101E</item>
+        <item name="colorOnErrorContainer">#FFBEC8</item>
+        <item name="colorSurfaceVariant">#3E4252</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary_moonbloom</item>
+    </style>
+
+    <style name="Theme.OctraWallet.Frostline" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/primary_frostline</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_frostline</item>
+        <item name="colorOnPrimary">@color/text_primary_frostline</item>
+        <item name="colorSecondary">@color/accent_frostline</item>
+        <item name="colorOnSecondary">@color/text_primary_frostline</item>
+        <item name="android:colorBackground">@color/background_frostline</item>
+        <item name="colorSurface">@color/surface_frostline</item>
+        <item name="colorOnSurface">@color/text_primary_frostline</item>
+        <item name="android:statusBarColor">@color/surface_frostline</item>
+        <item name="android:navigationBarColor">@color/background_frostline</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="materialButtonStyle">@style/Widget.OctraWallet.Button.Round</item>
+        <!-- MD3 compat attrs -->
+        <item name="colorPrimaryContainer">#BBCEE0</item>
+        <item name="colorOnPrimaryContainer">#1E3A5A</item>
+        <item name="colorErrorContainer">#FFDAD6</item>
+        <item name="colorOnErrorContainer">#5C0811</item>
+        <item name="colorSurfaceVariant">#D8DEE9</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary_frostline</item>
+    </style>
+
+    <style name="Theme.OctraWallet.Signal" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary_signal</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_signal</item>
+        <item name="colorOnPrimary">@color/text_primary_signal</item>
+        <item name="colorSecondary">@color/accent_signal</item>
+        <item name="colorOnSecondary">@color/text_primary_signal</item>
+        <item name="android:colorBackground">@color/background_signal</item>
+        <item name="colorSurface">@color/surface_signal</item>
+        <item name="colorOnSurface">@color/text_primary_signal</item>
+        <item name="android:textColorPrimary">@color/text_primary_signal</item>
+        <item name="android:textColorSecondary">@color/text_secondary_signal</item>
+        <item name="android:statusBarColor">@color/primary_dark_signal</item>
+        <item name="android:navigationBarColor">@color/background_signal</item>
+        <item name="materialButtonStyle">@style/Widget.OctraWallet.Button.Round</item>
+        <!-- MD3 compat attrs -->
+        <item name="colorPrimaryContainer">#0C1A33</item>
+        <item name="colorOnPrimaryContainer">#C5D8FF</item>
+        <item name="colorErrorContainer">#2E0D17</item>
+        <item name="colorOnErrorContainer">#FFC4CC</item>
+        <item name="colorSurfaceVariant">#2F3749</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary_signal</item>
+    </style>
+
+    <style name="Theme.OctraWallet.NightPulse" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary_nightpulse</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_nightpulse</item>
+        <item name="colorOnPrimary">@color/text_primary_nightpulse</item>
+        <item name="colorSecondary">@color/accent_nightpulse</item>
+        <item name="colorOnSecondary">@color/text_primary_nightpulse</item>
+        <item name="android:colorBackground">@color/background_nightpulse</item>
+        <item name="colorSurface">@color/surface_nightpulse</item>
+        <item name="colorOnSurface">@color/text_primary_nightpulse</item>
+        <item name="android:textColorPrimary">@color/text_primary_nightpulse</item>
+        <item name="android:textColorSecondary">@color/text_secondary_nightpulse</item>
+        <item name="android:statusBarColor">@color/primary_dark_nightpulse</item>
+        <item name="android:navigationBarColor">@color/background_nightpulse</item>
+        <item name="materialButtonStyle">@style/Widget.OctraWallet.Button.Round</item>
+        <!-- MD3 compat attrs -->
+        <item name="colorPrimaryContainer">#1E0B3D</item>
+        <item name="colorOnPrimaryContainer">#D8C5FF</item>
+        <item name="colorErrorContainer">#25071A</item>
+        <item name="colorOnErrorContainer">#FFBEC8</item>
+        <item name="colorSurfaceVariant">#252646</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary_nightpulse</item>
+    </style>
+
+    <style name="Theme.OctraWallet.ObsidianGrid" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary_obsidiangrid</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_obsidiangrid</item>
+        <item name="colorOnPrimary">@color/text_primary_obsidiangrid</item>
+        <item name="colorSecondary">@color/accent_obsidiangrid</item>
+        <item name="colorOnSecondary">@color/text_primary_obsidiangrid</item>
+        <item name="android:colorBackground">@color/background_obsidiangrid</item>
+        <item name="colorSurface">@color/surface_obsidiangrid</item>
+        <item name="colorOnSurface">@color/text_primary_obsidiangrid</item>
+        <item name="android:textColorPrimary">@color/text_primary_obsidiangrid</item>
+        <item name="android:textColorSecondary">@color/text_secondary_obsidiangrid</item>
+        <item name="android:statusBarColor">@color/primary_dark_obsidiangrid</item>
+        <item name="android:navigationBarColor">@color/background_obsidiangrid</item>
+        <item name="materialButtonStyle">@style/Widget.OctraWallet.Button.Round</item>
+        <!-- MD3 compat attrs -->
+        <item name="colorPrimaryContainer">#052917</item>
+        <item name="colorOnPrimaryContainer">#B3EFD8</item>
+        <item name="colorErrorContainer">#200714</item>
+        <item name="colorOnErrorContainer">#FFC4CC</item>
+        <item name="colorSurfaceVariant">#1F232E</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary_obsidiangrid</item>
+    </style>
+
+    <style name="Theme.OctraWallet.NeonForge" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary_neonforge</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_neonforge</item>
+        <item name="colorOnPrimary">@color/text_primary_neonforge</item>
+        <item name="colorSecondary">@color/accent_neonforge</item>
+        <item name="colorOnSecondary">@color/text_primary_neonforge</item>
+        <item name="android:colorBackground">@color/background_neonforge</item>
+        <item name="colorSurface">@color/surface_neonforge</item>
+        <item name="colorOnSurface">@color/text_primary_neonforge</item>
+        <item name="android:textColorPrimary">@color/text_primary_neonforge</item>
+        <item name="android:textColorSecondary">@color/text_secondary_neonforge</item>
+        <item name="android:statusBarColor">@color/primary_dark_neonforge</item>
+        <item name="android:navigationBarColor">@color/background_neonforge</item>
+        <item name="materialButtonStyle">@style/Widget.OctraWallet.Button.Round</item>
+        <!-- MD3 compat attrs -->
+        <item name="colorPrimaryContainer">#2E0905</item>
+        <item name="colorOnPrimaryContainer">#FFD6D3</item>
+        <item name="colorErrorContainer">#2E0905</item>
+        <item name="colorOnErrorContainer">#FFD6D3</item>
+        <item name="colorSurfaceVariant">#2C2C2C</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary_neonforge</item>
+    </style>
+
+    <style name="Theme.OctraWallet.IvoryCircuit" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/primary_ivorycircuit</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_ivorycircuit</item>
+        <item name="colorOnPrimary">@color/text_primary_ivorycircuit</item>
+        <item name="colorSecondary">@color/accent_ivorycircuit</item>
+        <item name="colorOnSecondary">@color/text_primary_ivorycircuit</item>
+        <item name="android:colorBackground">@color/background_ivorycircuit</item>
+        <item name="colorSurface">@color/surface_ivorycircuit</item>
+        <item name="colorOnSurface">@color/text_primary_ivorycircuit</item>
+        <item name="android:statusBarColor">@color/surface_ivorycircuit</item>
+        <item name="android:navigationBarColor">@color/background_ivorycircuit</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="materialButtonStyle">@style/Widget.OctraWallet.Button.Round</item>
+        <!-- MD3 compat attrs -->
+        <item name="colorPrimaryContainer">#DBEAFE</item>
+        <item name="colorOnPrimaryContainer">#1E3A8A</item>
+        <item name="colorErrorContainer">#FFE4E1</item>
+        <item name="colorOnErrorContainer">#B91C1C</item>
+        <item name="colorSurfaceVariant">#E8ECF4</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary_ivorycircuit</item>
+    </style>
+
+    <style name="Theme.OctraWallet.SolarPaper" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/primary_solarpaper</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_solarpaper</item>
+        <item name="colorOnPrimary">@color/text_primary_solarpaper</item>
+        <item name="colorSecondary">@color/accent_solarpaper</item>
+        <item name="colorOnSecondary">@color/text_primary_solarpaper</item>
+        <item name="android:colorBackground">@color/background_solarpaper</item>
+        <item name="colorSurface">@color/surface_solarpaper</item>
+        <item name="colorOnSurface">@color/text_primary_solarpaper</item>
+        <item name="android:statusBarColor">@color/surface_solarpaper</item>
+        <item name="android:navigationBarColor">@color/background_solarpaper</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="materialButtonStyle">@style/Widget.OctraWallet.Button.Round</item>
+        <!-- MD3 compat attrs -->
+        <item name="colorPrimaryContainer">#FFEDD5</item>
+        <item name="colorOnPrimaryContainer">#7C2D12</item>
+        <item name="colorErrorContainer">#FFD5CF</item>
+        <item name="colorOnErrorContainer">#991B1B</item>
+        <item name="colorSurfaceVariant">#F0E4C4</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary_solarpaper</item>
+    </style>
+
+    <style name="Theme.OctraWallet.MistTerminal" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/primary_mistterminal</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_mistterminal</item>
+        <item name="colorOnPrimary">@color/text_primary_mistterminal</item>
+        <item name="colorSecondary">@color/accent_mistterminal</item>
+        <item name="colorOnSecondary">@color/text_primary_mistterminal</item>
+        <item name="android:colorBackground">@color/background_mistterminal</item>
+        <item name="colorSurface">@color/surface_mistterminal</item>
+        <item name="colorOnSurface">@color/text_primary_mistterminal</item>
+        <item name="android:statusBarColor">@color/surface_mistterminal</item>
+        <item name="android:navigationBarColor">@color/background_mistterminal</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="materialButtonStyle">@style/Widget.OctraWallet.Button.Round</item>
+        <!-- MD3 compat attrs -->
+        <item name="colorPrimaryContainer">#CCFBF1</item>
+        <item name="colorOnPrimaryContainer">#134E4A</item>
+        <item name="colorErrorContainer">#FFE4E1</item>
+        <item name="colorOnErrorContainer">#B91C1C</item>
+        <item name="colorSurfaceVariant">#D8E2EA</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary_mistterminal</item>
+    </style>
+
+    <style name="Theme.OctraWallet.Dark" parent="Theme.OctraWallet.Zenith" />
+
+    <style name="Theme.OctraWallet.Light" parent="Theme.OctraWallet.Frostline" />
+
+    <style name="Theme.OctraWallet.Pastel" parent="Theme.OctraWallet.Signal" />
+
+    <style name="Theme.OctraWallet.Dialog" parent="Theme.MaterialComponents.DayNight.Dialog">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorOnPrimary">@color/text_primary</item>
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorOnSecondary">@color/text_primary</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="materialButtonStyle">@style/Widget.OctraWallet.Button.Round</item>
+    </style>
+
+    <style name="ShapeAppearanceOverlay.OctraWallet.Button.Round" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">999dp</item>
+    </style>
+
+    <style name="Widget.OctraWallet.Button.Round" parent="Widget.MaterialComponents.Button">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.OctraWallet.Button.Round</item>
+    </style>
+
+    <style name="Widget.OctraWallet.Button.Tonal" parent="Widget.OctraWallet.Button.Round">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="backgroundTint">?attr/colorSurface</item>
+        <item name="strokeColor">?attr/colorPrimary</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.OctraWallet.Button.Round</item>
+    </style>
+
+    <style name="Widget.OctraWallet.Button.Tonal.Compact" parent="Widget.OctraWallet.Button.Tonal">
+        <item name="android:minHeight">40dp</item>
+        <item name="android:paddingLeft">12dp</item>
+        <item name="android:paddingRight">12dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+</resources>

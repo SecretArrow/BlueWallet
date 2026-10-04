@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:colorBackground"
+    android:fitsSystemWindows="true">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/pin_entry_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center_horizontal">
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="?attr/colorSurface"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="24dp"
+                android:gravity="center_horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PIN Required"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Enter your 6-digit wallet PIN to continue."
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:gravity="center" />
+
+                <EditText
+                    android:id="@+id/pin_entry_input"
+                    android:layout_width="200dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:background="?attr/colorSurface"
+                    android:gravity="center"
+                    android:hint="••••••"
+                    android:inputType="numberPassword"
+                    android:maxLength="6"
+                    android:padding="16dp"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="@color/text_secondary"
+                    android:textSize="24sp"
+                    android:letterSpacing="0.3" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/pin_entry_submit"
+                    style="@style/Widget.OctraWallet.Button.Tonal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="Continue" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+</LinearLayout>

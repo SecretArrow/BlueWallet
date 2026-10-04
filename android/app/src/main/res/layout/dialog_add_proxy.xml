@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="?attr/colorSurface">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Add Custom Server"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/proxy_name_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:hint="Server Name (e.g. VPS Proxy)"
+        android:textColor="?attr/colorOnSurface"
+        android:textColorHint="@color/text_secondary"
+        android:background="?attr/colorSurfaceVariant"
+        android:padding="12dp"
+        android:inputType="textCapWords" />
+
+    <EditText
+        android:id="@+id/proxy_host_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="Host / IP Address"
+        android:textColor="?attr/colorOnSurface"
+        android:textColorHint="@color/text_secondary"
+        android:background="?attr/colorSurfaceVariant"
+        android:padding="12dp"
+        android:inputType="textNoSuggestions"
+        android:fontFamily="monospace" />
+
+    <EditText
+        android:id="@+id/proxy_port_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="Port (1 - 65535)"
+        android:textColor="?attr/colorOnSurface"
+        android:textColorHint="@color/text_secondary"
+        android:background="?attr/colorSurfaceVariant"
+        android:padding="12dp"
+        android:inputType="number" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="PROXY TYPE"
+        android:textColor="@color/text_secondary"
+        android:textSize="11sp"
+        android:letterSpacing="0.1"
+        android:textStyle="bold" />
+
+    <RadioGroup
+        android:id="@+id/proxy_type_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <RadioButton
+            android:id="@+id/proxy_type_socks"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SOCKS5"
+            android:textColor="?attr/colorOnSurface"
+            android:checked="true" />
+
+        <RadioButton
+            android:id="@+id/proxy_type_http"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:textColor="?attr/colorOnSurface"
+            android:text="HTTP" />
+
+    </RadioGroup>
+
+</LinearLayout>

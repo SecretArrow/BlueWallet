@@ -1,0 +1,7 @@
+# Export all octra_* and pvac_* symbols; hide everything else.
+{
+    global:
+        octra_*;
+        pvac_*;
+    local: *;
+};

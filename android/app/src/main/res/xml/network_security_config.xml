@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Cleartext permitted for devnet node and local development -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">165.227.225.79</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+    <!-- HTTPS-only for mainnet and explorer endpoints -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">rpc.octrascan.io</domain>
+        <domain includeSubdomains="true">octrascan.io</domain>
+        <domain includeSubdomains="true">devnet.octrascan.io</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

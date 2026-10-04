@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:colorBackground"
+    android:fitsSystemWindows="true">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/session_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurface"
+        app:navigationIconTint="?attr/colorOnSurface"
+        android:title="Session"
+        android:titleTextColor="?attr/colorOnSurface" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Auto Lock"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Automatically lock the app and require PIN after a period of inactivity."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="8dp"
+                        android:background="@color/text_secondary"
+                        android:alpha="0.15" />
+
+                    <RadioGroup
+                        android:id="@+id/session_lock_radio_group"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <RadioButton
+                            android:id="@+id/session_lock_5"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="5 minutes"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="5" />
+
+                        <RadioButton
+                            android:id="@+id/session_lock_10"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="10 minutes"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="10" />
+
+                        <RadioButton
+                            android:id="@+id/session_lock_15"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="15 minutes"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="15" />
+
+                        <RadioButton
+                            android:id="@+id/session_lock_25"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="25 minutes"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="25" />
+
+                        <RadioButton
+                            android:id="@+id/session_lock_30"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="30 minutes"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="30" />
+
+                        <RadioButton
+                            android:id="@+id/session_lock_60"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="60 minutes"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="60" />
+
+                        <RadioButton
+                            android:id="@+id/session_lock_never"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="Never"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="0" />
+
+                    </RadioGroup>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

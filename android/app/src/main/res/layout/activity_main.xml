@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:colorBackground">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/top_app_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurface"
+        android:title="Octra Wallet"
+        android:titleTextColor="?attr/colorOnSurface"
+        app:titleCentered="true" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/dashboard_refresh"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+        <LinearLayout
+            android:id="@+id/dashboard_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <!-- Fixed header section (non-scrollable) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="16dp">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:cardBackgroundColor="?attr/colorSurface"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:padding="12dp">
+
+                        <Spinner
+                            android:id="@+id/wallet_selector"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:backgroundTint="?attr/colorPrimary"
+                            android:popupBackground="?attr/colorSurface" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/add_wallet_button"
+                            style="@style/Widget.OctraWallet.Button.Tonal.Compact"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:visibility="gone"
+                            android:text=""
+                            android:contentDescription="Add Wallet"
+                            app:icon="@android:drawable/ic_menu_add"
+                            app:iconTint="?attr/colorPrimary" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    app:cardBackgroundColor="?attr/colorSurface"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:id="@+id/address_text"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Loading wallet..."
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Total Balance"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/total_balance_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="-"
+                            android:textColor="?attr/colorPrimary"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/public_balance_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Public: - OCT"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="13sp"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/encrypted_balance_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Encrypted: - OCT"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="13sp"
+                            android:fontFamily="monospace" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/dashboard_send_button"
+                        style="@style/Widget.OctraWallet.Button.Tonal"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:text="Send" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/dashboard_receive_button"
+                        style="@style/Widget.OctraWallet.Button.Tonal"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:text="Receive" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Token List"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:layout_weight="1" />
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1.2"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="18dp"
+                        app:cardElevation="0dp"
+                        app:strokeWidth="0dp">
+
+                        <EditText
+                            android:id="@+id/token_search_input"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:hint="Search..."
+                            android:inputType="text"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textColorHint="@color/text_secondary"
+                            android:background="@android:color/transparent"
+                            android:textSize="12sp"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:maxLines="1"
+                            android:singleLine="true" />
+
+                    </com.google.android.material.card.MaterialCardView>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Scrollable token list (fills remaining space) -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/token_list_view"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginTop="8dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:clipToPadding="false"
+                android:scrollbars="vertical" />
+        </LinearLayout>
+
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+        <LinearLayout
+            android:id="@+id/history_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                android:id="@+id/history_refresh"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="History"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="20sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/history_empty_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="No transactions yet"
+                        android:textColor="@color/text_secondary" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/history_list_view"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:layout_marginTop="8dp"
+                        android:scrollbars="vertical" />
+                </LinearLayout>
+            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/settings_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:padding="16dp">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/settings_actions_list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="8dp"
+                android:scrollbars="vertical"
+                android:overScrollMode="ifContentScrolls" />
+
+        </LinearLayout>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/history_scroll_top_fab"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="20dp"
+            android:layout_marginBottom="88dp"
+            android:contentDescription="Scroll to top"
+            android:visibility="gone"
+            app:backgroundTint="?attr/colorPrimary"
+            app:srcCompat="@drawable/ic_vertical_align_top"
+            app:tint="?attr/colorOnPrimary" />
+
+    </FrameLayout>
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottom_navigation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurface"
+        app:itemIconTint="@color/bottom_nav_icon_tint"
+        app:itemTextColor="@color/bottom_nav_icon_tint"
+        app:labelVisibilityMode="labeled"
+        app:menu="@menu/main_bottom_nav" />
+
+</LinearLayout>

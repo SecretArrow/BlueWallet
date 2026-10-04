@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
+    app:cardElevation="1dp"
+    app:cardCornerRadius="12dp"
+    app:strokeWidth="0dp"
+    app:cardBackgroundColor="?attr/colorSurface">
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <!-- Row 1: Type + Status -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tx_task_type"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Send"
+            android:textColor="?attr/colorPrimary"
+            android:textStyle="bold"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/tx_task_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Queued"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Row 2: Amount + Updated time -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="4dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tx_task_amount"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="0 OCT"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tx_task_updated"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- Row 3: To address (hidden if empty) -->
+    <TextView
+        android:id="@+id/tx_task_to"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text=""
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        android:fontFamily="monospace"
+        android:maxLines="1"
+        android:ellipsize="middle"
+        android:visibility="gone" />
+
+    <!-- Row 4: Step + Message (hidden if empty) -->
+    <TextView
+        android:id="@+id/tx_task_step"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text=""
+        android:textColor="@color/text_secondary"
+        android:textSize="11sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/tx_task_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text=""
+        android:textColor="@color/text_secondary"
+        android:textSize="11sp"
+        android:visibility="gone" />
+
+    <!-- Row 5: Hash (hidden if empty) -->
+    <TextView
+        android:id="@+id/tx_task_hash"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text=""
+        android:textColor="@color/text_secondary"
+        android:textSize="11sp"
+        android:fontFamily="monospace"
+        android:maxLines="1"
+        android:ellipsize="middle"
+        android:visibility="gone" />
+
+    <!-- Cancel button (only visible for active tasks) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/tx_task_cancel"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Cancel"
+        android:textColor="?attr/colorError"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+  </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

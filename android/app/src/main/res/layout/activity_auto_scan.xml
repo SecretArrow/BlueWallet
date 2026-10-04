@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:colorBackground"
+    android:fitsSystemWindows="true">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/auto_scan_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurface"
+        app:navigationIconTint="?attr/colorOnSurface"
+        android:title="Auto Scan"
+        android:titleTextColor="?attr/colorOnSurface" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Auto Scan"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Automatically refresh balance and scan for incoming transactions at regular intervals."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="8dp"
+                        android:background="@color/text_secondary"
+                        android:alpha="0.15" />
+
+                    <RadioGroup
+                        android:id="@+id/auto_scan_radio_group"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <RadioButton
+                            android:id="@+id/auto_scan_1"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="Every 1 minute"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="1" />
+
+                        <RadioButton
+                            android:id="@+id/auto_scan_3"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="Every 3 minutes"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="3" />
+
+                        <RadioButton
+                            android:id="@+id/auto_scan_5"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="Every 5 minutes"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="5" />
+
+                        <RadioButton
+                            android:id="@+id/auto_scan_10"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="Every 10 minutes"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="10" />
+
+                        <RadioButton
+                            android:id="@+id/auto_scan_never"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="Never"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            android:paddingStart="8dp"
+                            android:tag="0" />
+
+                    </RadioGroup>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_wallets"
+        android:title="Wallets" />
+    <item
+        android:id="@+id/action_theme"
+        android:title="Theme" />
+    <item
+        android:id="@+id/action_network"
+        android:title="Networks" />
+    <item
+        android:id="@+id/action_change_pin"
+        android:title="Change PIN" />
+    <item
+        android:id="@+id/action_manage_origins"
+        android:title="DApp Origins" />
+    <item
+        android:id="@+id/action_about"
+        android:title="About" />
+    <item
+        android:id="@+id/action_logout"
+        android:title="Logout" />
+</menu>

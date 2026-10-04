@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:colorBackground"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/tx_toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:cardBackgroundColor="?attr/colorSurface"
+                    app:cardCornerRadius="20dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Stealth Send"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="Stealth mode for more private transactions."
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/stealth_available_balance_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="Available: —"
+                            android:textColor="?attr/colorPrimary"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/stealth_to_input"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:background="?attr/colorSurface"
+                            android:hint="Recipient Address"
+                            android:fontFamily="monospace"
+                            android:inputType="textMultiLine"
+                            android:gravity="start|top"
+                            android:minLines="2"
+                            android:maxLines="4"
+                            android:padding="12dp"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textColorHint="@color/text_secondary" />
+
+                        <EditText
+                            android:id="@+id/stealth_amount_input"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:background="?attr/colorSurface"
+                            android:hint="Amount (OCT)"
+                            android:inputType="numberDecimal"
+                            android:padding="12dp"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textColorHint="@color/text_secondary" />
+
+                        <EditText
+                            android:id="@+id/stealth_message_input"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:background="?attr/colorSurface"
+                            android:hint="Message (Optional)"
+                            android:inputType="textMultiLine"
+                            android:gravity="start|top"
+                            android:minLines="2"
+                            android:maxLines="4"
+                            android:padding="12dp"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textColorHint="@color/text_secondary" />
+
+                        <com.google.android.material.checkbox.MaterialCheckBox
+                            android:id="@+id/stealth_custom_fee_check"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:text="Use custom gas fee (OU)"
+                            android:textColor="?attr/colorOnSurface" />
+
+                        <EditText
+                            android:id="@+id/stealth_custom_fee_input"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:background="?attr/colorSurface"
+                            android:enabled="false"
+                            android:hint="Fee (OU), default 5000"
+                            android:inputType="number"
+                            android:padding="12dp"
+                            android:text="5000"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textColorHint="@color/text_secondary" />
+
+                        <LinearLayout
+                            android:id="@+id/stealth_loading_row"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:visibility="gone">
+
+                            <ProgressBar
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:indeterminate="true" />
+
+                            <TextView
+                                android:id="@+id/stealth_status_text"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="10dp"
+                                android:text="Processing stealth transaction..."
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/stealth_submit_button"
+                            style="@style/Widget.OctraWallet.Button.Tonal"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:text="Send Stealth" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+        </ScrollView>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/stealth_send_fab_tasks_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="88dp"
+        android:layout_marginBottom="16dp"
+        android:background="@android:color/transparent"
+        android:padding="6dp"
+        android:text="Transactions"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/stealth_send_fab_tasks"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:contentDescription="Transactions Manager"
+        android:src="@drawable/ic_detail_actions"
+        android:visibility="gone"
+        app:fabSize="mini" />
+
+    <TextView
+        android:id="@+id/stealth_send_fab_scan_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="88dp"
+        android:layout_marginBottom="16dp"
+        android:background="@android:color/transparent"
+        android:padding="6dp"
+        android:text="Stealth Scan"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/stealth_send_fab_scan"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:contentDescription="Stealth Scan"
+        android:src="@android:drawable/ic_popup_sync"
+        android:visibility="gone"
+        app:fabSize="mini" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/stealth_send_fab_main"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:contentDescription="Stealth menu"
+        android:src="@android:drawable/ic_input_add"
+        app:fabSize="normal" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
