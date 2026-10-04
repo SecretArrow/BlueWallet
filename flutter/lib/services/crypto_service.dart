@@ -90,6 +90,57 @@ class CryptoService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  //  Input validation (pure Dart — runs before any native call, unit-tested)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Validates transaction inputs before any crypto or network happens.
+  ///
+  /// Fail-safe: every violation throws [ArgumentError] with a specific
+  /// message. Rules: keys/addresses non-empty; int amounts must be > 0
+  /// (a zero-amount tx burns fees for nothing); string amounts must be
+  /// non-empty, parseable and ≥ 0 (`'0'` is legit for self/circle/key_switch
+  /// txs); nonce must be > 0; ou (when fixed) non-empty.
+  static void requireTxInputs({
+    required String skBase64,
+    required String fromAddress,
+    String? toAddress,
+    String? recipientAddress,
+    int? amountInt,
+    String? amountStr,
+    required int nonce,
+    String? ou,
+  }) {
+    if (skBase64.isEmpty) {
+      throw ArgumentError('skBase64 must not be empty');
+    }
+    if (fromAddress.isEmpty) {
+      throw ArgumentError('fromAddress must not be empty');
+    }
+    if (toAddress != null && toAddress.isEmpty) {
+      throw ArgumentError('toAddress must not be empty');
+    }
+    if (recipientAddress != null && recipientAddress.isEmpty) {
+      throw ArgumentError('recipientAddress must not be empty');
+    }
+    if (amountInt != null && amountInt <= 0) {
+      throw ArgumentError('amount must be > 0 (got $amountInt)');
+    }
+    if (amountStr != null) {
+      final v = int.tryParse(amountStr.trim());
+      if (amountStr.trim().isEmpty || v == null || v < 0) {
+        throw ArgumentError(
+            'amount must be a non-negative integer string (got "$amountStr")');
+      }
+    }
+    if (nonce <= 0) {
+      throw ArgumentError('nonce must be > 0 (got $nonce)');
+    }
+    if (ou != null && ou.isEmpty) {
+      throw ArgumentError('ou must not be empty');
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   //  PVAC lifecycle
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -162,6 +213,13 @@ class CryptoService {
     String message = '',
     String opType = 'standard',
   }) async {
+    requireTxInputs(
+      skBase64: skBase64,
+      fromAddress: fromAddress,
+      toAddress: toAddress,
+      amountStr: amount,
+      nonce: nonce,
+    );
     final timestamp = DateTime.now().millisecondsSinceEpoch / 1000.0;
 
     // ou (operation units) mirrors webcli: < 1 000 OCT → "10000", ≥ 1 000 OCT → "30000"
@@ -204,6 +262,15 @@ class CryptoService {
     required int nonce,
     String ou = '1000',
   }) async {
+    requireTxInputs(
+      skBase64: skBase64,
+      fromAddress: fromAddress,
+      toAddress: tokenAddress,
+      recipientAddress: toAddress,
+      amountStr: amount,
+      nonce: nonce,
+      ou: ou,
+    );
     final amountVal = int.tryParse(amount);
     if (amountVal == null || amountVal < 0) {
       throw ArgumentError('amount must be a non-negative integer');
@@ -246,6 +313,12 @@ class CryptoService {
     required int amount,
     required int nonce,
   }) async {
+    requireTxInputs(
+      skBase64: skBase64,
+      fromAddress: fromAddress,
+      amountInt: amount,
+      nonce: nonce,
+    );
     if (!pvacAvailable) throw StateError('PVAC not available on this device');
 
     final enc = NativeCrypto.pvacEncryptAmount(amount);
@@ -288,6 +361,12 @@ class CryptoService {
     required int amount,
     required int nonce,
   }) async {
+    requireTxInputs(
+      skBase64: skBase64,
+      fromAddress: fromAddress,
+      amountInt: amount,
+      nonce: nonce,
+    );
     if (!pvacAvailable) throw StateError('PVAC not available on this device');
 
     final enc = NativeCrypto.pvacEncryptAmount(amount);
@@ -335,6 +414,20 @@ class CryptoService {
     required Uint8List theirViewPubkey,
     required String recipientAddress,
   }) async {
+    requireTxInputs(
+      skBase64: skBase64,
+      fromAddress: fromAddress,
+      recipientAddress: recipientAddress,
+      amountInt: amount,
+      nonce: nonce,
+    );
+    if (theirViewPubkey.length != 32) {
+      throw ArgumentError(
+          'theirViewPubkey must be 32 bytes (got ${theirViewPubkey.length})');
+    }
+    if (currentEncCipher.isEmpty) {
+      throw ArgumentError('currentEncCipher must not be empty');
+    }
     if (!pvacAvailable) throw StateError('PVAC not available on this device');
 
     final sk = Uint8List.fromList(base64.decode(_padBase64(skBase64)));
@@ -409,6 +502,17 @@ class CryptoService {
     String? message,
     String? encryptedData,
   }) async {
+    requireTxInputs(
+      skBase64: skBase64,
+      fromAddress: fromAddress,
+      toAddress: toAddress,
+      amountStr: amount,
+      nonce: nonce,
+      ou: ou,
+    );
+    if (opType.isEmpty) {
+      throw ArgumentError('opType must not be empty');
+    }
     final timestamp = DateTime.now().millisecondsSinceEpoch / 1000.0;
 
     final tx = <String, dynamic>{

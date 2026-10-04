@@ -149,7 +149,16 @@ public class TxForegroundService extends Service {
                 return future.get(NATIVE_CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             } catch (TimeoutException e) {
                 future.cancel(true);
-                throw new IllegalStateException(errorMessage + " (timed out after " + (NATIVE_CALL_TIMEOUT_MS / 60000) + " minutes)");
+                throw new IllegalStateException(errorMessage + " (timed out after " + (NATIVE_CALL_TIMEOUT_MS / 60000) + " minutes)", e);
+            } catch (java.util.concurrent.ExecutionException e) {
+                // Unwrap: callers and logs need the real cause, not the wrapper.
+                Throwable cause = e.getCause();
+                if (cause instanceof Exception) throw (Exception) cause;
+                if (cause instanceof Error) throw (Error) cause;
+                throw new IllegalStateException(errorMessage + ": " + e.getMessage(), e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw e;
             }
         } finally {
             timeoutExecutor.shutdownNow();
@@ -301,8 +310,8 @@ public class TxForegroundService extends Service {
 
     private void doSend(TxTaskStore.TaskItem task) throws Exception {
         String txId = task.id;
-        String to = task.to;
-        long amountRaw = parseAmountRaw(task.amountRaw);
+        String to = TxInputValidator.requireRecipient(task.to);
+        long amountRaw = TxInputValidator.requireAmountRaw(task.amountRaw);
         String message = task.message;
 
         setTaskProgress(task, "1/4", "Loading wallet info...");
@@ -354,7 +363,7 @@ public class TxForegroundService extends Service {
         }
 
         String to = !meta.to.isEmpty() ? meta.to : task.to;
-        long amountRaw = parseAmountRaw(meta.amountRaw);
+        long amountRaw = TxInputValidator.requireAmountRaw(meta.amountRaw);
 
         if (to.isEmpty()) {
             throw new IllegalStateException("Recipient address is missing");
@@ -439,7 +448,7 @@ public class TxForegroundService extends Service {
 
     private void doEncrypt(TxTaskStore.TaskItem task) throws Exception {
         String txId = task.id;
-        long amountRaw = parseAmountRaw(task.amountRaw);
+        long amountRaw = TxInputValidator.requireAmountRaw(task.amountRaw);
 
         setTaskProgress(task, "1/5", "Loading wallet info...");
         JSONObject info = new JSONObject(OctraNative.getInstance().getWalletInfo());
@@ -486,7 +495,7 @@ public class TxForegroundService extends Service {
 
     private void doDecrypt(TxTaskStore.TaskItem task) throws Exception {
         String txId = task.id;
-        long amountRaw = parseAmountRaw(task.amountRaw);
+        long amountRaw = TxInputValidator.requireAmountRaw(task.amountRaw);
 
         setTaskProgress(task, "1/5", "Loading wallet info...");
         JSONObject info = new JSONObject(OctraNative.getInstance().getWalletInfo());
@@ -534,8 +543,8 @@ public class TxForegroundService extends Service {
     private void doStealth(TxTaskStore.TaskItem task) throws Exception {
         String txId = task.id;
         String stealthTaskId = txId;
-        String to = task.to;
-        long amountRaw = parseAmountRaw(task.amountRaw);
+        String to = TxInputValidator.requireRecipient(task.to);
+        long amountRaw = TxInputValidator.requireAmountRaw(task.amountRaw);
         Context ctx = getApplicationContext();
         AtomicReference<StealthHeartbeatState> hbState = new AtomicReference<>(
                 new StealthHeartbeatState("1/9", "Loading wallet info..."));
@@ -848,14 +857,6 @@ public class TxForegroundService extends Service {
         failed.message = message;
         failed.updatedAt = System.currentTimeMillis();
         StealthTaskManager.upsertTaskPublic(context, failed);
-    }
-
-    private long parseAmountRaw(String raw) {
-        try {
-            return Math.max(0L, Long.parseLong(raw == null ? "0" : raw));
-        } catch (Exception e) {
-            return 0L;
-        }
     }
 
     private void prepareWallet(String walletId) throws Exception {

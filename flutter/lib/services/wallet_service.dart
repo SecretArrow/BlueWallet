@@ -969,6 +969,9 @@ class WalletService extends ChangeNotifier {
     required String nodeUrl,
     required int amount,
   }) async {
+    if (amount <= 0) {
+      throw ArgumentError('Encrypt amount must be > 0 (got $amount)');
+    }
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
     if (!_pvacInitialised) throw Exception('PVAC not initialised');
@@ -1001,6 +1004,9 @@ class WalletService extends ChangeNotifier {
     required String nodeUrl,
     required int amount,
   }) async {
+    if (amount <= 0) {
+      throw ArgumentError('Decrypt amount must be > 0 (got $amount)');
+    }
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
     if (!_pvacInitialised) throw Exception('PVAC not initialised');
@@ -1034,6 +1040,12 @@ class WalletService extends ChangeNotifier {
     required String toAddress,
     required int amount,
   }) async {
+    if (toAddress.isEmpty) {
+      throw ArgumentError('Recipient address must not be empty');
+    }
+    if (amount <= 0) {
+      throw ArgumentError('Stealth amount must be > 0 (got $amount)');
+    }
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
     if (!_pvacInitialised) throw Exception('PVAC not initialised');
@@ -1046,6 +1058,10 @@ class WalletService extends ChangeNotifier {
       throw Exception('Recipient has no registered view pubkey');
     }
     final viewPub = Uint8List.fromList(base64.decode(viewPubB64));
+    if (viewPub.length != 32) {
+      throw Exception(
+          'Recipient view pubkey must decode to 32 bytes (got ${viewPub.length})');
+    }
 
     // Ensure PVAC is registered on-chain before stealth tx
     await _ensurePvacRegistered(nodeUrl, wallet.address, sk);
