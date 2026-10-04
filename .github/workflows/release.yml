@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Manual trigger for testing the release pipeline without cutting a tag.
+  # NOTE: the publish job only publishes on tags (guard below).
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -34,6 +37,11 @@ jobs:
       # Release splits are arm64-only (see app/build.gradle) — smallest APK.
       # AAB is for Play Store, APKs are for direct download.
       - run: bash gradlew --no-daemon -PsplitAbi=true assembleRelease bundleRelease
+      # Detect silent fallback to debug signing (storeFile null in build.gradle).
+      - name: Show signing certificate DN
+        run: |
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          $(echo $ANDROID_HOME/build-tools/*/apksigner | cut -d' ' -f1) verify --print-certs "$APK" 2>/dev/null | grep -m1 "DN:" || echo "apksigner check unavailable"
       - name: APK/AAB size summary
         run: |
           {
@@ -88,6 +96,18 @@ jobs:
             echo "keyAlias=$ALIAS"
             echo "keyPassword=$KEYPASS"
           } > android/keystore.properties
+      # Diagnose signing config without printing secrets: file presence,
+      # store-password validity, and number of private-key entries.
+      - name: Validate keystore (secrets never printed)
+        run: |
+          test -s android/octra.jks && echo "keystore file: present"
+          if keytool -list -keystore android/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" >/dev/null 2>&1; then
+            echo "store password: OK"
+          else
+            echo "store password: FAILED"; exit 1
+          fi
+          echo "private-key entries: $(keytool -list -keystore android/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>/dev/null | grep -c PrivateKeyEntry)"
+          echo "configured alias present: $(grep -c '^keyAlias=..*' android/keystore.properties)"
       # arm64-only release via --target-platform (proven by CI debug
       # builds). NOTE: --split-per-abi is incompatible with ndk abiFilters
       # in build.gradle — the Flutter Gradle plugin rejects that combination.
@@ -111,6 +131,9 @@ jobs:
 
   publish:
     needs: [android-build, flutter-build]
+    # Only attach to a GitHub Release on tags; manual dispatch runs build
+    # validation only.
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
