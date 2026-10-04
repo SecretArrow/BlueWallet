@@ -126,7 +126,9 @@ public final class WalletRepository {
         try {
             JSONObject balResult = rpc.getBalance(rpcUrl, address);
             String balRaw  = balResult.optString("balance_raw", "0");
-            int    nonce   = balResult.optInt("nonce", 0);
+            // Prefer pending_nonce (webcli parity) so in-flight txs get the
+            // right sequence; fall back to 0 like before when absent.
+            int    nonce   = selectNonce(balResult, 0);
 
             long publicRaw = parseLong(balRaw);
             long encRaw    = 0L;
@@ -249,6 +251,20 @@ public final class WalletRepository {
         try {
             JSONObject root = rpc.fetchFee(rpcUrl);
             if (root == null) return fallback;
+            return selectFee(root, category, fallback);
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    /**
+     * Pick the recommended fee out of a fee-structure object. Non-positive,
+     * missing or malformed buckets yield {@code fallback} (never ≤ 0 unless
+     * the fallback itself is). Package-visible for tests.
+     */
+    static long selectFee(JSONObject root, String category, long fallback) {
+        try {
+            if (root == null || category == null) return fallback;
             JSONObject bucket = root.optJSONObject(category);
             if (bucket == null) return fallback;
             long fee = parseLong(bucket.optString("recommended", String.valueOf(fallback)));
@@ -402,14 +418,46 @@ public final class WalletRepository {
      */
     public int fetchNonce(String rpcUrl, String address) throws Exception {
         JSONObject balResult = rpc.getBalance(rpcUrl, address);
-        if (balResult.has("nonce")) {
-            return balResult.optInt("nonce", 0);
+        if (balResult.has("pending_nonce") || balResult.has("nonce")) {
+            return selectNonce(balResult, 0);
         }
         JSONObject account = balResult.optJSONObject("account");
-        if (account != null && account.has("nonce")) {
-            return account.optInt("nonce", 0);
+        if (account != null && (account.has("pending_nonce") || account.has("nonce"))) {
+            return selectNonce(account, 0);
         }
         throw new IllegalStateException("Invalid balance response: missing 'nonce'");
+    }
+
+    /**
+     * Select the usable nonce from a balance/account object. Prefers
+     * {@code pending_nonce} (counts in-flight transactions, webcli parity),
+     * falls back to {@code nonce}, then to {@code fallback}. Accepts numbers
+     * and numeric strings; negative or unparsable values yield {@code fallback}
+     * clamped at zero — a nonce must never go negative.
+     * Package-visible for tests.
+     */
+    static int selectNonce(JSONObject obj, int fallback) {
+        if (obj == null) return Math.max(0, fallback);
+        long v = readLongField(obj, "pending_nonce", Long.MIN_VALUE);
+        if (v == Long.MIN_VALUE) v = readLongField(obj, "nonce", Long.MIN_VALUE);
+        if (v == Long.MIN_VALUE) return Math.max(0, fallback);
+        if (v < 0) return 0;
+        if (v > Integer.MAX_VALUE) return Integer.MAX_VALUE;
+        return (int) v;
+    }
+
+    /** Read a JSON field as long (number or numeric string); {@code missing} when absent/invalid/null. */
+    static long readLongField(JSONObject obj, String key, long missing) {
+        try {
+            if (obj == null || !obj.has(key) || obj.isNull(key)) return missing;
+            Object v = obj.get(key);
+            if (v instanceof Number) return ((Number) v).longValue();
+            String s = v.toString().trim();
+            if (s.isEmpty()) return missing;
+            return Long.parseLong(s);
+        } catch (Exception e) {
+            return missing;
+        }
     }
 
     // ── Submit ─────────────────────────────────────────────────────────────
@@ -417,11 +465,18 @@ public final class WalletRepository {
     /**
      * Submits a signed transaction to the node.
      *
-     * @return the tx hash returned by the node
+     * @return the tx hash returned by the node (never empty)
+     * @throws IllegalStateException if the node response carries no tx hash —
+     *         callers must treat this as a failed submit, never as success
      */
     public String submitTx(String rpcUrl, JSONObject signedTx) throws Exception {
         JSONObject result = rpc.submitTx(rpcUrl, signedTx);
-        return result == null ? "" : result.optString("tx_hash", "");
+        String hash = result == null ? "" : result.optString("tx_hash", "").trim();
+        if (hash.isEmpty()) {
+            throw new IllegalStateException("Node submit returned no tx_hash"
+                    + (result == null ? " (null result)" : ": " + result.toString()));
+        }
+        return hash;
     }
 
     // ── Privacy (PVAC) ─────────────────────────────────────────────────────
