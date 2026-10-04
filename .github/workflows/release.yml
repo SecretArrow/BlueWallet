@@ -131,6 +131,12 @@ jobs:
           echo "configured alias present: $(grep -c '^keyAlias=..*' android/keystore.properties)"
           N=$(keytool -list -keystore android/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>/dev/null | grep -c PrivateKeyEntry)
           if [ "$N" -eq 0 ]; then echo "keystore has no private keys — refusing to ship unsigned release"; exit 1; fi
+          # Signing debug: alias names + secret lengths only (never values).
+          echo "keystore aliases: $(keytool -list -keystore android/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>/dev/null | grep PrivateKeyEntry | cut -d, -f1)"
+          echo "configured keyAlias: $(grep '^keyAlias=' android/keystore.properties | cut -d= -f2)"
+          P1='${{ secrets.KEYSTORE_PASSWORD }}'; P2='${{ secrets.KEY_PASSWORD }}'; echo "secret lens: store=${#P1} key=${#P2}"
+          N=$(keytool -list -keystore android/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>/dev/null | grep -c PrivateKeyEntry)
+          if [ "$N" -eq 0 ]; then echo "keystore has no private keys — refusing to ship unsigned release"; exit 1; fi
       # arm64-only release via --target-platform (proven by CI debug
       # builds). NOTE: --split-per-abi is incompatible with ndk abiFilters
       # in build.gradle — the Flutter Gradle plugin rejects that combination.
