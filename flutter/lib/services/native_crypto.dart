@@ -614,6 +614,12 @@ class NativeCrypto {
   /// Throws [StateError] when the peer key is rejected (low-order point),
   /// mirroring upstream webcli behavior.
   static Uint8List ecdh(Uint8List ourXsk, Uint8List theirXpk) {
+    // Explicit check: asserts are stripped in release builds, and an
+    // oversized key would overflow the 32-byte native buffers below.
+    if (ourXsk.length != 32 || theirXpk.length != 32) {
+      throw ArgumentError(
+          'ECDH keys must be 32 bytes (got ${ourXsk.length}/${theirXpk.length})');
+    }
     assert(ourXsk.length == 32 && theirXpk.length == 32);
     final skPtr = calloc<Uint8>(32);
     final pkPtr = calloc<Uint8>(32);
