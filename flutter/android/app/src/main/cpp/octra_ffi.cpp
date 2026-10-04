@@ -604,15 +604,28 @@ void OCTRA_API octra_derive_view_keypair(const uint8_t *ed_sk,
 }
 
 /**
- * octra_ecdh(our_x_sk[32], their_x_pk[32], shared_out[32])
- * x25519 ECDH + SHA-256 hash. Same as octra::ecdh_shared_secret in stealth.hpp.
+ * octra_ecdh(our_x_sk[32], their_x_pk[32], shared_out[32]) -> 1 ok, 0 rejected
+ * x25519 ECDH + SHA-256 hash. Same as octra::ecdh_shared_secret in stealth.hpp,
+ * including low-order public key rejection (upstream webcli parity).
  */
-void OCTRA_API octra_ecdh(const uint8_t *our_x_sk, const uint8_t *their_x_pk,
-                          uint8_t *shared_out) {
+int OCTRA_API octra_ecdh(const uint8_t *our_x_sk, const uint8_t *their_x_pk,
+                         uint8_t *shared_out) {
   uint8_t raw[32];
-  crypto_scalarmult(raw, our_x_sk, their_x_pk);
+  if (crypto_scalarmult(raw, our_x_sk, their_x_pk) != 0) {
+    secure_zero(raw, 32);
+    memset(shared_out, 0, 32);
+    return 0;
+  }
+  uint8_t any = 0;
+  for (int i = 0; i < 32; ++i) any |= raw[i];
+  if (any == 0) {
+    secure_zero(raw, 32);
+    memset(shared_out, 0, 32);
+    return 0;
+  }
   sha256_raw(raw, 32, shared_out);
   secure_zero(raw, 32);
+  return 1;
 }
 
 /**

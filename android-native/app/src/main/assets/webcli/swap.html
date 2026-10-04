@@ -74,6 +74,12 @@ body{font-family:Tahoma,arial,sans-serif;background:#F0F2F5;color:#2B3A52;min-he
 .unlock-screen button:hover{background:#2B4060}
 .pool-info{padding:8px 20px;font-size:11px;color:#8C9DB6;border-top:1px solid #E5E9EF;text-align:center;font-family:monospace}
 @media(max-width:500px){body{padding:0;align-items:stretch}.swap-wrap{border:none;min-height:100vh}}
+
+a, button, input, select, textarea, [class*="btn"], [class*="tab"] { transition: background .12s ease, color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .08s ease; }
+button:not(:disabled):active, [class*="btn"]:not(:disabled):active { transform: translateY(1px); }
+input:focus, select:focus, textarea:focus { box-shadow: inset 0 0 0 1px rgba(81, 110, 154, .35); }
+button:focus-visible, a:focus-visible, [class*="btn"]:focus-visible { outline: 1px solid #516E9A; outline-offset: -2px; }
+tr:hover td { background: #F6F7F9; }
 </style>
 </head>
 <body>
@@ -82,7 +88,7 @@ body{font-family:Tahoma,arial,sans-serif;background:#F0F2F5;color:#2B3A52;min-he
     <h1 style="margin-bottom:8px;font-size:16px">OCT swap</h1>
     <p>unlock your wallet to continue</p>
     <input type="password" id="pin-input" maxlength="6" placeholder="------" inputmode="numeric" autocomplete="off">
-    <button onclick="doUnlock()">unlock</button>
+    <button data-action="doUnlock">unlock</button>
     <div id="unlock-err" class="status-msg"></div>
   </div>
   <div id="swap-view" style="display:none">
@@ -104,15 +110,15 @@ body{font-family:Tahoma,arial,sans-serif;background:#F0F2F5;color:#2B3A52;min-he
       <span class="price-val" id="price-display">...</span>
     </div>
     <div class="dir-tabs">
-      <button id="tab-buy" class="active" onclick="setDir('buy')">buy tUSD</button>
-      <button id="tab-sell" onclick="setDir('sell')">sell tUSD</button>
+      <button id="tab-buy" class="active" data-action="setDir" data-arg="buy">buy tUSD</button>
+      <button id="tab-sell" data-action="setDir" data-arg="sell">sell tUSD</button>
     </div>
     <div class="swap-body">
       <div class="input-group">
         <label id="input-label">you pay</label>
         <div class="input-row">
-          <input type="text" id="swap-input" placeholder="0.0" inputmode="decimal" autocomplete="off" oninput="onInputChange()">
-          <button class="max-btn" onclick="setMax()">max</button>
+          <input type="text" id="swap-input" placeholder="0.0" inputmode="decimal" autocomplete="off" data-input="onInputChange">
+          <button class="max-btn" data-action="setMax">max</button>
           <div class="token-label" id="input-token">OCT</div>
         </div>
       </div>
@@ -127,7 +133,7 @@ body{font-family:Tahoma,arial,sans-serif;background:#F0F2F5;color:#2B3A52;min-he
         <div class="info-row"><span>price impact</span><span class="val" id="impact-val">-</span></div>
         <div class="info-row"><span>fee</span><span class="val" id="fee-val">0.1 OCT</span></div>
       </div>
-      <button class="swap-btn" id="swap-btn" onclick="doSwap()" disabled>enter amount</button>
+      <button class="swap-btn" id="swap-btn" data-action="doSwap" disabled>enter amount</button>
     </div>
     <div id="status-area" class="status-msg"></div>
     <div id="progress-area" class="progress-steps" style="display:none;padding:0 20px 10px"></div>
@@ -143,11 +149,11 @@ body{font-family:Tahoma,arial,sans-serif;background:#F0F2F5;color:#2B3A52;min-he
     <h2>confirm swap</h2>
     <div class="confirm-detail" id="confirm-detail"></div>
     <div class="modal-btns">
-      <button class="btn-cancel" onclick="cancelSwap()">cancel</button>
-      <button class="btn-confirm" id="btn-do-confirm" onclick="confirmSwap()">confirm</button>
+      <button class="btn-cancel" data-action="cancelSwap">cancel</button>
+      <button class="btn-confirm" id="btn-do-confirm" data-action="confirmSwap">confirm</button>
     </div>
   </div>
 </div>
-<script src="swap.js?v=2"></script>
+<script src="swap.js?v=3"></script>
 </body>
 </html>

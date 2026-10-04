@@ -31,7 +31,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>octra_wallet</title>
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
 
@@ -40,13 +40,13 @@
     <div id="modal-title">octra_wallet</div>
     <div id="modal-sub">no wallet found</div>
     <div id="modal-btns">
-      <button class="action-btn" onclick="modalShowImport()">import</button>
-      <button class="action-btn" onclick="modalCreate()">create new</button>
+      <button class="action-btn" data-action="modalShowImport">import</button>
+      <button class="action-btn" data-action="modalCreate">create new</button>
     </div>
     <div id="modal-import" style="display:none">
       <div class="import-tabs">
-        <a href="#" class="import-tab active" onclick="switchImportTab('seed');return false">seed phrase</a>
-        <a href="#" class="import-tab" onclick="switchImportTab('key');return false">private key</a>
+        <a href="#" class="import-tab active" data-action="switchImportTab" data-arg="seed" data-prevent="1">seed phrase</a>
+        <a href="#" class="import-tab" data-action="switchImportTab" data-arg="key" data-prevent="1">private key</a>
       </div>
       <div id="import-seed">
         <div class="form-row">
@@ -61,8 +61,8 @@
         </div>
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="modalDoImport()">import</button>
-        <button class="action-btn" style="background:#8C9DB6" onclick="modalBack()">back</button>
+        <button class="action-btn" data-action="modalDoImport">import</button>
+        <button class="action-btn" style="background:#8C9DB6" data-action="modalBack">back</button>
       </div>
     </div>
     <div id="modal-mnemonic-show" style="display:none">
@@ -74,32 +74,38 @@
         </label>
       </div>
       <div class="action-row">
-        <button class="action-btn" id="mnemonic-continue-btn" onclick="modalMnemonicDone()" disabled>continue</button>
+        <button class="action-btn" id="mnemonic-continue-btn" data-action="modalMnemonicDone" disabled>continue</button>
       </div>
     </div>
     <div id="modal-pin" style="display:none">
       <div class="form-row">
-        <label>enter 6-digit PIN to unlock</label>
-        <input type="password" id="modal-pin-input" maxlength="6" inputmode="numeric" placeholder="------" autocomplete="off">
+        <label id="modal-pin-label">enter PIN to unlock</label>
+        <input type="password" id="modal-pin-input" maxlength="64" placeholder="••••••••••••" autocomplete="current-password">
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="modalUnlock()">unlock</button>
-        <button class="action-btn" id="pin-back-btn" style="background:#8C9DB6;display:none" onclick="modalBackFromPin()">back</button>
+        <button class="action-btn" data-action="modalUnlock">unlock</button>
+        <button class="action-btn" id="pin-back-btn" style="background:#8C9DB6;display:none" data-action="modalBackFromPin">back</button>
       </div>
     </div>
     <div id="modal-pin-setup" style="display:none">
+      <form data-nosubmit>
+      <input type="text" autocomplete="username" value="octra-wallet" readonly aria-hidden="true" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
       <div class="form-row">
-        <label>create a 6-digit PIN</label>
-        <input type="password" id="modal-pin-new" maxlength="6" inputmode="numeric" placeholder="------" autocomplete="off">
+        <label>create PIN</label>
+        <input type="password" id="modal-pin-new" maxlength="64" placeholder="••••••••••••" autocomplete="new-password" passwordrules="minlength: 15;">
       </div>
       <div class="form-row">
         <label>confirm PIN</label>
-        <input type="password" id="modal-pin-confirm" maxlength="6" inputmode="numeric" placeholder="------" autocomplete="off">
+        <input type="password" id="modal-pin-confirm" maxlength="64" placeholder="••••••••••••" autocomplete="new-password" passwordrules="minlength: 15;">
+      </div>
+      <div class="form-row" style="font-size:11px;color:#8C9DB6;line-height:1.4">
+        PIN must be at least 8 characters. 15 or more recommended; your password manager can generate a strong one.
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="modalFinishSetup()">set PIN</button>
-        <button class="action-btn" style="background:#8C9DB6" onclick="modalBackFromPin()">back</button>
+        <button type="button" class="action-btn" data-action="modalFinishSetup">set PIN</button>
+        <button type="button" class="action-btn" style="background:#8C9DB6" data-action="modalBackFromPin">back</button>
       </div>
+      </form>
     </div>
     <div id="modal-result"></div>
   </div>
@@ -114,22 +120,22 @@
   </div>
   <div class="hdr-right-group">
     <div class="right" id="hdr-status">connecting...</div>
-    <button class="right logout-btn" id="hdr-circles" onclick="window.location.href='circles.html'" style="display:none">circles</button>
-    <button class="right logout-btn" id="hdr-apps" onclick="switchView('apps')" style="display:none">apps</button>
-    <button class="right logout-btn" id="hdr-dev" onclick="switchView('dev')" style="display:none">dev tools</button>
-    <button class="right logout-btn" id="hdr-logout" onclick="doLogout()" style="display:none">logout</button>
+    <button class="right logout-btn" id="hdr-circles" data-action="navTo" data-arg="circles.html" style="display:none">circles</button>
+    <button class="right logout-btn" id="hdr-apps" data-action="switchView" data-arg="apps" style="display:none">apps</button>
+    <button class="right logout-btn" id="hdr-dev" data-action="switchView" data-arg="dev" style="display:none">dev tools</button>
+    <button class="right logout-btn" id="hdr-logout" data-action="doLogout" style="display:none">logout</button>
   </div>
 </header>
 
 <div class="nav-tabs">
-  <a href="#" class="active" data-view="dashboard" onclick="switchView('dashboard');return false">dashboard</a>
-  <a href="#" data-view="send" onclick="switchView('send');return false">send</a>
-  <a href="#" data-view="encrypt" onclick="switchView('encrypt');return false">encryption</a>
-  <a href="#" data-view="stealth" onclick="switchView('stealth');return false">stealth <span id="stealth-badge" class="badge" style="display:none"></span></a>
-  <a href="#" data-view="tokens" onclick="switchView('tokens');return false">tokens</a>
-  <a href="#" data-view="history" onclick="switchView('history');return false">history</a>
-  <a href="#" data-view="keys" onclick="switchView('keys');return false">keys</a>
-  <a href="#" data-view="settings" onclick="switchView('settings');return false">settings</a>
+  <a href="#" class="active" data-view="dashboard" data-action="switchView" data-arg="dashboard" data-prevent="1">dashboard</a>
+  <a href="#" data-view="send" data-action="switchView" data-arg="send" data-prevent="1">send</a>
+  <a href="#" data-view="encrypt" data-action="switchView" data-arg="encrypt" data-prevent="1">encryption</a>
+  <a href="#" data-view="stealth" data-action="switchView" data-arg="stealth" data-prevent="1">stealth <span id="stealth-badge" class="badge" style="display:none"></span></a>
+  <a href="#" data-view="tokens" data-action="switchView" data-arg="tokens" data-prevent="1">tokens</a>
+  <a href="#" data-view="history" data-action="switchView" data-arg="history" data-prevent="1">history</a>
+  <a href="#" data-view="keys" data-action="switchView" data-arg="keys" data-prevent="1">keys</a>
+  <a href="#" data-view="settings" data-action="switchView" data-arg="settings" data-prevent="1">settings</a>
 </div>
 
 <div class="content-area">
@@ -137,7 +143,7 @@
   <div class="view active" id="view-dashboard">
     <div class="stats-row">
       <div class="stat-box"><div class="label">public balance</div><div class="value" id="st-balance">-</div></div>
-      <div class="stat-box"><div class="label">encrypted balance</div><div class="value" id="st-enc-balance">-</div><a href="#" id="btn-key-switch" style="display:none;text-align:center;font-size:11px" onclick="doKeySwitch();return false">key switch required</a></div>
+      <div class="stat-box"><div class="label">encrypted balance <a class="ct-struct-link" id="ct-struct-link" href="cipher.html" target="_blank" rel="noopener" hidden>(ct struct)</a></div><div class="value" id="st-enc-balance">-</div><a href="#" id="btn-key-switch" style="display:none;text-align:center;font-size:11px" data-action="doKeySwitch" data-prevent="1">key switch required</a></div>
       <div class="stat-box"><div class="label">nonce</div><div class="value" id="st-nonce">-</div></div>
       <div class="stat-box"><div class="label">staging</div><div class="value" id="st-staging">-</div></div>
     </div>
@@ -171,7 +177,7 @@
         <input type="text" id="send-fee" placeholder="...">
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="doSend()">send</button>
+        <button class="action-btn" data-action="doSend">send</button>
       </div>
       <div id="send-result"></div>
     </div>
@@ -195,7 +201,7 @@
           <input type="text" id="enc-fee" placeholder="...">
         </div>
         <div class="action-row">
-          <button class="action-btn" onclick="doEncrypt()">encrypt</button>
+          <button class="action-btn" data-action="doEncrypt">encrypt</button>
         </div>
         <div id="enc-result"></div>
       </div>
@@ -210,7 +216,7 @@
           <input type="text" id="dec-fee" placeholder="...">
         </div>
         <div class="action-row">
-          <button class="action-btn" onclick="doDecrypt()">decrypt</button>
+          <button class="action-btn" data-action="doDecrypt">decrypt</button>
         </div>
         <div id="dec-result"></div>
       </div>
@@ -236,12 +242,12 @@
         <input type="text" id="stealth-fee" placeholder="...">
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="doStealthSend()">stealth send</button>
+        <button class="action-btn" data-action="doStealthSend">stealth send</button>
       </div>
     </div>
     <div class="section-title">stealth outputs</div>
     <div class="action-row" style="padding:8px 10px">
-      <button class="action-btn" onclick="doStealthScan()">scan</button>
+      <button class="action-btn" data-action="doStealthScan">scan</button>
     </div>
     <div class="stealth-outputs-area">
       <div id="stealth-outputs"><div class="staging-empty">no outputs scanned yet</div></div>
@@ -271,21 +277,27 @@
           <input type="text" id="tok-fee" placeholder="...">
         </div>
         <div class="action-row">
-          <button class="action-btn" onclick="doTokenTransfer()">send</button>
-          <button class="action-btn" style="background:#8C9DB6" onclick="closeTokenTransfer()">cancel</button>
+          <button class="action-btn" data-action="doTokenTransfer">send</button>
+          <button class="action-btn" style="background:#8C9DB6" data-action="closeTokenTransfer">cancel</button>
         </div>
         <div id="tok-transfer-result"></div>
       </div>
     </div>
 
-    <div class="section-title">token transactions (<span id="tok-tx-count">0</span> / <span id="tok-tx-total">0</span>, in <span id="tok-tx-in">0</span>, out <span id="tok-tx-out">0</span>)</div>
+    <div class="section-title">token history</div>
+    <div class="token-history-summary">
+      <span><b id="tok-tx-count">0</b> shown</span>
+      <span><b id="tok-tx-total">0</b> total</span>
+      <span><b id="tok-tx-in">0</b> in</span>
+      <span><b id="tok-tx-out">0</b> out</span>
+    </div>
     <div id="tok-txs"><div class="loading">loading token transactions...</div></div>
   </div>
 
   <div class="view" id="view-apps">
     <div class="ide-picker-title">apps</div>
     <div class="ide-picker-actions">
-      <button class="action-btn" onclick="window.open('bridge.html','_blank')"><span class="tpl-label">bridge</span><span class="tpl-desc">alpha version of the experimental bridge between octra &lt;&gt; eth</span></button>
+      <button class="action-btn" data-action="openTab" data-arg="bridge.html"><span class="tpl-label">bridge</span><span class="tpl-desc">alpha version of the experimental bridge between octra &lt;&gt; eth</span></button>
     </div>
   </div>
 
@@ -304,11 +316,11 @@
       <div class="ide-editor-area">
         <div id="ide-tabs" class="ide-tabs" style="display:none"></div>
 
-        <div class="section-title">compile contract</div>
+        <div class="section-title">compile program</div>
         <div class="form-area">
           <div class="form-row">
             <label>language</label>
-            <select id="ct-lang" onchange="onLangChange()">
+            <select id="ct-lang" data-change="onLangChange">
               <option value="aml" selected>AppliedML (.aml)</option>
               <option value="asm">Assembly (.oasm)</option>
             </select>
@@ -319,15 +331,17 @@
               <div class="editor-gutter" id="ct-gutter">1</div>
               <div class="editor-body">
                 <pre class="editor-highlight" id="ct-highlight"></pre>
-                <textarea id="ct-source" class="code-editor" rows="14" oninput="editorUpdateWithLiveCompile()" onscroll="editorSync()" placeholder="contract Token {
-  state { name: string, balances: map[address]int }
-  constructor(n: string, supply: int) {
+                <textarea id="ct-source" class="code-editor" rows="14" data-input="editorUpdateWithLiveCompile" placeholder="Program Token {
+  state { name: string, balances: map[address]u128 }
+  constructor(n: string, supply: u128) {
+    require(supply > 0, &quot;supply must be positive&quot;)
     self.name = n
     self.balances[origin] = supply
   }
-  fn transfer(to: address, amt: int): bool {
+  fn transfer(to: address, amt: u128): bool {
+    require(amt > 0, &quot;amount must be positive&quot;)
     let bal = self.balances[caller]
-    assert bal >= amt
+    require(bal >= amt, &quot;insufficient balance&quot;)
     self.balances[caller] = bal - amt
     self.balances[to] = self.balances[to] + amt
     return true
@@ -337,8 +351,8 @@
             </div>
           </div>
           <div class="action-row">
-            <button class="action-btn" onclick="doCompile()">compile</button>
-            <select id="ct-template" onchange="loadTemplate()" style="margin-left:8px">
+            <button class="action-btn" data-action="doCompile">compile</button>
+            <select id="ct-template" data-change="loadTemplate" style="margin-left:8px">
               <option value="">- templates -</option>
               <option value="token">OCS01 Token</option>
               <option value="vault">Simple Vault</option>
@@ -350,26 +364,30 @@
           <div id="ct-compile-result"></div>
 
           <div class="ide-bottom-tabs">
-            <button class="ide-bottom-tab active" data-panel="abi" onclick="switchBottomTab('abi')">ABI</button>
-            <button class="ide-bottom-tab" data-panel="disasm" onclick="switchBottomTab('disasm')">Assembly</button>
-            <button class="ide-bottom-tab" data-panel="console" onclick="switchBottomTab('console')">Console</button>
-            <button class="ide-bottom-tab" data-panel="storage" onclick="switchBottomTab('storage')">Storage</button>
+            <button class="ide-bottom-tab active" data-panel="abi" data-action="switchBottomTab" data-arg="abi">ABI</button>
+            <button class="ide-bottom-tab" data-panel="verify" data-action="switchBottomTab" data-arg="verify">Verify</button>
+            <button class="ide-bottom-tab" data-panel="disasm" data-action="switchBottomTab" data-arg="disasm">Assembly</button>
+            <button class="ide-bottom-tab" data-panel="console" data-action="switchBottomTab" data-arg="console">Console</button>
+            <button class="ide-bottom-tab" data-panel="storage" data-action="switchBottomTab" data-arg="storage">Storage</button>
           </div>
           <div id="ct-abi-display" class="ide-bottom-panel active" style="display:none">
             <pre id="ct-abi-json" class="code-editor" style="font-size:11px;max-height:250px;overflow:auto;padding:8px"></pre>
           </div>
+          <div id="ct-verify-display" class="ide-bottom-panel" style="display:none">
+            <div id="ct-verify-output" class="console-output" style="font-family:monospace;font-size:12px"><div class="panel-empty">compile AppliedML to view formal verification trace</div></div>
+          </div>
           <div id="ct-disasm-display" class="ide-bottom-panel" style="display:none">
-            <pre id="ct-disasm-code" class="code-editor disasm-view" style="font-size:11px;max-height:250px;overflow:auto;padding:8px;color:#2C3E50"><span class="panel-empty">compile a contract to view assembly</span></pre>
+            <pre id="ct-disasm-code" class="code-editor disasm-view" style="font-size:11px;max-height:250px;overflow:auto;padding:8px;color:#2C3E50"><span class="panel-empty">compile a program to view assembly</span></pre>
           </div>
           <div id="ct-console-display" class="ide-bottom-panel" style="display:none">
             <div id="ct-console-output" class="console-output"></div>
           </div>
           <div id="ct-storage-display" class="ide-bottom-panel" style="display:none">
-            <div id="ct-storage-output" class="console-output" style="font-family:monospace;font-size:12px"><div class="panel-empty">deploy a contract to view storage</div></div>
+            <div id="ct-storage-output" class="console-output" style="font-family:monospace;font-size:12px"><div class="panel-empty">deploy a program to view storage</div></div>
           </div>
         </div>
 
-    <div class="section-title">deploy contract</div>
+    <div class="section-title">deploy program</div>
     <div class="form-area">
       <div class="form-row">
         <label>bytecode (base64, from compile)</label>
@@ -384,16 +402,16 @@
         <input type="text" id="ct-deploy-fee" placeholder="...">
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="doPreviewDeploy()">preview address</button>
-        <button class="action-btn" id="btn-deploy" onclick="doDeploy()">deploy</button>
+        <button class="action-btn" data-action="doPreviewDeploy">preview address</button>
+        <button class="action-btn" id="btn-deploy" data-action="doDeploy">deploy</button>
       </div>
       <div id="ct-deploy-result"></div>
     </div>
 
-    <div class="section-title">call contract</div>
+    <div class="section-title">call program</div>
     <div class="form-area">
       <div class="form-row">
-        <label>contract address</label>
+        <label>program address</label>
         <input type="text" id="ct-call-addr" placeholder="oct...">
       </div>
       <div class="form-row">
@@ -413,8 +431,8 @@
         <input type="text" id="ct-call-fee" placeholder="...">
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="doContractCall()">send call tx</button>
-        <button class="action-btn" onclick="doContractView()">view (read-only)</button>
+        <button class="action-btn" data-action="doContractCall">send call tx</button>
+        <button class="action-btn" data-action="doContractView">view (read-only)</button>
       </div>
       <div id="ct-call-result"></div>
     </div>
@@ -426,51 +444,51 @@
         <input type="text" id="fhe-enc-value" placeholder="integer value (e.g. 100)">
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="doFheEncrypt()">encrypt</button>
+        <button class="action-btn" data-action="doFheEncrypt">encrypt</button>
       </div>
       <div class="form-row" id="fhe-enc-result-row" style="display:none">
         <label>ciphertext (base64) - click to select</label>
-        <textarea id="fhe-enc-output" class="code-editor" rows="3" readonly onclick="this.select()" style="white-space:pre-wrap;word-break:break-all"></textarea>
+        <textarea id="fhe-enc-output" class="code-editor" rows="3" readonly data-action="selectSelf" style="white-space:pre-wrap;word-break:break-all"></textarea>
       </div>
       <div class="form-row">
         <label>decrypt ciphertext to integer</label>
         <textarea id="fhe-dec-input" class="code-editor" rows="3" placeholder="paste base64 ciphertext..." style="white-space:pre-wrap;word-break:break-all"></textarea>
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="doFheDecrypt()">decrypt</button>
+        <button class="action-btn" data-action="doFheDecrypt">decrypt</button>
       </div>
       <div id="fhe-result"></div>
     </div>
 
-    <div class="section-title">contract info</div>
+    <div class="section-title">program info</div>
     <div class="form-area">
       <div class="form-row">
-        <label>contract address</label>
+        <label>program address</label>
         <input type="text" id="ct-info-addr" placeholder="oct...">
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="doContractInfo()">lookup</button>
-        <button class="action-btn" onclick="doContractReceipt()">last receipt</button>
+        <button class="action-btn" data-action="doContractInfo">lookup</button>
+        <button class="action-btn" data-action="doContractReceipt">last receipt</button>
       </div>
       <div id="ct-info-result"></div>
     </div>
 
-    <div class="section-title">verify contract source</div>
+    <div class="section-title">verify program source</div>
     <div class="form-area">
       <div class="form-row">
-        <label>contract address</label>
+        <label>program address</label>
         <input type="text" id="ct-verify-addr" placeholder="oct...">
       </div>
       <div class="form-row" id="ct-verify-single">
         <label>AppliedML source (.aml)</label>
-        <textarea id="ct-verify-source" class="code-editor" rows="8" placeholder="paste contract source code..." spellcheck="false"></textarea>
+        <textarea id="ct-verify-source" class="code-editor" rows="8" placeholder="paste program source code..." spellcheck="false"></textarea>
       </div>
       <div class="form-row" id="ct-verify-project" style="display:none">
         <label>source files (from current project)</label>
         <div id="ct-verify-project-files" style="font-size:12px;color:#7f8c8d;padding:4px 0"></div>
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="doVerifyContract()">verify source</button>
+        <button class="action-btn" data-action="doVerifyContract">verify source</button>
       </div>
       <div id="ct-verify-result"></div>
     </div>
@@ -507,7 +525,7 @@
         <input type="text" id="settings-bridge-signer" placeholder="https://relayer-002838819188.octra.network">
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="doSaveSettings()">save</button>
+        <button class="action-btn" data-action="doSaveSettings">save</button>
       </div>
       <div id="settings-result"></div>
     </div>
@@ -519,27 +537,33 @@
     </div>
     <div class="section-title">change PIN</div>
     <div class="form-area">
+      <form data-nosubmit>
+      <input type="text" autocomplete="username" value="octra-wallet" readonly aria-hidden="true" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
       <div class="form-row">
         <label>current PIN</label>
-        <input type="password" id="pin-current" maxlength="6" inputmode="numeric" placeholder="------" autocomplete="off">
+        <input type="password" id="pin-current" maxlength="64" placeholder="••••••••••••" autocomplete="current-password">
       </div>
       <div class="form-row">
         <label>new PIN</label>
-        <input type="password" id="pin-new" maxlength="6" inputmode="numeric" placeholder="------" autocomplete="off">
+        <input type="password" id="pin-new" maxlength="64" placeholder="••••••••••••" autocomplete="new-password" passwordrules="minlength: 15;">
       </div>
       <div class="form-row">
         <label>confirm new PIN</label>
-        <input type="password" id="pin-confirm-new" maxlength="6" inputmode="numeric" placeholder="------" autocomplete="off">
+        <input type="password" id="pin-confirm-new" maxlength="64" placeholder="••••••••••••" autocomplete="new-password" passwordrules="minlength: 15;">
+      </div>
+      <div class="form-row" style="font-size:11px;color:#8C9DB6;line-height:1.4">
+        new PIN must be at least 8 characters. 15 or more recommended; your password manager can generate a strong one.
       </div>
       <div class="action-row">
-        <button class="action-btn" onclick="doChangePin()">change PIN</button>
+        <button type="button" class="action-btn" data-action="doChangePin">change PIN</button>
       </div>
+      </form>
       <div id="pin-change-result"></div>
     </div>
   </div>
 
   <div class="view" id="view-tx">
-    <a href="#" class="back-link" onclick="goBack();return false">&larr; back</a>
+    <a href="#" class="back-link" data-action="goBack" data-prevent="1">&larr; back</a>
     <div class="section-title">transaction</div>
     <div id="tx-detail"><div class="loading">loading...</div></div>
   </div>
@@ -549,6 +573,7 @@
 <div class="footer">octra_wallet | 2026 | alpha ver. - 0.04.10</div>
 
 </div>
-<script src="wallet.js?v=14"></script>
+<script src="wallet.js?v=44"></script>
 </body>
+
 </html>

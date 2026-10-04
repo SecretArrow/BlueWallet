@@ -323,7 +323,10 @@ class RpcClient {
       'stealth',
       'claim',
       'deploy',
-      'call'
+      'call',
+      'program_deploy',
+      'program_exec',
+      'multi_exec'
     ];
     final fees = <String, dynamic>{};
     for (final op in ops) {
@@ -371,16 +374,41 @@ class NetworkService extends ChangeNotifier {
   static NetworkService? _instance;
   static NetworkService get instance => _instance!;
 
-  /// Default RPC and Explorer — mirrors Android UrlSecurityValidator defaults.
-  static const String defaultRpc = 'https://rpc.octrascan.io';
+  /// Default RPC and Explorer — mirrors Android UrlSecurityValidator defaults
+  /// (upstream webcli parity: old hosts are dead, see migrateDeadHost).
+  static const String defaultRpc = 'https://octra.network/rpc';
   static const String defaultExplorer = 'https://octrascan.io';
 
-  static const String devnetRpc = 'http://165.227.225.79:8080';
+  static const String devnetRpc = 'https://devnet.octrascan.io/rpc';
   static const String devnetExplorer = 'https://devnet.octrascan.io';
 
-  /// Mainnet endpoints per https://octrascan.io/docs.html
-  static const String mainnetRpc = 'https://rpc.octrascan.io';
+  /// Mainnet endpoints (upstream webcli parity).
+  static const String mainnetRpc = 'https://octra.network/rpc';
   static const String mainnetExplorer = 'https://octrascan.io';
+
+  /// Maps dead RPC hosts to live ones. Applied to stored profile URLs so
+  /// existing installs heal automatically.
+  static String migrateDeadHost(String url) {
+    var t = url.trim();
+    var low = t.toLowerCase();
+    while (low.endsWith('/')) {
+      low = low.substring(0, low.length - 1);
+      t = t.substring(0, t.length - 1);
+    }
+    if (low == 'http://46.101.86.250:8080' ||
+        low == 'http://46.101.86.250:8080/rpc') {
+      return 'https://octra.network/rpc';
+    }
+    if (low == 'http://165.227.225.79:8080' ||
+        low == 'http://165.227.225.79:8080/rpc') {
+      return 'https://devnet.octrascan.io/rpc';
+    }
+    if (low == 'https://rpc.octrascan.io' ||
+        low == 'https://rpc.octrascan.io/rpc') {
+      return 'https://octra.network/rpc';
+    }
+    return url;
+  }
 
   List<NetworkProfile> _profiles = [];
 
@@ -389,7 +417,8 @@ class NetworkService extends ChangeNotifier {
   NetworkProfile? get activeProfile =>
       _profiles.where((p) => p.isActive).firstOrNull ?? _profiles.firstOrNull;
 
-  String get activeNodeUrl => activeProfile?.nodeUrl ?? defaultRpc;
+  String get activeNodeUrl =>
+      migrateDeadHost(activeProfile?.nodeUrl ?? defaultRpc);
 
   String get activeExplorerUrl => activeProfile?.explorerUrl ?? defaultExplorer;
 

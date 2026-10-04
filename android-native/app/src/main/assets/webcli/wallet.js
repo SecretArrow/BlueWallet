@@ -25,14 +25,29 @@
               2025-2026 Julia L.
 */
 
+function validatePin(pin) {
+  if (!pin || pin.length === 0) return 'PIN required';
+  if (pin.length < 8) return 'PIN must be at least 8 characters';
+  if (pin.length > 64) return 'PIN too long (max 64 characters)';
+  if (pin.length < 15) {
+    var hasLetter = /[A-Za-z]/.test(pin);
+    var hasDigit = /[0-9]/.test(pin);
+    var hasSymbol = /[^A-Za-z0-9]/.test(pin);
+    if (!hasLetter || !hasDigit || !hasSymbol) {
+      return 'under 15 chars: must include a letter, a digit and a special symbol';
+    }
+  }
+  return '';
+}
+
 function idePrompt(title, message, defaultVal) {
   return new Promise(function(resolve) {
     var ov = document.createElement('div');
     ov.className = 'modal-overlay';
     ov.innerHTML = '<div class="modal-box">' +
-      '<div class="modal-title">' + title + '</div>' +
-      (message ? '<div class="modal-message">' + message + '</div>' : '') +
-      '<input class="modal-input" type="text" value="' + (defaultVal || '') + '">' +
+      '<div class="modal-title">' + escapeHtml(title) + '</div>' +
+      (message ? '<div class="modal-message">' + escapeHtml(message) + '</div>' : '') +
+      '<input class="modal-input" type="text" value="' + escapeAttr(defaultVal || '') + '">' +
       '<div class="modal-buttons">' +
         '<button class="modal-btn" data-action="cancel">cancel</button>' +
         '<button class="modal-btn modal-btn-primary" data-action="ok">ok</button>' +
@@ -56,8 +71,8 @@ function ideConfirm(title, message) {
     var ov = document.createElement('div');
     ov.className = 'modal-overlay';
     ov.innerHTML = '<div class="modal-box">' +
-      '<div class="modal-title">' + title + '</div>' +
-      '<div class="modal-message">' + message + '</div>' +
+      '<div class="modal-title">' + escapeHtml(title) + '</div>' +
+      '<div class="modal-message">' + escapeHtml(message) + '</div>' +
       '<div class="modal-buttons">' +
         '<button class="modal-btn" data-action="cancel">cancel</button>' +
         '<button class="modal-btn modal-btn-primary" data-action="ok">confirm</button>' +
@@ -80,10 +95,10 @@ function ideMenu(title, options) {
     var ov = document.createElement('div');
     ov.className = 'modal-overlay';
     var btns = options.map(function(o, i) {
-      return '<button class="modal-btn" data-idx="' + i + '" style="width:100%;text-align:left;margin-bottom:4px">' + o.label + '</button>';
+      return '<button class="modal-btn" data-idx="' + i + '" style="width:100%;text-align:left;margin-bottom:4px">' + escapeHtml(o.label) + '</button>';
     }).join('');
     ov.innerHTML = '<div class="modal-box">' +
-      '<div class="modal-title">' + title + '</div>' +
+      '<div class="modal-title">' + escapeHtml(title) + '</div>' +
       btns +
       '<div class="modal-buttons" style="margin-top:8px">' +
         '<button class="modal-btn" data-action="cancel">cancel</button>' +
@@ -104,8 +119,13 @@ var _refreshTimer = null;
 var _prevView = 'dashboard';
 var _cachedBal = null;
 var _encryptedBalanceRaw = 0;
+var _encPresent = false;
+var _encKnown = false;
 var _unclaimedCount = 0;
 var _pendingClaimIds = {};
+var _pendingClaimTxs = {};
+let _pendingClaimPoll = null;
+let _stealthScanInFlight = null;
 var _explorerUrl = 'https://octrascan.io';
 var _tokens = [];
 var _selectedToken = null;
@@ -114,17 +134,53 @@ var _tokenDecimals = {};
 var _tokensLoaded = false;
 var _tokTxGen = 0;
 var _compiledAbi = null;
+var _compiledVerification = null;
+var _compiledCertificate = null;
+let _compiledDeployPayload = null;
+let _compiledProgramEnvelope = null;
+let _compiledProgramMinimum = null;
 var _fees = {};
 var _rpcHost = '';
 var _hasMasterSeed = false;
 var _addressRuntime = {};
 var _tokenMetaInflight = {};
+var _pvacUpgradeStatus = null;
+var _pvacUpgradeInFlight = false;
+var _privateOpInFlight = false;
+var _walletSwitching = false;
 var HISTORY_CACHE_TTL_MS = 12000;
 var HISTORY_STALE_REFRESH_MS = 3000;
 var BALANCE_CACHE_TTL_MS = 5000;
 var TOKEN_CACHE_TTL_MS = 15000;
 var TOKEN_STALE_REFRESH_MS = 3000;
 var PERSISTED_CACHE_TTL_MS = 300000;
+let _balanceFailures = 0;
+let _balanceSuccessAt = 0;
+const BALANCE_OFFLINE_GRACE_MS = 45000;
+
+const setConnectionStatus = state => {
+  const status = $('hdr-status');
+  if (!status) return;
+  const suffix = _rpcHost ? ' | ' + networkLabel(_rpcHost) : '';
+  status.textContent = state + suffix;
+  status.className = state === 'online'
+    ? 'right online'
+    : state === 'offline'
+      ? 'right error'
+      : 'right';
+};
+
+const markBalanceOnline = () => {
+  _balanceFailures = 0;
+  _balanceSuccessAt = Date.now();
+  setConnectionStatus('online');
+};
+
+const markBalanceFailure = () => {
+  _balanceFailures += 1;
+  const stale = Date.now() - _balanceSuccessAt > BALANCE_OFFLINE_GRACE_MS;
+  setConnectionStatus(_balanceFailures >= 2 && stale ? 'offline' : 'syncing');
+};
 
 function ensureAddressRuntime(addr) {
   if (!addr) return null;
@@ -229,7 +285,7 @@ function persistTokens(addr, tokens) {
 
 function persistTokenHistory(addr, payload) {
   if (!addr || !payload) return;
-  persistedWrite(persistedCachePrefix(addr) + 'token-history', {
+  persistedWrite(persistedCachePrefix(addr) + 'token-history:v2', {
     ts: Date.now(),
     payload: payload
   });
@@ -245,7 +301,7 @@ function restorePersistedTokens(addr) {
 
 function restorePersistedTokenHistory(addr) {
   if (!addr) return null;
-  var cached = persistedRead(persistedCachePrefix(addr) + 'token-history');
+  var cached = persistedRead(persistedCachePrefix(addr) + 'token-history:v2');
   if (!cached || !cached.ts || !cached.payload) return null;
   if ((Date.now() - cached.ts) > PERSISTED_CACHE_TTL_MS) return null;
   return cached;
@@ -328,6 +384,7 @@ async function reconcileHistoryResponse(addr, limit, offset, response) {
 
 async function fetchHistoryPage(limit, offset, force) {
   var addr = _walletAddr;
+  if (_walletSwitching) return { transactions: [] };
   if (!addr) return { transactions: [] };
   var state = ensureAddressRuntime(addr);
   var key = historyPageKey(limit, offset);
@@ -461,6 +518,9 @@ function invalidateCurrentAddressState() {
   _tokensLoaded = false;
 }
 
+function setPrivateOpBusy(active) {
+  _privateOpInFlight = !!active;
+}
 
 var _ideProject = null;
 var _ideFiles = {};
@@ -624,7 +684,7 @@ async function fetchTemplateFiles(key) {
 }
 
 var PROJECT_TEMPLATES = {
-  empty: { name: 'Empty Project', files: { 'main.aml': 'contract MyContract {\n  state { owner: address }\n  constructor() {\n    self.owner = caller\n  }\n}' } },
+  empty: { name: 'Empty Project', files: { 'main.aml': 'Program MyProgram {\n  state { owner: address }\n  constructor() {\n    self.owner = caller\n  }\n}' } },
   token: { name: 'OCS01 Token', files: { 'main.aml': '' } },
   vault: { name: 'Vault', files: { 'main.aml': '' } }
 };
@@ -682,8 +742,8 @@ function ideRenderProjectBar() {
   }
   bar.style.display = 'flex';
   bar.innerHTML = '<span class="ide-project-name">' + escapeHtml(_ideProject.name) + '</span>' +
-    '<button class="ide-btn" onclick="ideCloseProject()" title="close project"><span class="ide-icon ico-close"></span></button>' +
-    '<button class="ide-btn" onclick="ideExportZip()" title="export zip"><span class="ide-icon ico-download"></span></button>';
+    '<button class="ide-btn" data-action="ideCloseProject" title="close project"><span class="ide-icon ico-close"></span></button>' +
+    '<button class="ide-btn" data-action="ideExportZip" title="export zip"><span class="ide-icon ico-download"></span></button>';
 }
 
 function ideRenderFileTree() {
@@ -708,19 +768,12 @@ function ideRenderFileTree() {
     }
   });
 
-
-
-
-  var html = '<div class="ide-tree-header">files <button class="ide-btn-small" onclick="ideNewFile()"><span class="ide-icon ico-plus"></span></button>' +
-    '<label class="ide-btn-small" style="cursor:pointer" title="import .aml files"><span class="ide-icon ico-upload"></span><input type="file" accept=".aml,.json,.aml-project.json" multiple style="display:none" onchange="ideImportFiles(this.files)"></label>' +
-    '<label class="ide-btn-small" style="cursor:pointer" title="import folder"><span class="ide-icon ico-folder-import"></span><input type="file" webkitdirectory style="display:none" onchange="ideImportFiles(this.files)"></label></div>';
-  
-  
-  
-  
+  var html = '<div class="ide-tree-header">files <button class="ide-btn-small" data-action="ideNewFile"><span class="ide-icon ico-plus"></span></button>' +
+    '<label class="ide-btn-small" style="cursor:pointer" title="import .aml files"><span class="ide-icon ico-upload"></span><input type="file" accept=".aml,.json,.aml-project.json" multiple style="display:none" data-change="importFiles"></label>' +
+    '<label class="ide-btn-small" style="cursor:pointer" title="import folder"><span class="ide-icon ico-folder-import"></span><input type="file" webkitdirectory style="display:none" data-change="importFiles"></label></div>';
     rootFiles.forEach(function(p) {
     var cls = p === _ideActiveFile ? ' active' : '';
-    html += '<div class="ide-tree-file' + cls + '" onclick="ideOpenFile(\'' + escapeHtml(p) + '\')" oncontextmenu="ideFileMenu(event,\'' + escapeHtml(p) + '\')">' +
+    html += '<div class="ide-tree-file' + cls + '" data-action="ideOpenFile" data-arg="' + escapeAttr(p) + '" data-context="fileMenu">' +
       '<span class="ide-icon ide-file-icon"></span>' + escapeHtml(p) + '</div>';
   });
   Object.keys(dirs).sort().forEach(function(dir) {
@@ -728,7 +781,7 @@ function ideRenderFileTree() {
     dirs[dir].sort().forEach(function(p) {
       var fname = p.substring(p.indexOf('/') + 1);
       var cls = p === _ideActiveFile ? ' active' : '';
-      html += '<div class="ide-tree-file ide-tree-nested' + cls + '" onclick="ideOpenFile(\'' + escapeHtml(p) + '\')" oncontextmenu="ideFileMenu(event,\'' + escapeHtml(p) + '\')">' +
+      html += '<div class="ide-tree-file ide-tree-nested' + cls + '" data-action="ideOpenFile" data-arg="' + escapeAttr(p) + '" data-context="fileMenu">' +
         '<span class="ide-icon ide-file-icon"></span>' + escapeHtml(fname) + '</div>';
     });
   });
@@ -747,9 +800,9 @@ function ideRenderTabs() {
   _ideOpenTabs.forEach(function(path) {
     var name = path.indexOf('/') >= 0 ? path.substring(path.lastIndexOf('/') + 1) : path;
     var cls = path === _ideActiveFile ? ' active' : '';
-    html += '<div class="ide-tab' + cls + '" onclick="ideOpenFile(\'' + escapeHtml(path) + '\')">' +
+    html += '<div class="ide-tab' + cls + '" data-action="ideOpenFile" data-arg="' + escapeAttr(path) + '">' +
       escapeHtml(name) +
-      '<span class="ide-tab-close" onclick="event.stopPropagation();ideCloseTab(\'' + escapeHtml(path) + '\')">×</span>' +
+      '<span class="ide-tab-close" data-action="ideCloseTab" data-arg="' + escapeAttr(path) + '">×</span>' +
       '</div>';
   });
   bar.innerHTML = html;
@@ -869,28 +922,26 @@ async function showProjectPicker() {
   var pp = $('ide-project-picker');
   if (!pp) return;
 
-
   var html = '<div class="ide-picker-title">projects</div>';
   html += '<div class="ide-picker-section-label">new project</div>';
   html += '<div class="ide-picker-actions">';
-  html += '<button class="action-btn" onclick="ideNewProject(\'empty\')"><span class="tpl-label">Blank</span><span class="tpl-desc">empty contract</span></button>';
-  html += '<button class="action-btn" onclick="ideNewProject(\'token\')"><span class="tpl-label">OCS-01 Token</span><span class="tpl-desc">fungible token</span></button>';
-  html += '<button class="action-btn" onclick="ideNewProject(\'vault\')"><span class="tpl-label">Vault</span><span class="tpl-desc">escrow contract</span></button>';
+  html += '<button class="action-btn" data-action="ideNewProject" data-arg="empty"><span class="tpl-label">Blank</span><span class="tpl-desc">empty program</span></button>';
+  html += '<button class="action-btn" data-action="ideNewProject" data-arg="token"><span class="tpl-label">OCS-01 Token</span><span class="tpl-desc">fungible token</span></button>';
+  html += '<button class="action-btn" data-action="ideNewProject" data-arg="vault"><span class="tpl-label">Vault</span><span class="tpl-desc">escrow program</span></button>';
   html += '</div>';
   html += '<div class="ide-picker-import">';
-  html += '<label class="action-btn" style="cursor:pointer"><span class="ide-icon ico-upload"></span> import files<input type="file" accept=".json,.aml-project.json,.aml" multiple style="display:none" onchange="ideImportFiles(this.files)"></label>';
-  html += '<label class="action-btn" style="cursor:pointer"><span class="ide-icon ico-folder-import"></span> import folder<input type="file" webkitdirectory style="display:none" onchange="ideImportFiles(this.files)"></label>';
+  html += '<label class="action-btn" style="cursor:pointer"><span class="ide-icon ico-upload"></span> import files<input type="file" accept=".json,.aml-project.json,.aml" multiple style="display:none" data-change="importFiles"></label>';
+  html += '<label class="action-btn" style="cursor:pointer"><span class="ide-icon ico-folder-import"></span> import folder<input type="file" webkitdirectory style="display:none" data-change="importFiles"></label>';
   html += '</div>';
-
 
   if (projects.length > 0) {
     html += '<div class="ide-picker-list">';
     html += '<div class="ide-picker-list-title">recent</div>';
     projects.forEach(function(p) {
-      html += '<div class="ide-picker-item" onclick="ideLoadProject(\'' + p.id + '\')">' +
+      html += '<div class="ide-picker-item" data-action="ideLoadProject" data-arg="' + escapeAttr(p.id) + '">' +
         '<span class="ide-picker-name">' + escapeHtml(p.name) + '</span>' +
         '<span class="ide-picker-date">' + new Date(p.created).toLocaleDateString() + '</span>' +
-        '<button class="ide-btn-small" onclick="event.stopPropagation();ideDeleteProject(\'' + p.id + '\')" title="delete"><span class="ide-icon ico-delete"></span></button>' +
+        '<button class="ide-btn-small" data-action="ideDeleteProject" data-arg="' + escapeAttr(p.id) + '" title="delete"><span class="ide-icon ico-delete"></span></button>' +
         '</div>';
     });
     html += '</div>';
@@ -1025,6 +1076,12 @@ async function doCompileProject() {
   clearResult('ct-compile-result');
   editorClearError();
   _compiledAbi = null;
+  _compiledVerification = null;
+  _compiledCertificate = null;
+  _compiledDeployPayload = null;
+  _compiledProgramEnvelope = null;
+  _compiledProgramMinimum = null;
+  renderVerificationReport(null);
   var abiDiv = $('ct-abi-display');
   if (abiDiv) abiDiv.style.display = 'none';
 
@@ -1037,11 +1094,15 @@ async function doCompileProject() {
     return;
   }
   try {
-    var res = await api('POST', '/contract/compile-project', { files: files, main: 'main.aml' });
+    const res = await api('POST', '/contract/compile-project', { files: files, main: 'main.aml', program: true });
     var b64 = res.bytecode || '';
     $('ct-bytecode').value = b64;
-    var ver = res.version ? ('AppliedML ' + res.version + ' - ') : '';
-    var msg = ver + 'compiled: ' + res.instructions + ' instructions, ' + res.size + ' bytes (' + files.length + ' files)';
+    _compiledDeployPayload = res.deploy_payload || null;
+    _compiledProgramEnvelope = res.program_envelope || null;
+    _compiledProgramMinimum = res.program_min_ou || null;
+    applyProgramDeployFee(_compiledDeployPayload, _compiledProgramMinimum);
+    const ver = res.version ? ('AppliedML ' + escapeHtml(res.version) + ' - ') : '';
+    const msg = ver + 'compiled: ' + escapeHtml(String(res.instructions)) + ' instructions, ' + escapeHtml(String(res.size)) + ' bytes (' + files.length + ' files)';
     showResult('ct-compile-result', true, msg);
     if (res.abi) {
       _compiledAbi = res.abi;
@@ -1053,6 +1114,14 @@ async function doCompileProject() {
     if (res.disasm) {
       var disEl = $('ct-disasm-code');
       if (disEl) disEl.innerHTML = highlightDisasm(res.disasm);
+    }
+    if (res.verification) {
+      _compiledVerification = res.verification;
+      _compiledCertificate = res.certificate || null;
+      renderVerificationReport(res.verification, _compiledCertificate);
+      msg += ' | ' + verificationLabel(res.verification);
+      showResult('ct-compile-result', verificationLevel(res.verification) !== 'error', msg + (verificationLevel(res.verification) === 'error' ? ' (deploy not blocked yet)' : ''));
+      logVerificationTrace(res.verification);
     }
     showBottomPanels();
     consoleLog('info', msg);
@@ -1070,7 +1139,7 @@ async function doVerifyProject() {
   ideSaveCurrentFile();
   clearResult('ct-verify-result');
   var addr = $('ct-verify-addr').value.trim();
-  if (!addr) { showResult('ct-verify-result', false, 'contract address required'); return; }
+  if (!addr) { showResult('ct-verify-result', false, 'program address required'); return; }
 
   var mainSource = _ideFiles['main.aml'] || '';
   if (!mainSource.trim()) { showResult('ct-verify-result', false, 'main.aml is empty'); return; }
@@ -1086,22 +1155,20 @@ async function doVerifyProject() {
     var payload = { address: addr, source: mainSource };
     if (depFiles.length > 0) payload.files = depFiles;
     var res = await api('POST', '/contract/verify', payload);
+    var safety = res.verification ? '<br>' + verificationResultHtml(res.verification) : '';
     showResult('ct-verify-result', true,
-      'source verified - code_hash: <span class="mono">' + escapeHtml(res.code_hash || '') + '</span>');
+      'source verified - code_hash: <span class="mono">' + escapeHtml(res.code_hash || '') + '</span>' + safety);
   } catch (e) {
     showResult('ct-verify-result', false, e.message);
   }
 }
 
 function networkLabel(host) {
-  if (host === '46.101.86.250') return 'main net';
-  if (host === '165.227.225.79') return 'dev net';
+  if (host === 'octra.network') return 'main net';
+  if (host === 'devnet.octrascan.io' || host === '165.227.225.79') return 'dev net';
   if (host === 'localhost' || host === '127.0.0.1') return 'local';
   return host;
 }
-
-
-
 
 function $(id) { return document.getElementById(id); }
 
@@ -1117,45 +1184,129 @@ function updateStealthBadge(count) {
   }
 }
 
-async function bgStealthScan() {
+async function fetchStealthScan() {
+  const addr = _walletAddr;
+  if (_stealthScanInFlight && _stealthScanInFlight.addr === addr) {
+    return _stealthScanInFlight.request;
+  }
+  const entry = {
+    addr: addr,
+    request: api('GET', '/stealth/scan')
+  };
+  _stealthScanInFlight = entry;
   try {
-    var res = await api('GET', '/stealth/scan');
-    var outputs = res.outputs || [];
-    var unclaimed = 0;
-    for (var i = 0; i < outputs.length; i++) {
+    return await entry.request;
+  } finally {
+    if (_stealthScanInFlight === entry) _stealthScanInFlight = null;
+  }
+}
+
+async function bgStealthScan() {
+  if (_walletSwitching) return;
+  const addr = _walletAddr;
+  try {
+    const res = await fetchStealthScan();
+    if (_walletSwitching || addr !== _walletAddr) return;
+    const outputs = res.outputs || [];
+    let unclaimed = 0;
+    for (let i = 0; i < outputs.length; i++) {
       if (outputs[i].claimed) { delete _pendingClaimIds[String(outputs[i].id)]; continue; }
+      if (outputs[i].claimable === false) continue;
       if (!_pendingClaimIds[String(outputs[i].id)]) unclaimed++;
     }
     updateStealthBadge(unclaimed);
   } catch (e) {}
 }
 
+function currentBalanceData() {
+  var state = ensureAddressRuntime(_walletAddr);
+  if (state && state.balance) return state.balance;
+  return _cachedBal;
+}
+
+function mergeBalanceData(bal) {
+  var prev = currentBalanceData();
+  var next = Object.assign({}, bal || {});
+  if (next.account_unknown && prev && !prev.account_unknown) {
+    next.public_balance = prev.public_balance;
+    next.nonce = prev.nonce;
+    next.staging = prev.staging;
+    next.account_unknown = false;
+    next.account_stale = true;
+  }
+  if (next.encrypted_balance_unknown && next.encrypted_cipher_present !== true && prev && !prev.encrypted_balance_unknown) {
+    next.encrypted_balance = prev.encrypted_balance;
+    next.encrypted_balance_known = prev.encrypted_balance_known;
+    next.encrypted_cipher_present = prev.encrypted_cipher_present;
+    next.encrypted_balance_unknown = false;
+    next.encrypted_balance_stale = true;
+  }
+  return next;
+}
+
 function applyBalanceData(bal) {
-  _cachedBal = bal;
-  var pub = bal.public_balance || '0';
-  var enc = bal.encrypted_balance || '0';
-  _encryptedBalanceRaw = parseInt(enc) || 0;
-  var MAX_SANE_ENC = 100000000 * 1000000;
-  var encCorrupt = (_encryptedBalanceRaw < 0 || _encryptedBalanceRaw > MAX_SANE_ENC);
-  if (encCorrupt) _encryptedBalanceRaw = 0;
-  if ($('btn-key-switch')) $('btn-key-switch').style.display = encCorrupt ? '' : 'none';
-  if ($('st-balance')) $('st-balance').textContent = fmtOct(pub);
-  if ($('st-enc-balance')) $('st-enc-balance').textContent = encCorrupt
-      ? 'corrupted ciphertext' : fmtOct(enc);
-  if ($('st-nonce')) $('st-nonce').textContent = bal.nonce || '0';
-  if ($('st-staging')) $('st-staging').textContent = bal.staging || '0';
-  if ($('send-bal')) $('send-bal').textContent = fmtOct(pub);
-  if ($('enc-pub-bal')) $('enc-pub-bal').textContent = fmtOct(pub);
-  if ($('enc-enc-bal')) $('enc-enc-bal').textContent = encCorrupt
-      ? 'corrupted ciphertext' : fmtOct(enc);
-  if ($('st-enc-bal-info')) $('st-enc-bal-info').textContent = encCorrupt
-      ? 'corrupted ciphertext' : fmtOct(enc);
-  if ($('ct-bal')) $('ct-bal').textContent = fmtOct(pub);
-  $('hdr-status').textContent = _rpcHost ? 'online | ' + networkLabel(_rpcHost) : 'online';
-  $('hdr-status').className = 'right online';
+  var next = mergeBalanceData(bal);
+  _cachedBal = next;
+  var accountUnknown = !!next.account_unknown;
+  var pub = accountUnknown ? '' : (next.public_balance || '0');
+  var encUnknown = !!next.encrypted_balance_unknown;
+  _encPresent = next.encrypted_cipher_present === true;
+  _encKnown = next.encrypted_balance_known !== false && !encUnknown;
+  var enc = _encKnown ? (next.encrypted_balance || '0') : '';
+  _encryptedBalanceRaw = _encKnown ? (parseInt(enc) || 0) : 0;
+  if ($('btn-key-switch')) {
+    if (encUnknown) {
+      $('btn-key-switch').style.display = 'none';
+    } else {
+      if (_encPresent || _encryptedBalanceRaw > 0) {
+        $('btn-key-switch').textContent = 'checking encryption upgrade...';
+        $('btn-key-switch').style.display = '';
+      }
+      refreshPvacUpgradeStatus();
+    }
+  }
+  var encText = _encKnown ? fmtOct(enc) : (_encPresent ? 'legacy encrypted balance' : '-');
+  var pubText = accountUnknown ? '-' : fmtOct(pub);
+  var nonceText = accountUnknown ? '-' : (next.nonce || '0');
+  if ($('st-balance')) $('st-balance').textContent = pubText;
+  if ($('st-enc-balance')) $('st-enc-balance').textContent = encText;
+  if ($('ct-struct-link')) $('ct-struct-link').hidden = !_encPresent;
+  if ($('st-nonce')) $('st-nonce').textContent = nonceText;
+  if ($('st-staging')) $('st-staging').textContent = next.staging || '0';
+  if ($('send-bal')) $('send-bal').textContent = pubText;
+  if ($('enc-pub-bal')) $('enc-pub-bal').textContent = pubText;
+  if ($('enc-enc-bal')) $('enc-enc-bal').textContent = encText;
+  if ($('st-enc-bal-info')) $('st-enc-bal-info').textContent = encText;
+  if ($('ct-bal')) $('ct-bal').textContent = pubText;
+  return next;
+}
+
+function resetDashboardView() {
+  _cachedBal = null;
+  _encryptedBalanceRaw = 0;
+  _encPresent = false;
+  _encKnown = false;
+  _pvacUpgradeStatus = null;
+  if ($('st-balance')) $('st-balance').textContent = '-';
+  if ($('st-enc-balance')) $('st-enc-balance').textContent = '-';
+  if ($('ct-struct-link')) $('ct-struct-link').hidden = true;
+  if ($('st-nonce')) $('st-nonce').textContent = '-';
+  if ($('st-staging')) $('st-staging').textContent = '-';
+  if ($('send-bal')) $('send-bal').textContent = '-';
+  if ($('enc-pub-bal')) $('enc-pub-bal').textContent = '-';
+  if ($('enc-enc-bal')) $('enc-enc-bal').textContent = '-';
+  if ($('st-enc-bal-info')) $('st-enc-bal-info').textContent = '-';
+  if ($('ct-bal')) $('ct-bal').textContent = '-';
+  if ($('btn-key-switch')) $('btn-key-switch').style.display = 'none';
+  if ($('dash-tx-count')) $('dash-tx-count').textContent = '0';
+  if ($('dash-txs')) $('dash-txs').innerHTML = '<div class="staging-empty">loading...</div>';
+  if ($('dash-more')) $('dash-more').innerHTML = '';
+  updateStealthBadge(0);
 }
 
 async function fetchBalance(force) {
+  if (_walletSwitching) return currentBalanceData();
+  var addr = _walletAddr;
   var state = ensureAddressRuntime(_walletAddr);
   if (state && state.balanceInflight) return state.balanceInflight;
   if (!force && state && state.balance && (Date.now() - state.balanceTs) < BALANCE_CACHE_TTL_MS) {
@@ -1172,17 +1323,21 @@ async function fetchBalance(force) {
   }
   var request = api('GET', '/balance')
     .then(function(bal) {
+      if (_walletSwitching || addr !== _walletAddr) return bal;
+      var next = applyBalanceData(bal);
       if (state) {
-        state.balance = bal;
+        state.balance = next;
         state.balanceTs = Date.now();
       }
-      persistBalance(_walletAddr, bal);
-      applyBalanceData(bal);
-      return bal;
+      persistBalance(addr, next);
+      markBalanceOnline();
+      return next;
     })
     .catch(function() {
-      $('hdr-status').textContent = 'offline';
-      $('hdr-status').className = 'right error';
+      if (!_walletSwitching && addr === _walletAddr) {
+        markBalanceFailure();
+        if (!currentBalanceData()) resetDashboardView();
+      }
       return null;
     })
     .finally(function() {
@@ -1194,20 +1349,51 @@ async function fetchBalance(force) {
 
 async function api(method, path, body) {
   var opts = { method: method, headers: {} };
-
+  var timeoutMs = apiTimeoutMs(method, path);
+  var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  var timeoutId = null;
+  if (controller) {
+    opts.signal = controller.signal;
+    timeoutId = setTimeout(function() { controller.abort(); }, timeoutMs);
+  }
 
   if (body !== undefined) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
-  var res = await fetch('/api' + path, opts);
+  var res;
+  try {
+    res = await fetch('/api' + path, opts);
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new Error('request timed out');
+    throw e;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
   var text = await res.text();
   if (!text || text.length === 0) throw new Error('empty response from RPC (possible timeout)');
   var j;
-  try { j = JSON.parse(text); } catch (e) { throw new Error('invalid server response: ' + text.substring(0, 200)); }
-  if (!res.ok) throw new Error(j.error || j.message || 'request failed');
+  try { j = JSON.parse(text); } catch (e) { throw new Error('invalid server response: ' + escapeHtml(text.substring(0, 200))); }
+  if (j && j.error) throw new Error(escapeHtml(j.error || j.message || 'request failed'));
+  if (!res.ok) throw new Error(escapeHtml(j.error || j.message || 'request failed'));
   return j;
 }
+
+function apiTimeoutMs(method, path) {
+  if (method !== 'GET') {
+    if (path === '/pvac/upgrade' || path === '/key_switch') return 900000;
+    if (path === '/encrypt' || path === '/decrypt') return 900000;
+    if (path === '/stealth/send' || path === '/stealth/claim') return 900000;
+    return 30000;
+  }
+  if (path === '/stealth/scan') return 30000;
+  if (path === '/balance') return 30000;
+  if (path === '/pvac/upgrade_status') return 30000;
+  return 10000;
+}
+
+const heavyTxConfirmationPolls = 300;
+const heavyTxConfirmationIntervalMs = 4000;
 
 async function fetchFees() {
   try {
@@ -1235,6 +1421,7 @@ function applyFeeDefaults() {
   };
   for (var id in map) {
     var input = $(id);
+    if (id === 'ct-deploy-fee' && _compiledDeployPayload) continue;
     var fee = _fees[map[id]];
     if (input && fee) {
       var rec = fee.recommended || fee.minimum || '';
@@ -1246,7 +1433,9 @@ function applyFeeDefaults() {
     }
   }
   var btnDeploy = $('btn-deploy');
-  if (btnDeploy && _fees.deploy) {
+  if (_compiledDeployPayload) {
+    applyProgramDeployFee(_compiledDeployPayload, _compiledProgramMinimum);
+  } else if (btnDeploy && _fees.deploy) {
     var cost = _fees.deploy.base_fee || _fees.deploy.recommended;
     btnDeploy.textContent = 'deploy (' + ouToOct(cost) + ' oct)';
   }
@@ -1270,6 +1459,21 @@ function feeError(resultId, inputId, opType) {
   showResult(resultId, false, 'invalid fee - must be integer >= ' + minStr);
   if ($(inputId)) $(inputId).focus();
 }
+
+const programDeployMinimum = payload =>
+  200000 + Math.ceil(payload.length / 1024) * 1000;
+
+const applyProgramDeployFee = (payload, required) => {
+  if (!payload) return;
+  const input = $('ct-deploy-fee');
+  if (!input) return;
+  const minimum = String(required || programDeployMinimum(payload));
+  input.value = minimum;
+  input.setAttribute('data-prev-default', minimum);
+  input.placeholder = 'min: ' + minimum;
+  const button = $('btn-deploy');
+  if (button) button.textContent = 'deploy (' + ouToOct(minimum) + ' oct)';
+};
 
 function switchView(name) {
   if (name !== 'tx') _prevView = name;
@@ -1388,7 +1592,16 @@ function addrLink(addr) {
 function txLink(hash) {
   if (!hash) return '<span class="gray">-</span>';
   if (!/^[a-f0-9]{64}$/.test(hash)) return '<span class="mono gray">' + escapeHtml(hash) + '</span>';
-  return '<a class="mono hash" href="javascript:void(0)" onclick="showTx(\'' + hash + '\')">' + short(hash) + '</a>';
+  return '<a class="mono hash" href="#" data-action="showTx" data-arg="' + hash + '" data-prevent="1">' + short(hash) + '</a>';
+}
+
+function stealthClaimStatusLabel(status) {
+  if (status === 'legacy_stealth_output') return 'legacy output migration required';
+  if (status === 'pvac_key_upgrade_required') return 'encryption upgrade required';
+  if (status === 'pvac_key_not_confirmed') return 'PVAC key confirmation required';
+  if (status === 'amount_commitment_mismatch') return 'amount commitment mismatch';
+  if (status === 'amount_commitment_missing') return 'amount commitment missing';
+  return status || 'not claimable';
 }
 
 function opTag(op) {
@@ -1397,8 +1610,8 @@ function opTag(op) {
   if (op === 'encrypt') return '<span class="private-tag">encrypt</span>';
   if (op === 'decrypt') return '<span class="private-tag">decrypt</span>';
   if (op === 'private_transfer') return '<span class="private-tag">private</span>';
-  if (op === 'deploy') return '<span class="contract-tag">contract_deploy</span>';
-  if (op === 'call') return '<span class="contract-tag">contract_call</span>';
+  if (op === 'deploy' || op === 'contract_deploy' || op === 'program_deploy') return '<span class="program-tag">program_deploy</span>';
+  if (op === 'call' || op === 'contract_call' || op === 'program_call') return '<span class="program-tag">program_call</span>';
   if (op === 'key_switch') return '<span class="private-tag">key_switch</span>';
   return '';
 }
@@ -1421,22 +1634,56 @@ function clearResult(elId) {
   if (el) el.innerHTML = '';
 }
 
+const networkText = value => String(value || '').replace(/\bnode\b/gi, 'network');
+
 function validAddr(addr) {
-  return /^oct[1-9A-HJ-NP-Za-km-z]{43,45}$/.test(addr);
+  return /^oct[1-9A-HJ-NP-Za-km-z]{44}$/.test(addr);
 }
 
-function logStealth(msg, cls) {
-  var el = $('stealth-log');
+const logState = cls => cls === 'log-ok' ? 'done' : (cls === 'log-err' ? 'error' : 'active');
+
+const renderLogRow = (state, msg) => {
+  const text = state === 'error' ? msg.replace(/^error:\s*/i, '') : msg;
+  const caret = state === 'active' ? '<span class="caret" aria-hidden="true"></span>' : '';
+  return '<div class="op-step op-' + state + '">' +
+    '<span class="op-mark"></span>' +
+    '<span class="op-state">' + state + '</span>' +
+    '<span class="op-msg">' + text + caret + '</span>' +
+    '</div>';
+};
+
+const settleActiveLog = el => {
+  el.querySelectorAll('.op-active').forEach(row => {
+    row.classList.remove('op-active');
+    row.classList.add('op-done');
+    const state = row.querySelector('.op-state');
+    if (state) state.textContent = 'done';
+    const caret = row.querySelector('.caret');
+    if (caret) caret.remove();
+  });
+};
+
+const appendPrivateLog = (id, selector, msg, cls) => {
+  let el = $(id);
   if (!el) {
-    var btn = document.querySelector('button[onclick="doStealthSend()"]');
+    const btn = document.querySelector(selector);
     if (!btn) return;
-    var row = btn.closest('.action-row') || btn.parentNode;
+    const row = btn.closest('.action-row') || btn.parentNode;
     el = document.createElement('div');
-    el.id = 'stealth-log';
+    el.id = id;
+    el.className = 'op-log';
     row.parentNode.insertBefore(el, row.nextSibling);
   }
-  el.innerHTML += '<div class="log-line' + (cls ? ' ' + cls : '') + '">' + msg + '</div>';
+  settleActiveLog(el);
+  el.insertAdjacentHTML(
+    'beforeend',
+    msg ? renderLogRow(logState(cls), msg) : '<div class="op-log-gap"></div>'
+  );
   el.scrollTop = el.scrollHeight;
+};
+
+function logStealth(msg, cls) {
+  appendPrivateLog('stealth-log', 'button[data-action="doStealthSend"]', msg, cls);
 }
 
 function clearStealthLog() {
@@ -1445,21 +1692,20 @@ function clearStealthLog() {
 }
 
 function logDecrypt(msg, cls) {
-  var el = $('decrypt-log');
-  if (!el) {
-    var btn = document.querySelector('button[onclick="doDecrypt()"]');
-    if (!btn) return;
-    var row = btn.closest('.action-row') || btn.parentNode;
-    el = document.createElement('div');
-    el.id = 'decrypt-log';
-    row.parentNode.insertBefore(el, row.nextSibling);
-  }
-  el.innerHTML += '<div class="log-line' + (cls ? ' ' + cls : '') + '">' + msg + '</div>';
-  el.scrollTop = el.scrollHeight;
+  appendPrivateLog('decrypt-log', 'button[data-action="doDecrypt"]', msg, cls);
 }
 
 function clearDecryptLog() {
   var el = $('decrypt-log');
+  if (el) el.remove();
+}
+
+function logEncrypt(msg, cls) {
+  appendPrivateLog('encrypt-log', 'button[data-action="doEncrypt"]', msg, cls);
+}
+
+function clearEncryptLog() {
+  var el = $('encrypt-log');
   if (el) el.remove();
 }
 
@@ -1470,17 +1716,37 @@ function txStatusTag(st) {
   return '<span class="pending-text">' + escapeHtml(st || 'pending') + '</span>';
 }
 
-function txAmt(tx) {
-  var op = tx.op_type || '';
-  if (op === 'call' && tx.encrypted_data === 'transfer' && tx.message) {
-    var contract = tx.to_ || tx.to || '';
-    var sym = _tokenSymbols[contract] || '';
-    var dec = _tokenDecimals[contract] || '0';
+const tokenTransfer = tx => {
+  const token = tx.token_address || tx.to_ || tx.to || '';
+  const tagged = tx.token_transfer === true ||
+    (tx.op_type === 'call' && tx.encrypted_data === 'transfer');
+  if (!tagged || !token) return null;
+  let recipient = tx.recipient || '';
+  let amount = tx.token_amount_raw === undefined ? '' : String(tx.token_amount_raw);
+  if ((!recipient || !amount) && tx.message) {
     try {
-      var p = JSON.parse(tx.message);
-      if (Array.isArray(p) && p.length >= 2)
-        return { amt: fmtTokenCompact(p[1], dec) + (sym ? ' ' + sym : ''), cls: '', toOverride: String(p[0]) };
-    } catch(e) {}
+      const params = JSON.parse(tx.message);
+      if (Array.isArray(params) && params.length >= 2) {
+        recipient = recipient || String(params[0] || '');
+        amount = amount || String(params[1]);
+      }
+    } catch (e) {}
+  }
+  if (!validAddr(recipient) || !/^[0-9]+$/.test(amount)) return null;
+  return { token: token, recipient: recipient, amount: amount };
+};
+
+function txAmt(tx) {
+  var transfer = tokenTransfer(tx);
+  if (transfer) {
+    var sym = _tokenSymbols[transfer.token] || '';
+    var dec = _tokenDecimals[transfer.token] || '0';
+    var cls = tx.from === _walletAddr ? ' red' : (transfer.recipient === _walletAddr ? ' green' : '');
+    return {
+      amt: fmtTokenCompact(transfer.amount, dec) + (sym ? ' ' + sym : ''),
+      cls: cls,
+      toOverride: transfer.recipient
+    };
   }
   var raw = tx.amount_raw ? parseFloat(tx.amount_raw) : 0;
   if (raw > 0) {
@@ -1500,7 +1766,7 @@ function txRow(tx) {
   h += '<td>' + txLink(tx.hash) + '</td>';
   h += '<td>' + addrLink(tx.from) + '</td>';
   h += '<td>' + addrLink(toAddr) + '</td>';
-  h += '<td class="mono amount' + a.cls + '">' + a.amt + '</td>';
+  h += '<td class="mono amount' + a.cls + '">' + escapeHtml(a.amt) + '</td>';
   h += '<td>' + txStatusTag(st) + '</td>';
   h += '<td class="gray">' + fmtDate(tx.timestamp) + '</td>';
   h += '</tr>';
@@ -1515,7 +1781,7 @@ function txCardHtml(tx) {
   c += '<div class="card-row"><span class="card-label">tx</span><span class="card-val">' + txLink(tx.hash) + '</span></div>';
   c += '<div class="card-row"><span class="card-label">from</span><span class="card-val">' + addrLink(tx.from) + '</span></div>';
   c += '<div class="card-row"><span class="card-label">to</span><span class="card-val">' + addrLink(toAddr) + '</span></div>';
-  c += '<div class="card-row"><span class="card-label">amount</span><span class="card-val mono amount' + a.cls + '">' + a.amt + '</span></div>';
+  c += '<div class="card-row"><span class="card-label">amount</span><span class="card-val mono amount' + a.cls + '">' + escapeHtml(a.amt) + '</span></div>';
   c += '<div class="card-row"><span class="card-label">status</span><span class="card-val">' + txStatusTag(st) + '</span></div>';
   c += '<div class="card-row"><span class="card-label">time</span><span class="card-val gray">' + fmtDate(tx.timestamp) + '</span></div>';
   c += '</div>';
@@ -1530,37 +1796,36 @@ async function showTx(hash) {
     var st = res.status || 'pending';
     var h = '<table class="detail-table">';
 
-
-
-
     var fullHash = res.hash || hash;
-    var explorerLink = _explorerUrl + '/tx.html?hash=' + fullHash;
-    h += '<tr><td>hash</td><td class="mono">' + fullHash + ' <a href="' + explorerLink + '" target="_blank" style="font-size:10px;color:#8C9DB6;margin-left:4px">explorer</a></td></tr>';
+    var explorerLink = _explorerUrl + '/tx.html?hash=' + encodeURIComponent(fullHash);
+    h += '<tr><td>hash</td><td class="mono">' + escapeHtml(fullHash) + ' <a href="' + escapeHtml(explorerLink) + '" target="_blank" style="font-size:10px;color:#8C9DB6;margin-left:4px">explorer</a></td></tr>';
     h += '<tr><td>status</td><td>' + txStatusTag(st) + '</td></tr>';
     if (res.reject_reason) h += '<tr><td>reason</td><td class="result-error">' + escapeHtml(res.reject_reason) + '</td></tr>';
       h += '<tr><td>from</td><td>' + addrLink(res.from || '') + '</td></tr>';
       h += '<tr><td>to</td><td>' + addrLink(res.to || res.to_ || '') + '</td></tr>';
        var amtRaw = res.amount_raw || res.amount || '0';
       h += '<tr><td>amount</td><td class="mono">' + fmtOct(amtRaw) + '</td></tr>';
-      h += '<tr><td>amount (raw)</td><td class="mono gray">' + addCommas(String(amtRaw)) + '</td></tr>';
-      var op = res.op_type || 'standard';
-      h += '<tr><td>type</td><td>' + (opTag(op) || op) + '</td></tr>';
-      if (res.epoch) h += '<tr><td>epoch</td><td>' + res.epoch + '</td></tr>';
-      if (res.block_height) h += '<tr><td>block</td><td>' + res.block_height + '</td></tr>';
+      h += '<tr><td>amount (raw)</td><td class="mono gray">' + escapeHtml(addCommas(String(amtRaw))) + '</td></tr>';
+      const op = res.op_type || 'standard';
+      h += '<tr><td>type</td><td>' + (opTag(op) || escapeHtml(op)) + '</td></tr>';
+      if (res.epoch) h += '<tr><td>epoch</td><td>' + escapeHtml(String(res.epoch)) + '</td></tr>';
+      if (res.block_height) h += '<tr><td>block</td><td>' + escapeHtml(String(res.block_height)) + '</td></tr>';
     h += '<tr><td>nonce</td><td>' + (res.nonce || '') + '</td></tr>';
     if (res.ou) h += '<tr><td>ou (fee)</td><td class="mono">' + fmtOct(res.ou) + '</td></tr>';
     h += '<tr><td>time</td><td>' + fmtDate(res.timestamp) + '</td></tr>';
 
-    if (res.signature) h += '<tr><td>signature</td><td class="mono">' + res.signature + '</td></tr>';
-    if (res.public_key) h += '<tr><td>public key</td><td class="mono">' + res.public_key + '</td></tr>';
+    if (res.signature) h += '<tr><td>signature</td><td class="mono">' + escapeHtml(res.signature) + '</td></tr>';
+    if (res.public_key) h += '<tr><td>public key</td><td class="mono">' + escapeHtml(res.public_key) + '</td></tr>';
     h += '</table>';
     if (res.message && res.message !== 'null' && res.message !== '') {
+      h += '<div class="tx-message">';
       h += '<div class="section-title">message</div>';
       h += '<div class="msg-box">' + escapeHtml(res.message) + '</div>';
+      h += '</div>';
     }
     $('tx-detail').innerHTML = h;
   } catch (e) {
-    $('tx-detail').innerHTML = '<div class="error-box">' + e.message + '</div>';
+    $('tx-detail').innerHTML = '<div class="error-box">' + escapeHtml(e.message) + '</div>';
   }
 }
 
@@ -1568,6 +1833,14 @@ function escapeHtml(s) {
   var d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+function escapeAttr(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function dashTxLimit() {
@@ -1589,18 +1862,22 @@ function renderDashTxs(txs) {
   h += '</table>';
   cards += '</div>';
   $('dash-txs').innerHTML = h + cards;
-  $('dash-more').innerHTML = '<div class="dash-more-row"><a href="#" onclick="switchView(\'history\');return false">view full history</a></div>';
+  $('dash-more').innerHTML = '<div class="dash-more-row"><a href="#" data-action="switchView" data-arg="history" data-prevent="1">view full history</a></div>';
 }
 
 async function loadDashboard() {
+  if (_walletSwitching) return;
   fetchBalance(false);
-  loadTokenSymbols();
+  var rendered = false;
   try {
     var lim = dashTxLimit();
     var cached = peekHistoryPage(_walletAddr, lim, 0);
+    var cachedEmpty = false;
     if (cached) {
+      rendered = true;
       var cachedTxs = cached.response.transactions || [];
       if (cachedTxs.length === 0) {
+        cachedEmpty = true;
         $('dash-tx-count').textContent = '0';
         $('dash-txs').innerHTML = '<div class="staging-empty">no transactions yet</div>';
         $('dash-more').innerHTML = '';
@@ -1608,9 +1885,9 @@ async function loadDashboard() {
         renderDashTxs(cachedTxs);
         fetchMissingSymbols(cachedTxs).then(function() { renderDashTxs(cachedTxs); });
       }
-      if ((Date.now() - cached.ts) <= HISTORY_STALE_REFRESH_MS) return;
+      if (!cachedEmpty && (Date.now() - cached.ts) <= HISTORY_STALE_REFRESH_MS) return;
     }
-    var hist = await fetchHistoryPage(lim, 0, false);
+    var hist = await fetchHistoryPage(lim, 0, cachedEmpty);
     var txs = hist.transactions || [];
     if (txs.length === 0) {
       $('dash-tx-count').textContent = '0';
@@ -1621,9 +1898,9 @@ async function loadDashboard() {
     renderDashTxs(txs);
     fetchMissingSymbols(txs).then(function() { renderDashTxs(txs); });
   } catch (e) {
-    $('dash-tx-count').textContent = '0';
-    $('dash-txs').innerHTML = '<div class="staging-empty">no transactions yet</div>';
-    $('dash-more').innerHTML = '';
+    if (!rendered && $('dash-txs') && !$('dash-txs').innerHTML.trim()) {
+      $('dash-txs').innerHTML = '<div class="error-box">history temporarily unavailable</div>';
+    }
   }
 }
 
@@ -1640,7 +1917,9 @@ async function doSend() {
   if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) { showResult('send-result', false, 'invalid amount'); return; }
   if (!validateFee('send-fee', 'standard')) { feeError('send-result', 'send-fee', 'standard'); return; }
   try {
-    var body = { to: to, amount: amount };
+    var pin = await modalPrompt('confirm send', 'enter PIN to send ' + amount + ' oct to ' + to, { pin: true, btnText: 'send' });
+    if (!pin) { showResult('send-result', false, 'send cancelled'); return; }
+    var body = { to: to, amount: amount, pin: pin };
     if (msg) body.message = msg;
     var fee = $('send-fee') ? $('send-fee').value.trim() : '';
     if (fee) body.ou = fee;
@@ -1666,58 +1945,411 @@ async function refreshStealthBalance() {
   await fetchBalance();
 }
 
+async function refreshPvacUpgradeStatus() {
+  if (_walletSwitching) return _pvacUpgradeStatus;
+  try {
+    const st = await api('GET', '/pvac/upgrade_status');
+    _pvacUpgradeStatus = st;
+    const btn = $('btn-key-switch');
+    if (!btn) return st;
+    if (_pvacUpgradeInFlight || st.upgrade_inflight) {
+      btn.textContent = 'upgrade in progress...';
+      btn.disabled = true;
+      btn.style.display = '';
+      return st;
+    }
+    if (st.mode === 'upgrade_recent') {
+      btn.textContent = 'upgrade submitted';
+      btn.disabled = true;
+      btn.style.display = '';
+      return st;
+    }
+    btn.disabled = false;
+    const resetMode = st.mode === 'legacy_zero_reset';
+    const upgradeMode = st.mode === 'key_bound_migration' || st.mode === 'legacy_public_migration' || st.mode === 'legacy_commitment_migration';
+    const repairMode = st.repair_required === true;
+    const compactMode = st.compact_refresh === true;
+    if (st.can_submit) {
+      btn.textContent = resetMode ? 'reset encrypted balance' : (repairMode ? 'repair encrypted balance' : (compactMode ? 'refresh encrypted balance' : (upgradeMode ? 'upgrade encrypted balance' : 'switch encryption key')));
+      btn.style.display = '';
+    } else if (st.mode === 'legacy_blocked' || st.mode === 'key_mismatch' || st.mode === 'blocked' || st.mode === 'fee_blocked') {
+      btn.textContent = st.mode === 'fee_blocked' ? 'public fee required for upgrade' : 'encryption upgrade unavailable';
+      btn.disabled = false;
+      btn.style.display = '';
+    } else {
+      btn.style.display = 'none';
+    }
+    return st;
+  } catch (e) {
+    const btn = $('btn-key-switch');
+    if (btn && (_encPresent || _encryptedBalanceRaw > 0)) {
+      btn.textContent = 'check encryption upgrade';
+      btn.style.display = '';
+    }
+    return null;
+  }
+}
+
 async function doKeySwitch() {
+  if (_pvacUpgradeInFlight) return;
   hideAllModalPanels();
   $('modal-sub').textContent = 'encryption key switching';
-  var h = '<div style="margin:20px 0;font-size:13px">';
-  h += 'the ciphertext is corrupted or composed incorrectly (the consensus cannot process it), a key switch must be made</div>';
+  const st = _pvacUpgradeStatus || await refreshPvacUpgradeStatus();
+  if (!st) {
+    $('modal-result').innerHTML = '<div class="result-msg result-error" style="margin:20px 0">cannot read encryption upgrade status</div>';
+    $('modal-overlay').style.display = 'flex';
+    return;
+  }
+  const resetMode = st.mode === 'legacy_zero_reset';
+  const upgradeMode = st.mode === 'key_bound_migration' || st.mode === 'legacy_public_migration' || st.mode === 'legacy_commitment_migration';
+  const repairMode = st.repair_required === true;
+  const compactMode = st.compact_refresh === true;
+  const title = resetMode ? 'encrypted balance reset' : (repairMode ? 'encrypted balance repair' : (compactMode ? 'encrypted balance refresh' : (upgradeMode ? 'encrypted balance upgrade' : 'encryption key switch')));
+  const detailRow = (label, value, mono) => {
+    const safeValue = escapeHtml(value);
+    const renderedValue = mono ? '<span class="mono">' + safeValue + '</span>' : safeValue;
+    return '<div class="modal-detail-row"><b>' + escapeHtml(label) + ':</b> ' + renderedValue + '</div>';
+  };
+  let h = '<div class="modal-detail">';
+  h += '<div class="modal-detail-title"><b>' + escapeHtml(title) + '</b></div>';
+  if (st.mode === 'upgrade_recent') {
+    h += detailRow('status', 'transaction submitted to network', false);
+    if (st.tx_hash) h += '<div class="modal-detail-row upgrade-tx"><b>tx:</b><span>' + escapeHtml(st.tx_hash) + '</span></div>';
+    h += '<div class="modal-detail-note">Submitted. Refresh after confirmation.</div>';
+    h += '</div>';
+    h += '<div class="action-row"><button class="action-btn" id="ks-cancel">close</button></div>';
+    $('modal-result').innerHTML = h;
+    $('modal-overlay').style.display = 'flex';
+    $('ks-cancel').onclick = function() {
+      $('modal-result').innerHTML = '';
+      clearPinFields();
+      $('modal-overlay').style.display = 'none';
+      fetchBalance();
+    };
+    return;
+  }
+  h += detailRow('status', networkText(st.reason || st.mode || ''), false);
+  const balanceText = st.encrypted_balance_known
+    ? fmtOct(st.encrypted_balance_raw || '0')
+    : (st.cipher_present ? 'legacy ciphertext | upgrade required' : '0 oct');
+  h += detailRow('encrypted balance', balanceText, true);
+  if (st.required_public_fee_raw) {
+    h += detailRow('required public fee', fmtOct(st.required_public_fee_raw), true);
+  }
+  if (st.public_balance_raw) {
+    h += detailRow('public balance', fmtOct(st.public_balance_raw), true);
+  }
+  if (st.can_submit) {
+    if (resetMode) {
+      h += '<div class="modal-detail-note modal-detail-note-danger">Replaces the legacy ciphertext with verified zero. Any hidden balance will be lost.</div>';
+    } else if (repairMode) {
+      h += '<div class="modal-detail-note">Rebuilds the same balance after a local proof failure.</div>';
+    } else if (compactMode) {
+      h += '<div class="modal-detail-note">Rebuilds the same balance as a compact ciphertext.</div>';
+    } else if (st.mode === 'legacy_commitment_migration') {
+      h += '<div class="modal-detail-note">Rebuilds the balance from verified history commitments. Keep this wallet open.</div>';
+    } else if (st.mode === 'legacy_public_migration') {
+      h += '<div class="modal-detail-note">Rebuilds the balance from verified public history.</div>';
+    } else {
+      h += '<div class="modal-detail-note">Builds local ciphertext proofs. Keep this wallet open.</div>';
+    }
+  } else {
+    h += '<div class="modal-detail-note">No local upgrade is available. Funds are unchanged.</div>';
+  }
+  h += '</div>';
   h += '<div class="action-row">';
-  h += '<button class="action-btn" id="ks-confirm">switch</button>';
+  if (st.can_submit) h += '<button class="action-btn" id="ks-confirm">' + (resetMode ? 'reset to zero' : (repairMode ? 'repair' : (compactMode ? 'refresh' : (upgradeMode ? 'upgrade' : 'switch')))) + '</button>';
+  else h += '<button class="action-btn action-btn-muted" disabled>not available</button>';
   h += '<button class="action-btn" style="background:#8C9DB6" id="ks-cancel">cancel</button>';
   h += '</div>';
   $('modal-result').innerHTML = h;
   $('modal-overlay').style.display = 'flex';
   $('ks-cancel').onclick = function() {
     $('modal-result').innerHTML = '';
+    clearPinFields();
     $('modal-overlay').style.display = 'none';
   };
+  if (!st.can_submit) return;
   $('ks-confirm').onclick = async function() {
-    $('ks-confirm').disabled = true;
-    $('ks-confirm').textContent = 'submitting...';
+    const resetPhrase = 'RESET ENCRYPTED BALANCE';
+    const resetConfirm = resetMode
+      ? await modalPrompt(
+          'confirm encrypted balance reset',
+          'type ' + resetPhrase,
+          { placeholder: resetPhrase })
+      : '';
+    if (resetMode && resetConfirm !== resetPhrase) {
+      hideAllModalPanels();
+      $('modal-sub').textContent = 'encryption key switching';
+      $('modal-result').innerHTML = '<div class="result-msg result-error">reset confirmation did not match</div>';
+      $('modal-overlay').style.display = 'flex';
+      return;
+    }
+    const promptTitle = resetMode ? 'confirm encrypted balance reset' : (repairMode ? 'confirm encryption repair' : (compactMode ? 'confirm encrypted balance refresh' : 'confirm encryption upgrade'));
+    const promptText = resetMode ? 'enter PIN to authorize the zero reset' : (repairMode ? 'enter PIN to repair the encrypted balance' : (compactMode ? 'enter PIN to refresh the encrypted balance' : 'enter PIN to authorize the upgrade'));
+    const promptButton = resetMode ? 'reset to zero' : (repairMode ? 'repair' : (compactMode ? 'refresh' : (upgradeMode ? 'upgrade' : 'switch')));
+    const pin = await modalPrompt(promptTitle, promptText, { pin: true, btnText: promptButton });
+    if (!pin) return;
+    _pvacUpgradeInFlight = true;
+    let currentUpgradeStage = 'checking_fee';
+    let pollUpgradeStatus = null;
+    const btn = $('btn-key-switch');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'upgrade in progress...';
+    }
+    const upgradeSteps = [
+      { key: 'unlock', label: 'local wallet unlocked' },
+      { key: 'checking_fee', label: 'checking key_switch fee and public balance' },
+      {
+        key: 'building_proof',
+        label: resetMode
+          ? 'building verified zero replacement proof'
+          : (repairMode
+            ? 'building encrypted balance repair proof'
+            : (compactMode
+              ? 'building encrypted balance refresh proof'
+              : 'building encrypted balance migration proof'))
+      },
+      { key: 'submitting', label: 'submitting key_switch transaction' },
+      { key: 'submitted', label: 'transaction submitted to network' },
+      { key: 'confirmed', label: 'transaction confirmed by chain' }
+    ];
+    const upgradeStageIndex = function(stage) {
+      return upgradeSteps.findIndex(function(step) { return step.key === stage; });
+    };
+    const renderUpgradeLog = function(stage, detail, txHash, failed, finished) {
+      const safeStage = stage || currentUpgradeStage || 'checking_fee';
+      if (safeStage !== 'error') currentUpgradeStage = safeStage;
+      const terminal = finished || safeStage === 'confirmed';
+      const displayStage = failed ? currentUpgradeStage : safeStage;
+      const activeIndexRaw = upgradeStageIndex(displayStage);
+      const activeIndex = activeIndexRaw >= 0 ? activeIndexRaw : 1;
+      const activeLabel = upgradeSteps[activeIndex] ? upgradeSteps[activeIndex].label : '';
+      const detailText = networkText(detail);
+      const detailLower = detailText.toLowerCase();
+      const detailRedundant = detailLower === activeLabel.toLowerCase() ||
+        (displayStage === 'submitted' && detailLower.indexOf('transaction submitted') === 0);
+      $('modal-sub').textContent = 'encryption upgrade in progress';
+      $('modal-overlay').style.display = 'flex';
+      let out = '<div class="modal-detail' + (failed ? ' result-error' : '') + '">';
+      out += '<div class="modal-detail-title">' + escapeHtml(title) + '</div>';
+      out += '<div id="upgrade-log">';
+      upgradeSteps.forEach(function(step, idx) {
+        let state = 'pending';
+        if (failed && idx === activeIndex) {
+          state = 'error';
+        } else if ((!failed && terminal) || idx < activeIndex) {
+          state = 'done';
+        } else if (idx === activeIndex) {
+          state = 'active';
+        }
+        out += renderLogRow(state === 'pending' ? 'wait' : state, escapeHtml(step.label));
+      });
+      if (txHash) out += renderLogRow('done', 'tx <span class="upgrade-tx">' + escapeHtml(txHash) + '</span>');
+      out += '</div>';
+      if (detailText && !detailRedundant) {
+        out += '<div class="note-box' + (failed ? ' note-error' : '') + '"><b>detail:</b> ' + escapeHtml(detailText) + '</div>';
+      }
+      if (!failed && !terminal) {
+        out += '<div class="upgrade-wait">building proof (keep wallet open)</div>';
+      }
+      out += '</div>';
+      if (terminal && txHash) {
+        out += '<div style="margin:12px 0;font-size:13px">tx: ' + txLinkExt(txHash) + '</div>';
+      }
+      if (failed || terminal) {
+        out += '<div class="action-row"><button class="action-btn" id="ks-close">close</button></div>';
+      }
+      $('modal-result').innerHTML = out;
+      const close = $('ks-close');
+      if (close) close.onclick = function() {
+        clearPinFields();
+        $('modal-overlay').style.display = 'none';
+        fetchBalance();
+      };
+    };
+    const pollUpgrade = async function() {
+      try {
+        if (currentUpgradeStage === 'confirmed') return;
+        const progress = await api('GET', '/pvac/upgrade_status');
+        const stage = progress.stage || (progress.upgrade_inflight ? 'building_proof' : currentUpgradeStage);
+        if (currentUpgradeStage === 'confirmed' && stage !== 'error') return;
+        const detail = progress.detail || progress.reason || '';
+        const txHash = progress.tx_hash || '';
+        if (progress.upgrade_inflight || stage === 'submitted') {
+          renderUpgradeLog(stage, detail, txHash, false, false);
+        }
+      } catch (e) {}
+    };
+    const waitUpgradeTx = async function(txHash) {
+      if (!txHash) return { ok: false, terminal: true, detail: 'missing transaction hash' };
+      for (let i = 0; i < heavyTxConfirmationPolls; i++) {
+        try {
+          const tx = await api('GET', '/tx?hash=' + encodeURIComponent(txHash));
+          const st = tx.status || '';
+          if (st === 'confirmed' || st === 'accepted') return { ok: true, terminal: true, detail: 'confirmed' };
+          if (st === 'rejected') {
+            const reason = tx.reject_reason || tx.reject_type || tx.error || 'rejected';
+            return { ok: false, terminal: true, detail: String(reason) };
+          }
+        } catch (e) {}
+        await new Promise(function(resolve) { setTimeout(resolve, heavyTxConfirmationIntervalMs); });
+      }
+      return { ok: false, terminal: false, detail: 'confirmation still pending' };
+    };
+    renderUpgradeLog('checking_fee', 'checking key_switch fee and public balance', '', false, false);
+    pollUpgradeStatus = setInterval(pollUpgrade, 1500);
     try {
-      var res = await api('POST', '/key_switch', {});
-      var txHash = res.hash || res.tx_hash || '';
+      const upgradeBody = { pin: pin };
+      if (resetMode) upgradeBody.reset_confirm = resetConfirm;
+      const res = await api('POST', '/pvac/upgrade', upgradeBody);
+      const txHash = res.hash || res.tx_hash || '';
       invalidateCurrentAddressState();
-      var h2 = '<div class="result-msg result-ok" style="margin:20px 0;word-break:break-all">key switch submitted</div>';
-      h2 += '<div style="margin:12px 0;font-size:13px">tx: ' + txLinkExt(txHash) + '</div>';
-      h2 += '<div class="action-row"><button class="action-btn" id="ks-close">close</button></div>';
-      $('modal-result').innerHTML = h2;
-      $('ks-close').onclick = function() { $('modal-overlay').style.display = 'none'; fetchBalance(); };
+      _pvacUpgradeStatus = null;
+      renderUpgradeLog('submitted', 'transaction submitted (waiting for final status)', txHash, false, false);
+      const finalStatus = await waitUpgradeTx(txHash);
+      if (!finalStatus.ok) {
+        if (finalStatus.terminal) {
+          try {
+            await api('POST', '/pvac/upgrade_reject', {
+              tx_hash: txHash,
+              detail: finalStatus.detail,
+              pin: pin
+            });
+          } catch(e) {}
+        }
+        renderUpgradeLog(
+          'submitted',
+          finalStatus.detail,
+          txHash,
+          finalStatus.terminal,
+          true
+        );
+      } else {
+        renderUpgradeLog('confirmed', 'transaction confirmed (refreshing wallet state)', txHash, false, true);
+        try { await api('POST', '/pvac/upgrade_ack', { tx_hash: txHash }); } catch(e) {}
+        try { await fetchBalance(); } catch(e) {}
+        try { await loadHistory(); } catch(e) {}
+      }
     } catch (e) {
-      $('modal-result').innerHTML = '<div class="result-msg result-error" style="margin:20px 0;word-break:break-all">' + e.message + '</div>';
+      const msg = e.message || 'upgrade failed';
+      renderUpgradeLog('error', msg, '', true, true);
+    } finally {
+      if (pollUpgradeStatus) clearInterval(pollUpgradeStatus);
+      _pvacUpgradeInFlight = false;
+      const btn2 = $('btn-key-switch');
+      if (btn2) btn2.disabled = false;
+      refreshPvacUpgradeStatus();
     }
   };
 }
 
 async function doEncrypt() {
   clearResult('enc-result');
+  clearEncryptLog();
   var amount = $('enc-amount').value.trim();
-  if (!amount || !/^\d+(\.\d{1,6})?$/.test(amount) || parseFloat(amount) <= 0) { showResult('enc-result', false, 'invalid amount'); return; }
-  if (!validateFee('enc-fee', 'encrypt')) { feeError('enc-result', 'enc-fee', 'encrypt'); return; }
+  if (!amount || !/^\d+(\.\d{1,6})?$/.test(amount) || parseFloat(amount) <= 0) { logEncrypt('error: invalid amount', 'log-err'); return; }
+  if (!validateFee('enc-fee', 'encrypt')) { logEncrypt('error: invalid fee - must be integer >= ' + ((_fees.encrypt && _fees.encrypt.minimum) || '?'), 'log-err'); return; }
+  var btn = document.querySelector('button[data-action="doEncrypt"]');
   try {
-    var encBody = { amount: amount };
+    logEncrypt('initiating encrypt', 'log-info');
+    logEncrypt('amount: ' + amount + ' oct', 'log-info');
+    logEncrypt('waiting for PIN', 'log-info');
+    var pin = await modalPrompt('confirm encrypt', 'enter PIN to encrypt ' + amount + ' oct', { pin: true, btnText: 'encrypt' });
+    if (!pin) { logEncrypt('encrypt cancelled', 'log-err'); return; }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'encrypting...';
+    }
+    setPrivateOpBusy(true);
+    logEncrypt('pin accepted locally', 'log-ok');
+    await ensurePrivateSpendCompact(pin, logEncrypt);
+    logEncrypt('building ciphertext and bound proof (keep wallet open)', 'log-info');
+    var encBody = { amount: amount, pin: pin };
     var encFee = $('enc-fee') ? $('enc-fee').value.trim() : '';
     if (encFee) encBody.ou = encFee;
     var res = await api('POST', '/encrypt', encBody);
     var txHash = res.hash || res.tx_hash || '';
     invalidateCurrentAddressState();
-    showResult('enc-result', true, 'encrypted ' + amount + ' oct - tx: ' + txLink(txHash));
-      $('enc-amount').value = '';
+    logEncrypt('encrypt transaction accepted by network', 'log-ok');
+    if (txHash) logEncrypt('tx: ' + txLink(txHash), 'log-ok');
+    showResult('enc-result', true, 'encrypted ' + amount + ' oct');
+    $('enc-amount').value = '';
     loadDashboard();
     refreshEncryptBalances();
   } catch (e) {
-    showResult('enc-result', false, e.message);
+    var msg = e && e.message ? e.message : 'request failed';
+    if (msg === 'Failed to fetch') msg = 'local wallet request failed (check history before retrying)';
+    logEncrypt('error: ' + msg, 'log-err');
+    showResult('enc-result', false, msg);
+  } finally {
+    setPrivateOpBusy(false);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'encrypt';
+    }
   }
+}
+
+async function waitPrivateTx(txHash, logFn) {
+  if (!txHash) return { ok: false, terminal: true, detail: 'missing transaction hash' };
+  for (var i = 0; i < heavyTxConfirmationPolls; i++) {
+    try {
+      var tx = await api('GET', '/tx?hash=' + encodeURIComponent(txHash));
+      var st = tx.status || '';
+      if (st === 'confirmed' || st === 'accepted') return { ok: true, terminal: true, detail: 'confirmed' };
+      if (st === 'rejected') {
+        var reason = tx.reject_reason || tx.reject_type || tx.error || 'rejected';
+        return { ok: false, terminal: true, detail: String(reason) };
+      }
+    } catch (e) {}
+    if (logFn && (i === 0 || i % 5 === 0)) logFn('waiting for compact refresh confirmation', 'log-info');
+    await new Promise(function(resolve) { setTimeout(resolve, heavyTxConfirmationIntervalMs); });
+  }
+  return { ok: false, terminal: false, detail: 'confirmation still pending' };
+}
+
+const statusNeedsPrivateSpendRefresh = st => {
+  if (!st) return false;
+  if (st.private_spend_refresh_required === true) return true;
+  if (st.compact_refresh === true || st.repair_required === true) return true;
+  const baseLayers = Number(st.base_layers || 0);
+  const maxLayers = Number(st.private_spend_max_base_layers || 0);
+  return st.mode === 'key_bound_migration'
+    && maxLayers > 0
+    && baseLayers >= maxLayers;
+};
+
+async function ensurePrivateSpendCompact(pin, logFn) {
+  const st = await api('GET', '/pvac/upgrade_status');
+  if (!statusNeedsPrivateSpendRefresh(st)) return false;
+  if (!st.can_submit) {
+    throw new Error(escapeHtml(st.reason || 'encrypted balance refresh is currently unavailable'));
+  }
+  const baseLayers = Number(st.base_layers || 0);
+  const layerText = Number.isSafeInteger(baseLayers) && baseLayers > 0
+    ? ' (' + baseLayers + ' base layers)'
+    : '';
+  logFn('encrypted balance needs compact refresh before private spend' + layerText, 'log-info');
+  logFn('submitting compact refresh key_switch', 'log-info');
+  const refresh = await api('POST', '/key_switch', { pin: pin, refresh: true, force_refresh: true });
+  const txHash = refresh.hash || refresh.tx_hash || '';
+  if (txHash) logFn('compact refresh tx: ' + txLink(txHash), 'log-info');
+  const finalStatus = await waitPrivateTx(txHash, logFn);
+  if (!finalStatus.ok && finalStatus.terminal) {
+    try {
+      await api('POST', '/pvac/upgrade_reject', { tx_hash: txHash, detail: finalStatus.detail, pin: pin });
+    } catch(e) {}
+    throw new Error('compact refresh failed: ' + escapeHtml(finalStatus.detail));
+  }
+  if (!finalStatus.ok) throw new Error('compact refresh still pending; check transaction history before retrying');
+  try { await api('POST', '/pvac/upgrade_ack', { tx_hash: txHash }); } catch(e) {}
+  logFn('compact refresh confirmed (continuing private spend)', 'log-ok');
+  invalidateCurrentAddressState();
+  try { await fetchBalance(true); } catch(e) {}
+  try { await refreshPvacUpgradeStatus(); } catch(e) {}
+  return true;
 }
 
 async function doDecrypt() {
@@ -1726,20 +2358,27 @@ async function doDecrypt() {
   var amount = $('dec-amount').value.trim();
   if (!amount || !/^\d+(\.\d{1,6})?$/.test(amount) || parseFloat(amount) <= 0) { logDecrypt('error: invalid amount', 'log-err'); return; }
   var needRaw = Math.round(parseFloat(amount) * 1000000);
+  if (_encPresent && !_encKnown) { logDecrypt('error: encrypted balance upgrade required before decrypt', 'log-err'); return; }
   if (_encryptedBalanceRaw <= 0) { logDecrypt('error: no encrypted balance to decrypt', 'log-err'); return; }
   if (needRaw > _encryptedBalanceRaw) { logDecrypt('error: insufficient encrypted balance: have ' + fmtOct(_encryptedBalanceRaw) + ', need ' + amount + ' oct', 'log-err'); return; }
   if (!validateFee('dec-fee', 'decrypt')) { logDecrypt('error: invalid fee - must be integer >= ' + ((_fees.decrypt && _fees.decrypt.minimum) || '?'), 'log-err'); return; }
-  logDecrypt('initiating decrypt...', 'log-info');
+  logDecrypt('initiating decrypt', 'log-info');
   logDecrypt('amount: ' + amount + ' oct', 'log-info');
-  logDecrypt('', '');
+  logDecrypt('waiting for PIN', 'log-info');
   try {
-    var decBody = { amount: amount };
+    var pin = await modalPrompt('confirm decrypt', 'enter PIN to decrypt ' + amount + ' oct', { pin: true, btnText: 'decrypt' });
+    if (!pin) { logDecrypt('decrypt cancelled', 'log-err'); return; }
+    setPrivateOpBusy(true);
+    logDecrypt('pin accepted locally', 'log-ok');
+    await ensurePrivateSpendCompact(pin, logDecrypt);
+    var decBody = { amount: amount, pin: pin };
     var decFee = $('dec-fee') ? $('dec-fee').value.trim() : '';
     if (decFee) decBody.ou = decFee;
+    logDecrypt('building ciphertext and bound proofs (keep wallet open)', 'log-info');
     var res = await api('POST', '/decrypt', decBody);
     invalidateCurrentAddressState();
     if (res.steps) {
-      for (var i = 0; i < res.steps.length; i++) logDecrypt(res.steps[i], 'log-info');
+      for (var i = 0; i < res.steps.length; i++) logDecrypt(escapeHtml(networkText(res.steps[i])), 'log-info');
     }
     logDecrypt('', '');
     logDecrypt('decrypt complete', 'log-ok');
@@ -1749,13 +2388,10 @@ async function doDecrypt() {
     refreshEncryptBalances();
   } catch (e) {
     logDecrypt('error: ' + e.message, 'log-err');
+  } finally {
+    setPrivateOpBusy(false);
   }
 }
-
-
-
-
-
 
 async function doStealthSend() {
   clearStealthLog();
@@ -1764,44 +2400,50 @@ async function doStealthSend() {
   if (!validAddr(to)) { logStealth('error: invalid recipient address', 'log-err'); return; }
   if (!amount || !/^\d+(\.\d{1,6})?$/.test(amount) || parseFloat(amount) <= 0) { logStealth('error: invalid amount', 'log-err'); return; }
   var needRaw = Math.round(parseFloat(amount) * 1000000);
+  if (_encPresent && !_encKnown) { logStealth('error: encrypted balance upgrade required before send', 'log-err'); return; }
   if (_encryptedBalanceRaw <= 0) { logStealth('error: no encrypted balance - encrypt funds first', 'log-err'); return; }
   if (needRaw > _encryptedBalanceRaw) { logStealth('error: insufficient encrypted balance: have ' + fmtOct(_encryptedBalanceRaw) + ', need ' + amount + ' oct', 'log-err'); return; }
   if (!validateFee('stealth-fee', 'stealth')) { logStealth('error: invalid fee - must be integer >= ' + ((_fees.stealth && _fees.stealth.minimum) || '?'), 'log-err'); return; }
-  logStealth('initiating stealth send...', 'log-info');
-
-
-
-
-  
+  logStealth('initiating stealth send', 'log-info');
   logStealth('to: ' + to, 'log-info');
   logStealth('amount: ' + amount + ' oct', 'log-info');
-  logStealth('', '');
+  logStealth('waiting for PIN', 'log-info');
   try {
-    var stBody = { to: to, amount: amount };
+    var pin = await modalPrompt('confirm stealth send', 'enter PIN to send ' + amount + ' oct to ' + to, { pin: true, btnText: 'send' });
+    if (!pin) { logStealth('stealth send cancelled', 'log-err'); return; }
+    setPrivateOpBusy(true);
+    logStealth('pin accepted locally', 'log-ok');
+    await ensurePrivateSpendCompact(pin, logStealth);
+    var stBody = { to: to, amount: amount, pin: pin };
     var stFee = $('stealth-fee') ? $('stealth-fee').value.trim() : '';
     if (stFee) stBody.ou = stFee;
+    logStealth('building stealth ciphertext and bound proofs (keep wallet open)', 'log-info');
     var res = await api('POST', '/stealth/send', stBody);
     invalidateCurrentAddressState();
     if (res.steps) {
-      for (var i = 0; i < res.steps.length; i++) logStealth(res.steps[i], 'log-info');
+      for (var i = 0; i < res.steps.length; i++) logStealth(escapeHtml(networkText(res.steps[i])), 'log-info');
     }
     logStealth('', '');
     logStealth('stealth send complete', 'log-ok');
-    if (res.tx_hash || res.hash) logStealth('tx: ' + (res.tx_hash || res.hash), 'log-ok');
+    if (res.tx_hash || res.hash) logStealth('tx: ' + txLink(res.tx_hash || res.hash), 'log-ok');
     $('stealth-to').value = '';
     $('stealth-amount').value = '';
     loadDashboard();
     refreshStealthBalance();
   } catch (e) {
     logStealth('error: ' + e.message, 'log-err');
+  } finally {
+    setPrivateOpBusy(false);
   }
 }
 
 async function doStealthScan() {
   $('stealth-outputs').innerHTML = '<div class="loading">scanning...</div>';
+  const addr = _walletAddr;
   try {
-    var res = await api('GET', '/stealth/scan');
-    var outputs = res.outputs || [];
+    const res = await fetchStealthScan();
+    if (_walletSwitching || addr !== _walletAddr) return;
+    const outputs = res.outputs || [];
     if (outputs.length === 0) {
       $('stealth-outputs').innerHTML = '<div class="staging-empty">no stealth outputs found</div>';
       return;
@@ -1812,8 +2454,13 @@ async function doStealthScan() {
       var o = outputs[i];
       var amt = o.amount_raw ? fmtOctCompact(o.amount_raw) : '?';
       var isPending = !o.claimed && _pendingClaimIds[String(o.id)];
-      var st = o.claimed ? '<span class="gray">claimed</span>' : (isPending ? '<span class="gray">claiming\u2026</span>' : '<span class="green">unclaimed</span>');
-      var chk = (o.claimed || isPending) ? '' : '<input type="checkbox" class="stealth-chk" data-id="' + o.id + '">';
+      var claimable = o.claimable !== false;
+      var st = o.claimed
+        ? '<span class="gray">claimed</span>'
+        : (isPending
+          ? '<span class="gray">claiming\u2026</span>'
+          : (claimable ? '<span class="green">unclaimed</span>' : '<span class="gray">' + escapeHtml(stealthClaimStatusLabel(o.claim_status)) + '</span>'));
+      var chk = (o.claimed || isPending || !claimable) ? '' : '<input type="checkbox" class="stealth-chk" data-id="' + o.id + '">';
       h += '<tr>';
       h += '<td>' + chk + '</td>';
       h += '<td class="mono">' + (o.id || '') + '</td>';
@@ -1829,24 +2476,22 @@ async function doStealthScan() {
       cards += '</div>';
     }
 
-
-
-
     h += '</table>';
     cards += '</div>';
     h += cards;
     var unclaimed = 0;
     for (var i = 0; i < outputs.length; i++) {
       if (outputs[i].claimed) { delete _pendingClaimIds[String(outputs[i].id)]; continue; }
+      if (outputs[i].claimable === false) continue;
       if (!_pendingClaimIds[String(outputs[i].id)]) unclaimed++;
     }
     updateStealthBadge(unclaimed);
     if (unclaimed > 0) {
-      h += '<div class="claim-row"><button class="action-btn" onclick="claimSelected()">claim selected</button></div>';
+      h += '<div class="claim-row"><button class="action-btn" data-action="claimSelected">claim selected</button></div>';
     }
     $('stealth-outputs').innerHTML = h;
   } catch (e) {
-    $('stealth-outputs').innerHTML = '<div class="error-box">' + e.message + '</div>';
+    $('stealth-outputs').innerHTML = '<div class="error-box">' + escapeHtml(e.message) + '</div>';
   }
 }
 
@@ -1860,16 +2505,27 @@ function claimSelected() {
 
 async function doStealthClaim(ids) {
   clearStealthLog();
-  logStealth('claiming ' + ids.length + ' output(s)...', 'log-info');
+  logStealth('claiming ' + ids.length + ' output(s)', 'log-info');
+  logStealth('waiting for PIN', 'log-info');
   try {
-    var res = await api('POST', '/stealth/claim', { ids: ids });
+    var pin = await modalPrompt('confirm stealth claim', 'enter PIN to claim ' + ids.length + ' stealth output(s)', { pin: true, btnText: 'claim' });
+    if (!pin) { logStealth('stealth claim cancelled', 'log-err'); return; }
+    setPrivateOpBusy(true);
+    logStealth('pin accepted locally', 'log-ok');
+    logStealth('building stealth claim transaction (keep wallet open)', 'log-info');
+    var res = await api('POST', '/stealth/claim', { ids: ids, pin: pin });
     invalidateCurrentAddressState();
-    logStealth('claim complete', 'log-ok');
+    logStealth('claim transaction submitted (waiting for confirmation)', 'log-info');
     if (res.results) {
       for (var i = 0; i < res.results.length; i++) {
         var r = res.results[i];
-        logStealth(r.id + ': ' + (r.ok ? 'ok' : 'failed - ' + (r.error || '')), r.ok ? 'log-ok' : 'log-err');
-        if (r.ok) _pendingClaimIds[String(r.id)] = true;
+        if (r.ok) {
+          _pendingClaimIds[String(r.id)] = true;
+          if (r.tx_hash) _pendingClaimTxs[String(r.id)] = r.tx_hash;
+          logStealth(escapeHtml(r.id) + ': submitted ' + escapeHtml(r.tx_hash || ''), 'log-info');
+        } else {
+          logStealth(escapeHtml(r.id) + ': failed - ' + escapeHtml(r.error || ''), 'log-err');
+        }
       }
     }
     doStealthScan();
@@ -1877,18 +2533,49 @@ async function doStealthClaim(ids) {
     pollPendingClaims();
   } catch (e) {
     logStealth('error: ' + e.message, 'log-err');
+  } finally {
+    setPrivateOpBusy(false);
   }
 }
 
 function pollPendingClaims() {
   if (Object.keys(_pendingClaimIds).length === 0) return;
-  var attempts = 0;
-  var poll = setInterval(async function() {
-    attempts++;
-    if (attempts > 6 || Object.keys(_pendingClaimIds).length === 0) { clearInterval(poll); return; }
-    await doStealthScan();
-    await loadDashboard();
-  }, 12000);
+  if (_pendingClaimPoll) return _pendingClaimPoll;
+  const addr = _walletAddr;
+  _pendingClaimPoll = (async function() {
+    for (let attempt = 0; attempt < heavyTxConfirmationPolls; attempt++) {
+      if (_walletSwitching || addr !== _walletAddr) break;
+      if (Object.keys(_pendingClaimIds).length === 0) break;
+      const txIds = Object.keys(_pendingClaimTxs);
+      for (let i = 0; i < txIds.length; i++) {
+        const id = txIds[i];
+        const hash = _pendingClaimTxs[id];
+        if (!hash) continue;
+        try {
+          const tx = await api('GET', '/tx?hash=' + encodeURIComponent(hash));
+          const st = tx.status || 'pending';
+          if (st === 'rejected') {
+            const reason = tx.reject_reason || tx.reject_type || 'rejected';
+            logStealth(id + ': rejected - ' + escapeHtml(reason), 'log-err');
+            delete _pendingClaimIds[id];
+            delete _pendingClaimTxs[id];
+          } else if (st === 'confirmed' || st === 'accepted') {
+            logStealth(id + ': confirmed', 'log-ok');
+            delete _pendingClaimIds[id];
+            delete _pendingClaimTxs[id];
+          }
+        } catch (e) {}
+      }
+      await doStealthScan();
+      await loadDashboard();
+      if (Object.keys(_pendingClaimIds).length > 0) {
+        await new Promise(function(resolve) { setTimeout(resolve, heavyTxConfirmationIntervalMs); });
+      }
+    }
+  })().finally(function() {
+    _pendingClaimPoll = null;
+  });
+  return _pendingClaimPoll;
 }
 
 async function refreshContractBalance() {
@@ -1901,7 +2588,7 @@ function escapeHtmlCode(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-var _amlRe = /(\/\*[\s\S]*?\*\/)|(\/\/[^\n]*)|("(?:[^"\\]|\\.)*")|(\b(?:contract|state|constructor|fn|view|let|if|else|while|for|in|return|assert|require|match|const|struct|enum|true|false|payable|nonreentrant|public|private|internal|event|error|import|interface|implements|indexed)\b)|(\b(?:string|int|bool|address|bytes|cipher|pubkey|map|list|void)\b)|(\b(?:self_addr|transfer|call|to_int|checkpoint|rollback|commit|origin|caller|balance|emit|log|value|epoch|min|max|abs|concat|to_string|len|split|join|replace|pow|sha256|keccak256|is_address|assert_address|starts_with|substr|index_of|bit_and|bit_or|bit_xor|parse_ints|mget|mset|blob_store|blob_load|some|none|is_some_opt|unwrap|fhe_load_pk|fhe_add|fhe_sub|fhe_scale|fhe_add_const|fhe_sub_const|fhe_verify_zero|fhe_verify_range|fhe_verify_bound|fhe_commit|fhe_pedersen|fhe_ser|fhe_deser)\b)|(\bself\b)|(\b[0-9]+\b)|([+\-*\/]=|[=!<>]=|&&|\|\||->|\?|[+\-*\/%<>=!])/g;
+var _amlRe = /(\/\*[\s\S]*?\*\/)|(\/\/[^\n]*)|("(?:[^"\\]|\\.)*")|(\b(?:Program|program|Contract|contract|state|constructor|fn|view|let|if|else|while|for|in|return|assert|require|match|const|struct|enum|true|false|payable|nonreentrant|public|private|internal|event|error|import|interface|implements|indexed)\b)|(\b(?:string|int|u64|u128|u256|bool|address|bytes|cipher|pubkey|map|list|void)\b)|(\b(?:self_addr|transfer|call|to_int|checkpoint|rollback|commit|origin|caller|balance|emit|log|value|epoch|min|max|abs|concat|to_string|len|split|join|replace|pow|sha256|keccak256|is_address|assert_address|starts_with|substr|index_of|bit_and|bit_or|bit_xor|parse_ints|mget|mset|blob_store|blob_load|some|none|is_some_opt|unwrap|fhe_load_pk|fhe_add|fhe_sub|fhe_mul|fhe_scale|fhe_add_const|fhe_sub_const|fhe_verify_zero|fhe_verify_range|fhe_verify_bound|fhe_commit|fhe_pedersen|fhe_ser|fhe_deser)\b)|(\bself\b)|(\b[0-9]+\b)|([+\-*\/]=|[=!<>]=|&&|\|\||->|\?|[+\-*\/%<>=!])/g;
 
 function highlightAml(src) {
   _amlRe.lastIndex = 0;
@@ -2020,7 +2707,7 @@ function onLangChange() {
   var ta = $('ct-source');
   if (lang === 'aml') {
     $('ct-source-label').textContent = 'AppliedML source (.aml)';
-    ta.placeholder = 'contract Token {\n  state { name: string }\n  constructor(n: string) {\n    self.name = n\n  }\n}';
+    ta.placeholder = 'Program Token {\n  state { name: string }\n  constructor(n: string) {\n    self.name = n\n  }\n}';
   } else {
     $('ct-source-label').textContent = 'assembly source (.oasm)';
     ta.placeholder = '; constructor\nCALLER r0\nSSTORE "owner", r0\nSTOP\n; dispatcher\nJDEST 100\n...';
@@ -2034,14 +2721,24 @@ async function doCompile() {
   clearResult('ct-compile-result');
   editorClearError();
   _compiledAbi = null;
+  _compiledVerification = null;
+  _compiledCertificate = null;
+  _compiledDeployPayload = null;
+  _compiledProgramEnvelope = null;
+  _compiledProgramMinimum = null;
+  renderVerificationReport(null);
   var source = $('ct-source').value;
   var lang = $('ct-lang').value;
   if (!source.trim()) { showResult('ct-compile-result', false, 'source required'); return; }
   try {
     var endpoint = lang === 'aml' ? '/contract/compile-aml' : '/contract/compile';
-    var res = await api('POST', endpoint, { source: source });
+    const res = await api('POST', endpoint, { source: source, program: lang === 'aml' });
     var b64 = res.bytecode || '';
     $('ct-bytecode').value = b64;
+    _compiledDeployPayload = res.deploy_payload || null;
+    _compiledProgramEnvelope = res.program_envelope || null;
+    _compiledProgramMinimum = res.program_min_ou || null;
+    applyProgramDeployFee(_compiledDeployPayload, _compiledProgramMinimum);
     var ver = res.version ? ('AppliedML ' + res.version + ' - ') : '';
     var msg = ver + 'compiled: ' + res.instructions + ' instructions, ' + res.size + ' bytes';
     showResult('ct-compile-result', true, msg);
@@ -2053,6 +2750,14 @@ async function doCompile() {
     if (res.disasm) {
       var disEl = $('ct-disasm-code');
       if (disEl) disEl.innerHTML = highlightDisasm(res.disasm);
+    }
+    if (res.verification) {
+      _compiledVerification = res.verification;
+      _compiledCertificate = res.certificate || null;
+      renderVerificationReport(res.verification, _compiledCertificate);
+      msg += ' | ' + verificationLabel(res.verification);
+      showResult('ct-compile-result', verificationLevel(res.verification) !== 'error', msg + (verificationLevel(res.verification) === 'error' ? ' (deploy not blocked yet)' : ''));
+      logVerificationTrace(res.verification);
     }
     showBottomPanels();
     consoleLog('info', msg);
@@ -2100,6 +2805,87 @@ function consoleLog(level, msg) {
 function consoleClear() {
   _consoleLogs = [];
   renderConsole();
+}
+
+function verificationLevel(v) {
+  if (!v) return 'unknown';
+  if (v.safety) return String(v.safety);
+  if (v.verified === false || (v.errors || 0) > 0) return 'error';
+  if ((v.warnings || 0) > 0) return 'warning';
+  return 'safe';
+}
+
+function verificationLabel(v) {
+  var level = verificationLevel(v);
+  if (level === 'safe') return 'formal verification = safe';
+  if (level === 'warning') return 'formal verification = warning';
+  if (level === 'error') return 'formal verification = error';
+  return 'formal verification = unavailable';
+}
+
+function verificationResultHtml(v) {
+  if (!v) return '';
+  var level = verificationLevel(v);
+  var ok = level !== 'error';
+  return '<span class="' + (ok ? 'ok' : 'bad') + '">' + escapeHtml(verificationLabel(v)) +
+    '</span> <span class="mono">errors = ' + escapeHtml(String(v.errors || 0)) +
+    ' warnings = ' + escapeHtml(String(v.warnings || 0)) + '</span>';
+}
+
+function renderVerificationReport(v, cert) {
+  var el = $('ct-verify-output');
+  if (!el) return;
+  if (!v) {
+    el.innerHTML = '<div class="panel-empty">compile AppliedML to view formal verification trace</div>';
+    return;
+  }
+  var h = '';
+  h += '<div class="console-line info">schema = ' + escapeHtml(v.schema || '-') + '</div>';
+  h += '<div class="console-line info">engine = ' + escapeHtml(v.engine || '-') + '</div>';
+  h += '<div class="console-line info">proof_model = ' + escapeHtml(v.proof_model || '-') + '</div>';
+  if (cert) {
+    h += '<div class="console-line info">certificate = ' + escapeHtml(cert.schema || '-') + '</div>';
+    h += '<div class="console-line info">source_hash = ' + escapeHtml(cert.source_hash || '-') + '</div>';
+    h += '<div class="console-line info">bytecode_hash = ' + escapeHtml(cert.bytecode_hash || '-') + '</div>';
+    h += '<div class="console-line info">verification_hash = ' + escapeHtml(cert.verification_hash || '-') + '</div>';
+  }
+  h += '<div class="console-line ' + (verificationLevel(v) === 'error' ? 'error' : 'info') + '">safety = ' + escapeHtml(verificationLevel(v)) + ' | errors = ' + escapeHtml(String(v.errors || 0)) + ' | warnings = ' + escapeHtml(String(v.warnings || 0)) + '</div>';
+  var trace = Array.isArray(v.trace) ? v.trace : [];
+  for (var i = 0; i < trace.length; i++) {
+    var t = trace[i] || {};
+    var level = t.status === 'error' ? 'error' : (t.status === 'warning' ? 'warn' : 'info');
+    h += '<div class="console-line ' + level + '">trace = ' + escapeHtml(t.code || '-') + ' | status = ' + escapeHtml(t.status || '-') + ' | findings = ' + escapeHtml(String(t.findings || 0)) + '</div>';
+  }
+  var invariants = Array.isArray(v.invariants) ? v.invariants : [];
+  for (var k = 0; k < invariants.length; k++) {
+    var inv = invariants[k] || {};
+    var invLevel = inv.status === 'warning' ? 'warn' : (inv.status === 'error' ? 'error' : 'info');
+    h += '<div class="console-line ' + invLevel + '">invariant = ' + escapeHtml(inv.code || '-') + ' | status = ' + escapeHtml(inv.status || '-') + ' | fields = ' + escapeHtml((inv.fields || []).join(',')) + ' | functions = ' + escapeHtml((inv.functions || []).join(',')) + '</div>';
+  }
+  var summaries = Array.isArray(v.function_summaries) ? v.function_summaries : [];
+  for (var s = 0; s < summaries.length; s++) {
+    var sm = summaries[s] || {};
+    h += '<div class="console-line info">summary = ' + escapeHtml(sm.name || '-') + ' | visibility = ' + escapeHtml(sm.visibility || '-') + ' | writes = ' + escapeHtml((sm.direct_writes || []).join(',')) + ' | transitive_writes = ' + escapeHtml((sm.transitive_writes || []).join(',')) + '</div>';
+  }
+  var findings = Array.isArray(v.findings) ? v.findings : [];
+  for (var j = 0; j < findings.length; j++) {
+    var f = findings[j] || {};
+    var sev = f.severity === 'error' ? 'error' : 'warn';
+    h += '<div class="console-line ' + sev + '">finding = ' + escapeHtml(f.code || '-') + ' | fn = ' + escapeHtml(f.function_name || '-') + ' | field = ' + escapeHtml(f.state_field || '-') + ' | param = ' + escapeHtml(f.parameter || '-') + ' | message = ' + escapeHtml(f.message || '-') + '</div>';
+  }
+  el.innerHTML = h;
+}
+
+function logVerificationTrace(v) {
+  if (!v) return;
+  consoleLog(verificationLevel(v) === 'error' ? 'error' : 'info',
+    verificationLabel(v) + ' | errors = ' + (v.errors || 0) + ' | warnings = ' + (v.warnings || 0));
+  var trace = Array.isArray(v.trace) ? v.trace : [];
+  for (var i = 0; i < trace.length; i++) {
+    var t = trace[i] || {};
+    consoleLog(t.status === 'error' ? 'error' : (t.status === 'warning' ? 'warn' : 'info'),
+      'trace = ' + (t.code || '-') + ' | status = ' + (t.status || '-') + ' | findings = ' + (t.findings || 0));
+  }
 }
 
 function renderConsole() {
@@ -2216,9 +3002,10 @@ function verifySourceRetry(addr, source, depFiles, attempts) {
     try {
       var payload = { address: addr, source: source };
       if (depFiles && depFiles.length > 0) payload.files = depFiles;
-      await api('POST', '/contract/verify', payload);
+      var res = await api('POST', '/contract/verify', payload);
+      var safety = res.verification ? ' - ' + verificationResultHtml(res.verification) : '';
       showResult('ct-deploy-result', true,
-        'deployed to <span class="mono">' + escapeHtml(addr) + '</span> - <strong>source verified</strong>');
+        'deployed to <span class="mono">' + escapeHtml(addr) + '</span> - <strong>source verified</strong>' + safety);
     } catch (e) {
       verifySourceRetry(addr, source, depFiles, attempts - 1);
     }
@@ -2237,8 +3024,30 @@ async function doDeploy() {
     }
   }
   if (!validateFee('ct-deploy-fee', 'deploy')) { feeError('ct-deploy-result', 'ct-deploy-fee', 'deploy'); return; }
+  const sourceBound = Boolean(_compiledDeployPayload);
+  if (sourceBound) {
+    if (!_compiledProgramEnvelope || bytecode !== _compiledProgramEnvelope) {
+      showResult('ct-deploy-result', false,
+        'compiled Program changed - compile again before deployment');
+      return;
+    }
+    const minimum = parseInt(
+      _compiledProgramMinimum || programDeployMinimum(_compiledDeployPayload));
+    const provided = parseInt($('ct-deploy-fee').value || '0');
+    if (provided !== minimum) {
+      showResult('ct-deploy-result', false,
+        'invalid fee - source deploy requires exactly ' + minimum);
+      return;
+    }
+  }
+  const pin = await modalPrompt(
+    'confirm program deployment',
+    'enter PIN to deploy this program',
+    { pin: true, btnText: 'deploy' });
+  if (!pin) return;
   try {
-    var body = { bytecode: bytecode };
+    var body = { bytecode: bytecode, pin: pin };
+    if (_compiledDeployPayload) body.deploy_payload = _compiledDeployPayload;
     if (params) body.params = params;
     var deployFee = $('ct-deploy-fee') ? $('ct-deploy-fee').value.trim() : '';
     if (deployFee) body.ou = deployFee;
@@ -2247,7 +3056,8 @@ async function doDeploy() {
     var hash = res.tx_hash || '';
     invalidateCurrentAddressState();
     showResult('ct-deploy-result', true,
-      'deployed to <span class="mono">' + escapeHtml(addr) + '</span> - tx: ' + txLink(hash) + ' (verifying source...)');
+      'deployed to <span class="mono">' + escapeHtml(addr) + '</span> - tx: ' + txLink(hash) +
+      (sourceBound ? ' (source bound)' : ' (verifying source...)'));
     $('ct-call-addr').value = addr;
     $('ct-info-addr').value = addr;
     var source = _ideProject ? (_ideFiles['main.aml'] || '') : ($('ct-source').value || '');
@@ -2257,7 +3067,7 @@ async function doDeploy() {
         if (path !== 'main.aml') depFiles.push({ path: path, source: _ideFiles[path] });
       }
     }
-    if (source.trim()) verifySourceRetry(addr, source, depFiles, 5);
+    if (!sourceBound && source.trim()) verifySourceRetry(addr, source, depFiles, 5);
     loadDashboard();
   } catch (e) {
     showResult('ct-deploy-result', false, e.message);
@@ -2268,7 +3078,7 @@ async function doContractCall() {
   clearResult('ct-call-result');
   var addr = $('ct-call-addr').value.trim();
   var method = $('ct-call-method').value.trim();
-  if (!addr) { showResult('ct-call-result', false, 'contract address required'); return; }
+  if (!addr) { showResult('ct-call-result', false, 'program address required'); return; }
   if (!method) { showResult('ct-call-result', false, 'method name required'); return; }
   var params_str = $('ct-call-params').value.trim() || '[]';
   var params;
@@ -2284,14 +3094,19 @@ async function doContractCall() {
     amount_raw = String(Math.round(f * 1000000));
   }
   if (!validateFee('ct-call-fee', 'call')) { feeError('ct-call-result', 'ct-call-fee', 'call'); return; }
+  const pin = await modalPrompt(
+    'confirm program call',
+    'enter PIN to call ' + method,
+    { pin: true, btnText: 'send call' });
+  if (!pin) return;
   try {
-    var callBody = { address: addr, method: method, params: params, amount: amount_raw };
+    var callBody = { address: addr, method: method, params: params, amount: amount_raw, pin: pin };
     var callFee = $('ct-call-fee') ? $('ct-call-fee').value.trim() : '';
     if (callFee) callBody.ou = callFee;
     var res = await api('POST', '/contract/call', callBody);
     var hash = res.tx_hash || '';
     invalidateCurrentAddressState();
-    showResult('ct-call-result', true, 'call submitted - tx: ' + txLink(hash));
+    showResult('ct-call-result', true, 'program call submitted - tx: ' + txLink(hash));
     consoleLog('event', 'call ' + method + '() -> tx ' + (hash ? hash.slice(0,16) + '...' : ''));
     loadDashboard();
   } catch (e) {
@@ -2318,8 +3133,13 @@ async function expandEncParams(params_str) {
 
 async function tryFheDecrypt(val) {
   if (typeof val !== 'string' || val.length < 100) return null;
+  var pin = await modalPrompt(
+    'decrypt program output',
+    'enter PIN to decrypt this ciphertext',
+    { pin: true, btnText: 'decrypt' });
+  if (!pin) return null;
   try {
-    var res = await api('POST', '/fhe/decrypt', {ciphertext: val});
+    var res = await api('POST', '/fhe/decrypt', {ciphertext: val, pin: pin});
     return res.value;
   } catch (e) {
     return null;
@@ -2330,7 +3150,7 @@ async function doContractView() {
   clearResult('ct-call-result');
   var addr = $('ct-call-addr').value.trim();
   var method = $('ct-call-method').value.trim();
-  if (!addr) { showResult('ct-call-result', false, 'contract address required'); return; }
+  if (!addr) { showResult('ct-call-result', false, 'program address required'); return; }
   if (!method) { showResult('ct-call-result', false, 'method name required'); return; }
   var params_str = $('ct-call-params').value.trim() || '[]';
   try {
@@ -2388,9 +3208,14 @@ async function doFheDecrypt() {
   clearResult('fhe-result');
   var ct = $('fhe-dec-input').value.trim();
   if (!ct) { showResult('fhe-result', false, 'paste a ciphertext'); return; }
+  var pin = await modalPrompt(
+    'decrypt ciphertext',
+    'enter PIN to decrypt this ciphertext',
+    { pin: true, btnText: 'decrypt' });
+  if (!pin) return;
   try {
-    var res = await api('POST', '/fhe/decrypt', {ciphertext: ct});
-    showResult('fhe-result', true, 'decrypted value: <span class="mono">' + res.value + '</span>');
+    var res = await api('POST', '/fhe/decrypt', {ciphertext: ct, pin: pin});
+    showResult('fhe-result', true, 'decrypted value: <span class="mono">' + escapeHtml(String(res.value)) + '</span>');
   } catch (e) {
     showResult('fhe-result', false, e.message);
   }
@@ -2441,12 +3266,13 @@ async function doVerifyContract() {
   clearResult('ct-verify-result');
   var addr = $('ct-verify-addr').value.trim();
   var source = $('ct-verify-source').value;
-  if (!addr) { showResult('ct-verify-result', false, 'contract address required'); return; }
+  if (!addr) { showResult('ct-verify-result', false, 'program address required'); return; }
   if (!source.trim()) { showResult('ct-verify-result', false, 'source required'); return; }
   try {
     var res = await api('POST', '/contract/verify', { address: addr, source: source });
+    var safety = res.verification ? '<br>' + verificationResultHtml(res.verification) : '';
     showResult('ct-verify-result', true,
-      'source verified - code_hash: <span class="mono">' + escapeHtml(res.code_hash || '') + '</span>');
+      'source verified - code_hash: <span class="mono">' + escapeHtml(res.code_hash || '') + '</span>' + safety);
   } catch (e) {
     showResult('ct-verify-result', false, e.message);
   }
@@ -2466,11 +3292,8 @@ async function loadTokenSymbols() {
 async function fetchMissingSymbols(txs) {
   var need = {};
   for (var i = 0; i < txs.length; i++) {
-    var t = txs[i];
-    if (t.op_type === 'call' && t.encrypted_data === 'transfer') {
-      var ca = t.to_ || t.to || '';
-      if (ca && !_tokenSymbols[ca]) need[ca] = true;
-    }
+    var transfer = tokenTransfer(txs[i]);
+    if (transfer && !_tokenSymbols[transfer.token]) need[transfer.token] = true;
   }
   var unknowns = Object.keys(need);
   if (unknowns.length === 0) return;
@@ -2506,7 +3329,7 @@ async function loadTokens() {
     _tokensLoaded = true;
     hydrateTokenMaps(_tokens);
   } catch (e) {
-    if (!restored) $('tok-list').innerHTML = '<div class="error-box">' + e.message + '</div>';
+    if (!restored) $('tok-list').innerHTML = '<div class="error-box">' + escapeHtml(e.message) + '</div>';
     loadTokenTxs();
     return;
   }
@@ -2571,10 +3394,10 @@ function renderTokenList() {
     h += '<div class="' + balCls + '">' + fmtTokenCompact(bal, t.decimals) + ' ' + escapeHtml(t.symbol) + '</div>';
     h += '</div>';
     h += '<div class="token-row">';
-    h += '<span class="mono gray">' + short(t.address) + '</span>';
+    h += '<span class="mono gray">' + escapeHtml(short(t.address)) + '</span>';
     h += '</div>';
     h += '<div class="token-actions">';
-    h += '<button class="token-btn" onclick="openTokenTransfer(' + i + ')">transfer</button>';
+    h += '<button class="token-btn" data-action="openTokenTransfer" data-arg="' + i + '">transfer</button>';
     h += '</div>';
     h += '</div>';
   }
@@ -2625,14 +3448,16 @@ async function doTokenTransfer() {
   if (!rawAmount) { showResult('tok-transfer-result', false, 'invalid amount'); return; }
   if (!validateFee('tok-fee', 'call')) { feeError('tok-transfer-result', 'tok-fee', 'call'); return; }
   try {
-    var tokBody = { token: _selectedToken.address, to: to, amount: rawAmount };
+    var pin = await modalPrompt('confirm token transfer', 'enter PIN to transfer ' + humanAmt + ' to ' + to, { pin: true, btnText: 'transfer' });
+    if (!pin) { showResult('tok-transfer-result', false, 'transfer cancelled'); return; }
+    var tokBody = { token: _selectedToken.address, to: to, amount: rawAmount, pin: pin };
     var tokFee = $('tok-fee') ? $('tok-fee').value.trim() : '';
     if (tokFee) tokBody.ou = tokFee;
     var res = await api('POST', '/token/transfer', tokBody);
     var txHash = res.hash || res.tx_hash || '';
     invalidateCurrentAddressState();
     showResult('tok-transfer-result', true,
-      'sent ' + humanAmt + ' ' + _selectedToken.symbol + ' - tx: ' + txLink(txHash));
+      'sent ' + escapeHtml(humanAmt) + ' ' + escapeHtml(_selectedToken.symbol) + ' - tx: ' + txLink(txHash));
     $('tok-to').value = '';
     $('tok-amount').value = '';
     setTimeout(function() { loadTokens(); }, 2000);
@@ -2658,9 +3483,10 @@ async function loadHistory() {
   var cached = peekHistoryPage(_walletAddr, _historyLimit, _historyOffset);
   if (!cached) $('history-list').innerHTML = '<div class="loading">loading...</div>';
   $('history-more').innerHTML = '';
-  loadTokenSymbols();
+  var rendered = false;
   try {
     if (cached) {
+      rendered = true;
       var cachedTxs = cached.response.transactions || [];
       $('hist-total').textContent = String(cached.response.total || cachedTxs.length);
       if (cachedTxs.length === 0 && _historyOffset === 0) {
@@ -2669,7 +3495,7 @@ async function loadHistory() {
       } else {
         renderHistoryTxs(cachedTxs);
         if (cached.response.has_more) {
-          $('history-more').innerHTML = '<button class="load-more" onclick="loadMoreHistory()">load more</button>';
+          $('history-more').innerHTML = '<button class="load-more" data-action="loadMoreHistory">load more</button>';
         }
         fetchMissingSymbols(cachedTxs).then(function() { renderHistoryTxs(cachedTxs); });
       }
@@ -2685,12 +3511,14 @@ async function loadHistory() {
     }
     renderHistoryTxs(txs);
     if (res.has_more) {
-      $('history-more').innerHTML = '<button class="load-more" onclick="loadMoreHistory()">load more</button>';
+      $('history-more').innerHTML = '<button class="load-more" data-action="loadMoreHistory">load more</button>';
     }
     fetchMissingSymbols(txs).then(function() { renderHistoryTxs(txs); });
   } catch (e) {
-    $('hist-count').textContent = '0';
-    $('history-list').innerHTML = '<div class="error-box">' + e.message + '</div>';
+    if (!rendered) {
+      $('hist-count').textContent = '0';
+      $('history-list').innerHTML = '<div class="error-box">' + escapeHtml(e.message) + '</div>';
+    }
   }
 }
 
@@ -2739,12 +3567,12 @@ async function loadHistoryAppend() {
     });
     $('hist-count').textContent = String(_historyOffset + txs.length);
     if (res.has_more) {
-      $('history-more').innerHTML = '<button class="load-more" onclick="loadMoreHistory()">load more</button>';
+      $('history-more').innerHTML = '<button class="load-more" data-action="loadMoreHistory">load more</button>';
     } else {
       $('history-more').innerHTML = '';
     }
   } catch (e) {
-    $('history-more').innerHTML = '<div class="error-box">' + e.message + '</div>';
+    $('history-more').innerHTML = '<div class="error-box">' + escapeHtml(e.message) + '</div>';
   }
 }
 
@@ -2754,22 +3582,25 @@ async function showKeys() {
     var res = await api('GET', '/keys');
     var h = '<table class="detail-table">';
     h += '<tr><td>address</td><td class="mono">' + (res.address || '') + '</td></tr>';
-    h += '<tr><td>public key</td><td class="mono">' + (res.public_key || '') + '</td></tr>';
+    h += '<tr><td>public key</td><td class="mono">' + escapeHtml(res.public_key || '') + '</td></tr>';
     h += '<tr><td>view pubkey</td><td class="mono">' + (res.view_pubkey || '-') + '</td></tr>';
-    h += '<tr><td>private key</td><td id="privkey-cell" style="color:#8C9DB6;cursor:pointer" onclick="revealPrivateKeys()">****** (click to reveal)</td></tr>';
-    h += '<tr><td>seed phrase</td><td id="seed-cell" style="color:#8C9DB6' + (res.has_master_seed ? ';cursor:pointer" onclick="revealPrivateKeys()' : '') + '">' + (res.has_master_seed ? '****** (click to reveal)' : 'not set - imported via private key only') + '</td></tr>';
+    h += '<tr><td>private key</td><td id="privkey-cell" style="color:#8C9DB6;cursor:pointer" data-action="revealPrivateKeys">****** (click to reveal)</td></tr>';
+    h += '<tr><td>seed phrase</td><td id="seed-cell" style="color:#8C9DB6' + (res.has_master_seed ? ';cursor:pointer" data-action="revealPrivateKeys' : '') + '">' + (res.has_master_seed ? '****** (click to reveal)' : 'not set - imported via private key only') + '</td></tr>';
     h += '</table>';
     $('keys-table').innerHTML = h;
   } catch (e) {
-    $('keys-table').innerHTML = '<div class="error-box">' + e.message + '</div>';
+    $('keys-table').innerHTML = '<div class="error-box">' + escapeHtml(e.message) + '</div>';
   }
 }
 
 async function revealPrivateKeys() {
-  var pin = await modalPrompt('reveal private keys', 'enter 6-digit PIN', { pin: true, btnText: 'reveal' });
-  if (!pin || !/^\d{6}$/.test(pin)) return;
+  var pin = await modalPrompt('reveal private keys', 'enter PIN', { pin: true, btnText: 'reveal' });
+  if (!pin) return;
   try {
-    var res = await api('POST', '/keys/private', { pin: pin });
+    var res = await api('POST', '/keys/private', {
+      pin: pin,
+      confirm: 'I_UNDERSTAND_KEY_EXPORT_RISK'
+    });
     var pkCell = $('privkey-cell');
     if (pkCell) {
       pkCell.className = 'mono';
@@ -2794,7 +3625,7 @@ async function revealPrivateKeys() {
 async function loadSettings() {
   try {
     var w = await api('GET', '/wallet');
-    $('settings-rpc').value = w.rpc_url || 'http://46.101.86.250:8080';
+    $('settings-rpc').value = w.rpc_url || 'https://octra.network/rpc';
     $('settings-explorer').value = w.explorer_url || 'https://octrascan.io';
     $('settings-bridge-signer').value = w.bridge_signer_url || 'https://relayer-002838819188.octra.network';
   } catch (e) {}
@@ -2811,9 +3642,12 @@ async function loadAccountList() {
       el.innerHTML = '<div class="staging-empty">no accounts</div>';
       return;
     }
-    var btnStyle = 'display:inline-block;width:80px;padding:8px;margin:0;background:#E5E9EF;border:none;border-top:1px solid #D0D7E2;border-bottom:1px solid #D0D7E2;margin-right:4px;color:#3B567F;font-family:Tahoma,arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:1px;cursor:pointer;text-align:center;text-transform:lowercase';
-    var btnHover = 'onmouseenter="this.style.background=\'#D0D7E2\'" onmouseleave="this.style.background=\'#E5E9EF\'"';
-    var html = '<table class="tx-table" style="width:100%"><tbody>';
+    var btnStyle = 'display:inline-block;width:96px;padding:8px;margin:0;border:none;border-top:1px solid #D0D7E2;border-bottom:1px solid #D0D7E2;margin-right:4px;color:#3B567F;font-family:Tahoma,arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:1px;cursor:pointer;text-align:center;text-transform:lowercase';
+    var html = '<table class="tx-table" style="width:100%;table-layout:fixed"><colgroup>';
+    html += '<col style="width:22%">';
+    html += '<col style="width:auto">';
+    html += '<col style="width:220px">';
+    html += '</colgroup><tbody>';
     for (var i = 0; i < accounts.length; i++) {
       var a = accounts[i];
       var badge = a.active ? '<span style="color:#4CAF50;margin-right:4px">●</span>' : '';
@@ -2827,15 +3661,16 @@ async function loadAccountList() {
         }
       }
       var name = a.name || 'unnamed';
-      var escapedName = name.replace(/'/g, "\\'");
       html += '<tr>';
-      html += '<td style="padding:6px 8px;vertical-align:middle">' + badge + '<b>' + name + '</b>' + hdLabel + '</td>';
-      html += '<td class="mono" style="padding:6px 8px;font-size:11px;vertical-align:middle;word-break:break-all">' + a.addr + '</td>';
+      html += '<td style="padding:6px 8px;vertical-align:middle;overflow:hidden;text-overflow:ellipsis">' + badge + '<b>' + escapeHtml(name) + '</b>' + hdLabel + '</td>';
+      html += '<td class="mono" style="padding:6px 8px;font-size:11px;vertical-align:middle;word-break:break-all">' + escapeHtml(a.addr) + '</td>';
       html += '<td style="padding:6px 4px;text-align:right;white-space:nowrap;vertical-align:middle">';
       if (!a.active) {
-        html += '<button style="' + btnStyle + '" ' + btnHover + ' onclick="doSwitchAccount(\'' + a.addr + '\')">switch</button>';
+        html += '<button class="acct-btn" style="' + btnStyle + '" data-action="doSwitchAccount" data-arg="' + escapeAttr(a.addr) + '">switch</button>';
+      } else {
+        html += '<button class="acct-btn" style="' + btnStyle + '" data-action="doChangePinForWallet" data-arg="' + escapeAttr(a.addr) + '">change PIN</button>';
       }
-      html += '<button style="' + btnStyle + '" ' + btnHover + ' onclick="doRenameAccount(\'' + a.addr + '\',\'' + escapedName + '\')">rename</button>';
+      html += '<button class="acct-btn" style="' + btnStyle + '" data-action="renameAccount" data-arg="' + escapeAttr(a.addr) + '" data-name="' + escapeAttr(name) + '">rename</button>';
       html += '</td></tr>';
     }
     html += '</tbody></table>';
@@ -2845,10 +3680,10 @@ async function loadAccountList() {
       var ah = '<div class="action-row" style="gap:6px;flex-wrap:wrap;align-items:center">';
       if (resp.has_master_seed) {
         var idx = resp.next_hd_index || 0;
-        ah += '<button class="action-btn" onclick="doDeriveAccount()">derive #' + idx + '</button>';
+        ah += '<button class="action-btn" data-action="doDeriveAccount">derive #' + idx + '</button>';
         ah += '<span style="color:#8C9DB6;font-size:11px;margin:0 4px">or</span>';
       }
-      ah += '<button class="action-btn" onclick="showImportAnother()">import another wallet</button>';
+      ah += '<button class="action-btn" data-action="showImportAnother">import another wallet</button>';
       ah += '</div>';
       actEl.innerHTML = ah;
     }
@@ -2861,6 +3696,7 @@ var _modalPromptResolve = null;
 var _modalPromptBtnText = '';
 
 function modalPrompt(title, label, opts) {
+  if (_modalPromptResolve) return Promise.resolve(null);
   opts = opts || {};
   return new Promise(function(resolve) {
     _modalPromptResolve = resolve;
@@ -2870,6 +3706,8 @@ function modalPrompt(title, label, opts) {
     $('modal-result').innerHTML = '';
     if (opts.pin) {
       $('modal-pin').style.display = 'block';
+      var lbl = $('modal-pin-label');
+      if (lbl) lbl.textContent = label;
       $('modal-pin-input').value = '';
       $('pin-back-btn').style.display = '';
       var unlockBtn = $('modal-pin').querySelector('.action-btn');
@@ -2877,9 +3715,9 @@ function modalPrompt(title, label, opts) {
       $('modal-pin-input').focus();
       $('modal-overlay').style.display = 'flex';
     } else {
-      var h = '<div class="form-row"><label>' + label + '</label>';
+      var h = '<div class="form-row"><label>' + escapeHtml(label) + '</label>';
       h += '<input type="text" id="modal-prompt-input"';
-      if (opts.placeholder) h += ' placeholder="' + opts.placeholder + '"';
+      if (opts.placeholder) h += ' placeholder="' + escapeAttr(opts.placeholder) + '"';
       h += ' autocomplete="off"></div>';
       h += '<div class="action-row">';
       h += '<button class="action-btn" id="modal-prompt-ok">ok</button>';
@@ -2889,15 +3727,17 @@ function modalPrompt(title, label, opts) {
       $('modal-overlay').style.display = 'flex';
       $('modal-prompt-input').focus();
       $('modal-prompt-ok').onclick = function() {
-        var val = $('modal-prompt-input').value;
+        const val = $('modal-prompt-input').value;
         _modalPromptResolve = null;
         $('modal-result').innerHTML = '';
+        clearPinFields();
         $('modal-overlay').style.display = 'none';
         resolve(val);
       };
       $('modal-prompt-cancel').onclick = function() {
         _modalPromptResolve = null;
         $('modal-result').innerHTML = '';
+        clearPinFields();
         $('modal-overlay').style.display = 'none';
         resolve(null);
       };
@@ -2910,9 +3750,10 @@ function modalPrompt(title, label, opts) {
 }
 
 async function doSwitchAccount(addr) {
-  var pin = await modalPrompt('switch account', 'enter 6-digit PIN', { pin: true, btnText: 'switch' });
-  if (!pin || !/^\d{6}$/.test(pin)) return;
+  var pin = await modalPrompt('switch account', 'enter PIN', { pin: true, btnText: 'switch' });
+  if (!pin) return;
   clearResult('wallet-mgmt-result');
+  _walletSwitching = true;
   try {
     await api('POST', '/wallet/switch', { addr: addr, pin: pin });
     showResult('wallet-mgmt-result', true, 'switched account');
@@ -2920,18 +3761,45 @@ async function doSwitchAccount(addr) {
     var sl = $('stealth-log'); if (sl) sl.remove();
     var so = $('stealth-outputs'); if (so) so.innerHTML = '';
     _pendingClaimIds = {};
+    _pendingClaimTxs = {};
     _cachedBal = null;
     _encryptedBalanceRaw = 0;
+    _encPresent = false;
+    _encKnown = false;
     _unclaimedCount = 0;
     _historyOffset = 0;
     _tokens = [];
     _tokensLoaded = false;
     _fees = {};
+    resetDashboardView();
     await loadWalletInfo();
+    _walletSwitching = false;
     loadAccountList();
     fetchBalance();
     fetchFees();
     switchView('dashboard');
+  } catch (e) {
+    showResult('wallet-mgmt-result', false, e.message);
+  } finally {
+    _walletSwitching = false;
+  }
+}
+
+async function doChangePinForWallet(addr) {
+  var cur = await modalPrompt('change PIN (step 1 of 3)', 'enter current PIN', { pin: true, btnText: 'next' });
+  if (!cur) return;
+  var np = await modalPrompt('change PIN (step 2 of 3)', 'enter new PIN (min 8, 15+ recommended)', { pin: true, btnText: 'next' });
+  if (!np) return;
+  var newErr = validatePin(np);
+  if (newErr) { showResult('wallet-mgmt-result', false, 'new PIN: ' + newErr); return; }
+  var nc = await modalPrompt('change PIN (step 3 of 3)', 'confirm new PIN', { pin: true, btnText: 'change' });
+  if (!nc) return;
+  if (np !== nc) { showResult('wallet-mgmt-result', false, 'PINs do not match'); return; }
+  if (cur === np) { showResult('wallet-mgmt-result', false, 'new PIN must be different from current'); return; }
+  clearResult('wallet-mgmt-result');
+  try {
+    await api('POST', '/wallet/change-pin', { current_pin: cur, new_pin: np });
+    showResult('wallet-mgmt-result', true, 'PIN changed successfully');
   } catch (e) {
     showResult('wallet-mgmt-result', false, e.message);
   }
@@ -2952,8 +3820,8 @@ async function doRenameAccount(addr, currentName) {
 
 async function doDeriveAccount() {
   if (!_hasMasterSeed) return;
-  var pin = await modalPrompt('derive new address', 'enter 6-digit PIN', { pin: true });
-  if (!pin || !/^\d{6}$/.test(pin)) return;
+  var pin = await modalPrompt('derive new address', 'enter PIN', { pin: true });
+  if (!pin) return;
   var name = await modalPrompt('derive new address', 'name for new account (optional)', { placeholder: 'trading' });
   if (name === null) return;
   clearResult('wallet-mgmt-result');
@@ -2987,7 +3855,9 @@ async function doSaveSettings() {
   var bridgeSigner = $('settings-bridge-signer').value.trim();
   if (!rpc) { showResult('settings-result', false, 'rpc url required'); return; }
   try {
-    var resp = await api('POST', '/settings', { rpc_url: rpc, explorer_url: explorer, bridge_signer_url: bridgeSigner });
+    var pin = await modalPrompt('confirm settings change', 'enter PIN to change network endpoints', { pin: true, btnText: 'save' });
+    if (!pin) { showResult('settings-result', false, 'settings change cancelled'); return; }
+    var resp = await api('POST', '/settings', { rpc_url: rpc, explorer_url: explorer, bridge_signer_url: bridgeSigner, pin: pin });
     if (explorer) _explorerUrl = explorer.replace(/\/+$/, '');
     try { _rpcHost = new URL(rpc).hostname; } catch(e) { _rpcHost = rpc; }
     if (resp && resp.cache_cleared) {
@@ -2999,6 +3869,8 @@ async function doSaveSettings() {
       _tokensLoaded = false;
       _fees = {};
       _encryptedBalanceRaw = 0;
+      _encPresent = false;
+      _encKnown = false;
       _unclaimedCount = 0;
       _tokenSymbols = {};
       _tokenDecimals = {};
@@ -3019,8 +3891,9 @@ async function doChangePin() {
   var cur = $('pin-current').value;
   var np = $('pin-new').value;
   var nc = $('pin-confirm-new').value;
-  if (!/^\d{6}$/.test(cur)) { showResult('pin-change-result', false, 'current PIN must be 6 digits'); return; }
-  if (!/^\d{6}$/.test(np)) { showResult('pin-change-result', false, 'new PIN must be 6 digits'); return; }
+  if (!cur || cur.length === 0) { showResult('pin-change-result', false, 'current PIN required'); return; }
+  var newErr = validatePin(np);
+  if (newErr) { showResult('pin-change-result', false, 'new PIN: ' + newErr); return; }
   if (np !== nc) { showResult('pin-change-result', false, 'PINs do not match'); return; }
   if (cur === np) { showResult('pin-change-result', false, 'new PIN must be different'); return; }
   try {
@@ -3039,6 +3912,13 @@ var _pendingPriv = '';
 var _pendingMnemonic = '';
 var _importMode = 'seed';
 
+const clearPinFields = () => {
+  ['modal-pin-input', 'modal-pin-new', 'modal-pin-confirm'].forEach(id => {
+    const field = $(id);
+    if (field) field.value = '';
+  });
+};
+
 function hideAllModalPanels() {
   $('modal-btns').style.display = 'none';
   $('modal-import').style.display = 'none';
@@ -3046,6 +3926,9 @@ function hideAllModalPanels() {
   $('modal-pin-setup').style.display = 'none';
   $('modal-mnemonic-show').style.display = 'none';
   $('modal-result').innerHTML = '';
+  clearPinFields();
+  const lbl = $('modal-pin-label');
+  if (lbl) lbl.textContent = 'enter PIN to unlock';
 }
 
 function showPinEntry(showBack) {
@@ -3121,7 +4004,7 @@ function modalBackFromPin() {
 
 function modalCreate() {
   showPinSetup('create');
-  $('modal-sub').textContent = 'set a 6-digit PIN for your new wallet';
+  $('modal-sub').textContent = 'set a PIN for your new wallet';
 }
 
 function modalDoImport() {
@@ -3150,7 +4033,7 @@ function modalDoImport() {
     $('modal-privkey').value = '';
   }
   showPinSetup('import');
-  $('modal-sub').textContent = 'set a 6-digit PIN for your wallet';
+  $('modal-sub').textContent = 'set a PIN for your wallet';
 }
 
 function showMnemonicWords(mnemonic) {
@@ -3169,6 +4052,7 @@ function showMnemonicWords(mnemonic) {
 
 function modalMnemonicDone() {
   $('mnemonic-words').innerHTML = '';
+  clearPinFields();
   $('modal-overlay').style.display = 'none';
   loadWalletInfo();
   startRefreshTimer();
@@ -3176,8 +4060,8 @@ function modalMnemonicDone() {
 
 async function modalUnlock() {
   var pin = $('modal-pin-input').value;
-  if (!/^\d{6}$/.test(pin)) {
-    $('modal-result').innerHTML = '<div class="result-msg result-error">PIN must be exactly 6 digits</div>';
+  if (!pin || pin.length === 0) {
+    $('modal-result').innerHTML = '<div class="result-msg result-error">PIN required</div>';
     return;
   }
   if (_modalPromptResolve) {
@@ -3198,11 +4082,12 @@ async function modalUnlock() {
     await api('POST', '/wallet/unlock', unlockBody);
     _selectedUnlockAddr = '';
     _selectedUnlockFile = '';
+    clearPinFields();
     $('modal-overlay').style.display = 'none';
     await loadWalletInfo();
     startRefreshTimer();
   } catch (e) {
-    $('modal-result').innerHTML = '<div class="result-msg result-error">' + e.message + '</div>';
+    $('modal-result').innerHTML = '<div class="result-msg result-error">' + escapeHtml(e.message) + '</div>';
     $('modal-pin-input').value = '';
     $('modal-pin-input').focus();
   }
@@ -3211,8 +4096,9 @@ async function modalUnlock() {
 async function modalFinishSetup() {
   var pin = $('modal-pin-new').value;
   var confirm = $('modal-pin-confirm').value;
-  if (!/^\d{6}$/.test(pin)) {
-    $('modal-result').innerHTML = '<div class="result-msg result-error">PIN must be exactly 6 digits</div>';
+  var pinErr = validatePin(pin);
+  if (pinErr) {
+    $('modal-result').innerHTML = '<div class="result-msg result-error">' + pinErr + '</div>';
     return;
   }
   if (pin !== confirm) {
@@ -3242,19 +4128,21 @@ async function modalFinishSetup() {
       }
       var resp = await api('POST', '/wallet/import', importBody);
       if (resp.switched === false) {
+        clearPinFields();
         $('modal-overlay').style.display = 'none';
-        showResult('wallet-mgmt-result', true, 'imported: ' + (resp.address || '').substring(0, 16) + '...');
+        showResult('wallet-mgmt-result', true, 'imported: ' + escapeHtml((resp.address || '').substring(0, 16)) + '...');
         loadAccountList();
         return;
       }
     } else if (_pendingAction === 'migrate') {
       await api('POST', '/wallet/unlock', { pin: pin });
     }
+    clearPinFields();
     $('modal-overlay').style.display = 'none';
     await loadWalletInfo();
     startRefreshTimer();
   } catch (e) {
-    $('modal-result').innerHTML = '<div class="result-msg result-error">' + e.message + '</div>';
+    $('modal-result').innerHTML = '<div class="result-msg result-error">' + escapeHtml(e.message) + '</div>';
   }
 }
 
@@ -3265,10 +4153,10 @@ async function loadWalletInfo() {
     _walletAddr = w.address || w.addr || '';
     ensureAddressRuntime(_walletAddr);
     if (prevAddr !== _walletAddr) {
-      _cachedBal = null;
       _historyOffset = 0;
       _tokens = [];
       _tokensLoaded = false;
+      resetDashboardView();
       restoreAddressTokens(_walletAddr);
     }
     if (w.explorer_url) _explorerUrl = w.explorer_url.replace(/\/+$/, '');
@@ -3295,6 +4183,8 @@ async function doLogout() {
   _walletAddr = '';
   _cachedBal = null;
   _encryptedBalanceRaw = 0;
+  _encPresent = false;
+  _encKnown = false;
   _hasMasterSeed = false;
   _tokens = [];
   _tokensLoaded = false;
@@ -3315,6 +4205,8 @@ function startRefreshTimer() {
   if (_refreshTimer) return;
   bgStealthScan();
   _refreshTimer = setInterval(function() {
+    if (_walletSwitching) return;
+    if (_privateOpInFlight) return;
     fetchBalance(true);
     bgStealthScan();
     fetchFees();
@@ -3326,7 +4218,6 @@ function startRefreshTimer() {
     if (hist && hist.classList.contains('active') && _historyOffset === 0) loadHistory();
   }, 15000);
 }
-
 
 var _selectedUnlockAddr = '';
 var _selectedUnlockFile = '';
@@ -3344,17 +4235,16 @@ function showAccountPicker(wallets) {
       : a.file;
     var hdTag = a.hd ? ' | hd' : '';
     var dataAttr = hasAddr
-      ? 'data-addr="' + a.addr + '"'
-      : 'data-file="' + a.file + '"';
-    html += '<div class="account-card" ' + dataAttr + ' onclick="pickWallet(this)" style="cursor:pointer;padding:10px 12px;margin:6px 0;border:1px solid #3B567F;transition:background 0.15s,color 0.15s"';
-    html += ' onmouseenter="this.style.background=\'#2A3F5F\';this.style.color=\'#fff\'" onmouseleave="this.style.background=\'\';this.style.color=\'\'">';
-    html += '<div style="font-weight:600">' + name + '<span style="color:#8C9DB6;font-size:11px">' + hdTag + '</span></div>';
+      ? 'data-addr="' + escapeAttr(a.addr) + '"'
+      : 'data-file="' + escapeAttr(a.file) + '"';
+    html += '<div class="account-card" ' + dataAttr + ' data-action="pickWallet" style="cursor:pointer;padding:10px 12px;margin:6px 0;border:1px solid #3B567F;transition:background 0.15s,color 0.15s">';
+    html += '<div style="font-weight:600">' + escapeHtml(name) + '<span style="color:#8C9DB6;font-size:11px">' + hdTag + '</span></div>';
     html += '<div class="mono" style="font-size:12px;color:#8C9DB6;margin-top:2px">' + sub + '</div>';
     html += '</div>';
   }
   html += '</div>';
   html += '<div style="margin-top:8px;text-align:center">';
-  html += '<a href="#" style="color:#8C9DB6;font-size:12px" onclick="showImportOptions();return false">+ import or create new wallet</a>';
+  html += '<a href="#" style="color:#8C9DB6;font-size:12px" data-action="showImportOptions" data-prevent="1">+ import or create new wallet</a>';
   html += '</div>';
   $('modal-result').innerHTML = html;
   $('modal-overlay').style.display = 'flex';
@@ -3417,5 +4307,45 @@ $('modal-pin-confirm').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') modalFinishSetup();
 });
 
+function wireDelegation() {
+  var actions = {
+    modalShowImport, modalCreate, modalDoImport, modalBack, modalMnemonicDone,
+    modalUnlock, modalBackFromPin, modalFinishSetup, doLogout, doKeySwitch,
+    doSend, doEncrypt, doDecrypt, doStealthSend, doStealthScan, doTokenTransfer,
+    closeTokenTransfer, onLangChange, editorUpdateWithLiveCompile, doCompile,
+    loadTemplate, doPreviewDeploy, doDeploy, doContractCall, doContractView,
+    doFheEncrypt, doFheDecrypt, doContractInfo, doContractReceipt, doVerifyContract,
+    doSaveSettings, doChangePin, goBack, switchView, switchImportTab, switchBottomTab,
+    ideCloseProject, ideExportZip, ideNewFile, ideOpenFile, ideCloseTab, ideNewProject,
+    ideLoadProject, ideDeleteProject, showTx, claimSelected, openTokenTransfer,
+    loadMoreHistory, revealPrivateKeys, doSwitchAccount, doChangePinForWallet,
+    doDeriveAccount, showImportAnother, showImportOptions,
+    navTo: function(a) { window.location.href = a; },
+    openTab: function(a) { window.open(a, '_blank'); },
+    selectSelf: function(a, el) { el.select(); },
+    importFiles: function(a, el) { ideImportFiles(el.files); },
+    fileMenu: function(a, el, e) { ideFileMenu(e, a); },
+    renameAccount: function(a, el) { doRenameAccount(el.getAttribute('data-arg'), el.getAttribute('data-name')); },
+    pickWallet: function(a, el) { pickWallet(el); }
+  };
+  function run(e, attr) {
+    var el = e.target.closest('[' + attr + ']');
+    if (!el) return;
+    var fn = actions[el.getAttribute(attr)];
+    if (!fn) return;
+    if (el.getAttribute('data-prevent') === '1') e.preventDefault();
+    fn(el.getAttribute('data-arg'), el, e);
+  }
+  document.addEventListener('click', function(e) { run(e, 'data-action'); });
+  document.addEventListener('change', function(e) { run(e, 'data-change'); });
+  document.addEventListener('input', function(e) { run(e, 'data-input'); });
+  document.addEventListener('contextmenu', function(e) { run(e, 'data-context'); });
+  document.addEventListener('submit', function(e) { if (e.target.closest('[data-nosubmit]')) e.preventDefault(); });
+  var ed = $('ct-source');
+  if (ed) ed.addEventListener('scroll', editorSync);
+}
+
+wireDelegation();
 initEditor();
+
 init();

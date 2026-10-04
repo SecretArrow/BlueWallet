@@ -16,7 +16,12 @@ namespace octra {
 inline std::array<uint8_t, 32> ecdh_shared_secret(const uint8_t our_sk[32],
                                                    const uint8_t their_pub[32]) {
     uint8_t raw[32];
-    crypto_scalarmult(raw, our_sk, their_pub);
+    if (crypto_scalarmult(raw, our_sk, their_pub) != 0)
+        throw std::runtime_error("x25519 key exchange failed");
+    uint8_t any = 0;
+    for (size_t i = 0; i < 32; ++i) any |= raw[i];
+    if (any == 0)
+        throw std::runtime_error("x25519 low-order public key rejected");
     return sha256(raw, 32);
 }
 

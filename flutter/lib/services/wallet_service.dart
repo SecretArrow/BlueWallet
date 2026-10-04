@@ -1552,13 +1552,21 @@ class WalletService extends ChangeNotifier {
     });
     await refresh(nodeUrl);
     final nonce = _currentNonce + 1;
+    // OU from the fee oracle (upstream webcli parity), fallback 3000.
+    String ou = '3000';
+    try {
+      final feeRes =
+          await _rpc(nodeUrl, 'octra_recommendedFee', ['key_switch']);
+      final rec = feeRes is Map ? feeRes['recommended']?.toString() ?? '' : '';
+      if (rec.isNotEmpty && (int.tryParse(rec) ?? 0) > 0) ou = rec;
+    } catch (_) {}
     final signedTx = await CryptoService.buildSignedGeneralTransaction(
       skBase64: sk,
       fromAddress: wallet.address,
       toAddress: wallet.address,
       amount: '0',
       nonce: nonce,
-      ou: '3000',
+      ou: ou,
       opType: 'key_switch',
       message: message,
       encryptedData: encryptedData,
@@ -1576,7 +1584,10 @@ class WalletService extends ChangeNotifier {
       'stealth',
       'claim',
       'deploy',
-      'call'
+      'call',
+      'program_deploy',
+      'program_exec',
+      'multi_exec'
     ];
     final fees = <String, dynamic>{};
     for (final op in ops) {

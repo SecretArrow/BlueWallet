@@ -480,7 +480,8 @@ public final class OctraRpcClient {
      * @return fee map keyed by operation, never null
      */
     public JSONObject fetchFeeBatch(String rpcUrl) {
-        String[] ops = {"standard", "encrypt", "decrypt", "stealth", "claim", "deploy", "call"};
+        String[] ops = {"standard", "encrypt", "decrypt", "stealth", "claim", "deploy", "call",
+                "program_deploy", "program_exec", "multi_exec"};
         JSONObject fees = new JSONObject();
         for (String op : ops) {
             try {
@@ -503,6 +504,21 @@ public final class OctraRpcClient {
             } catch (Exception ignored) {}
         }
         return fees;
+    }
+
+    /**
+     * {@code octra_recommendedFee([op])} for a single op, or {@code null}
+     * on failure. Used for ops outside the batch list (e.g. key_switch).
+     */
+    public JSONObject fetchFeeForOp(String rpcUrl, String op) {
+        try {
+            JSONArray p = new JSONArray().put(op);
+            JSONObject root = callWithRetry(rpcUrl, "octra_recommendedFee", p, 2);
+            return extractResult(root);
+        } catch (Exception e) {
+            Log.w(TAG, "fetchFeeForOp(" + op + ") failed: " + e.getMessage());
+            return null;
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════════

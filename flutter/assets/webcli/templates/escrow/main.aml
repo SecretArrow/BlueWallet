@@ -1,17 +1,17 @@
-contract Escrow {
+Program Escrow {
   state {
     seller: address
     buyer: address
     arbiter: address
-    amount: int
+    amount: u128
     funded: bool
     released: bool
   }
 
   event Created(seller: address, buyer: address, arbiter: address)
-  event Funded(amount: int)
-  event Released(to: address, amount: int)
-  event Refunded(to: address, amount: int)
+  event Funded(amount: u128)
+  event Released(to: address, amount: u128)
+  event Refunded(to: address, amount: u128)
 
   constructor(s: address, b: address, a: address) {
     assert_address(s)
@@ -40,7 +40,7 @@ contract Escrow {
     require(caller == self.buyer || caller == self.arbiter, "not authorized")
     require(self.funded && !self.released, "invalid state")
     self.released = true
-    transfer(self.seller, self.amount)
+    require(transfer(self.seller, self.amount), "transfer failed")
     emit Released(self.seller, self.amount)
     return true
   }
@@ -49,7 +49,7 @@ contract Escrow {
     require(caller == self.seller || caller == self.arbiter, "not authorized")
     require(self.funded && !self.released, "invalid state")
     self.released = true
-    transfer(self.buyer, self.amount)
+    require(transfer(self.buyer, self.amount), "transfer failed")
     emit Refunded(self.buyer, self.amount)
     return true
   }
