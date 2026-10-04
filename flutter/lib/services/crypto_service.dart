@@ -348,8 +348,9 @@ class CryptoService {
 
     // FHE: build delta cipher, commitment, range proofs
     final delta = NativeCrypto.pvacBuildStealthDelta(amount, currentEncCipher);
-    if (delta == null)
+    if (delta == null) {
       throw StateError('Failed to build stealth delta (insufficient balance?)');
+    }
 
     // Pedersen commitment for the stealth amount
     final blinding = base64.decode(prep['blinding_b64']!);

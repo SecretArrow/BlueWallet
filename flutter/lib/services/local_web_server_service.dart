@@ -361,12 +361,15 @@ class LocalWebServerService extends ChangeNotifier {
     try {
       final uri = Uri.parse(url);
       final scheme = uri.scheme;
-      if (scheme == 'chrome-extension' || scheme == 'moz-extension')
+      if (scheme == 'chrome-extension' || scheme == 'moz-extension') {
         return true;
+      }
       final host = uri.host;
       if (host.isEmpty) {
         if (url.startsWith('chrome-extension://') ||
-            url.startsWith('moz-extension://')) return true;
+            url.startsWith('moz-extension://')) {
+          return true;
+        }
         return false;
       }
       return host == 'localhost' || host == '127.0.0.1';
@@ -436,8 +439,9 @@ class LocalWebServerService extends ChangeNotifier {
   }
 
   String _getMimeType(String path) {
-    if (path.endsWith('.html') || path.endsWith('.htm'))
+    if (path.endsWith('.html') || path.endsWith('.htm')) {
       return 'text/html; charset=utf-8';
+    }
     if (path.endsWith('.css')) return 'text/css; charset=utf-8';
     if (path.endsWith('.js')) return 'application/javascript; charset=utf-8';
     if (path.endsWith('.png')) return 'image/png';

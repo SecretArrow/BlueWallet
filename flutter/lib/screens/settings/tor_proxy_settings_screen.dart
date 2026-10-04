@@ -49,8 +49,9 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                         hintText: 'e.g. 127.0.0.1 or myproxy.com',
                       ),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty)
+                        if (v == null || v.trim().isEmpty) {
                           return 'Host is required';
+                        }
                         final trim = v.trim();
                         if (trim.contains(' ')) return 'Invalid hostname';
                         return null;
@@ -65,8 +66,9 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                         hintText: 'e.g. 9050',
                       ),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty)
+                        if (v == null || v.trim().isEmpty) {
                           return 'Port is required';
+                        }
                         final p = int.tryParse(v.trim());
                         if (p == null || p < 1 || p > 65535) {
                           return 'Port must be between 1 and 65535';
@@ -85,8 +87,9 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                               label: const Text('SOCKS5'),
                               selected: type == 'SOCKS',
                               onSelected: (selected) {
-                                if (selected)
+                                if (selected) {
                                   setModalState(() => type = 'SOCKS');
+                                }
                               },
                             ),
                             const SizedBox(width: 8),
@@ -94,8 +97,9 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
                               label: const Text('HTTP'),
                               selected: type == 'HTTP',
                               onSelected: (selected) {
-                                if (selected)
+                                if (selected) {
                                   setModalState(() => type = 'HTTP');
+                                }
                               },
                             ),
                           ],

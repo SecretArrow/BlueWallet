@@ -140,8 +140,9 @@ class TorProxyService extends ChangeNotifier {
     int idx = -1;
     for (int i = 0; i < _servers.length; i++) {
       if (_servers[i].host == host && _servers[i].port == port) {
-        if (_servers[i].isDefault)
+        if (_servers[i].isDefault) {
           return false; // Default servers cannot be removed
+        }
         idx = i;
         break;
       }
