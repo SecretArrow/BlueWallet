@@ -15,13 +15,13 @@
 .DS_Store
 
 # Android
-android/.gradle/
-android/app/build/
-android/build/
-android/app/.cxx/
-android/local.properties
-android/keystore.properties
-android/build-logs/
+android-native/.gradle/
+android-native/app/build/
+android-native/build/
+android-native/app/.cxx/
+android-native/local.properties
+android-native/keystore.properties
+android-native/build-logs/
 
 # Flutter
 flutter/.dart_tool/
@@ -54,10 +54,10 @@ dapps/blue-fun/node_modules/
 dapps/blue-fun/.next/
 **/node_modules/
 
-android/scripts/octra.jks
+android-native/scripts/octra.jks
 
-android/build-output.txt
-android/build_output.txt
-android/build_check.txt
+android-native/build-output.txt
+android-native/build_output.txt
+android-native/build_check.txt
 flutter/build_*.txt
 flutter/analyze_output.txt

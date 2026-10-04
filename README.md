@@ -6,7 +6,7 @@ A comprehensive wallet ecosystem for the Octra blockchain, featuring **Android**
 
 ```
 blue_wallet/
-├── android/           # Native Android wallet (Java + C++)
+├── android-native/           # Native Android wallet (Java + C++)
 ├── flutter/           # Cross-platform Flutter wallet
 ├── webcli/            # Web-based CLI wallet with local server
 ├── dapps/             # Decentralized applications
@@ -28,7 +28,7 @@ blue_wallet/
 
 **Build:**
 ```bash
-cd android
+cd android-native
 ./scripts/build-apk.sh          # Debug
 ./scripts/build-apk.sh release  # Release
 ```
@@ -43,7 +43,7 @@ cd android
 - 10 theme palettes
 - JSON-RPC 2.0 with multi-network profiles
 
-[Full Android Docs →](android/README.md)
+[Full Android Docs →](android-native/README.md)
 
 ---
 
@@ -425,7 +425,7 @@ npm run deploy        # Deploy contracts
 npm run deploy:verify # Verify deployment
 ```
 
-### Build errors (Android/Flutter)
+### Build errors (android-native/Flutter)
 
 ```bash
 # Clear caches
@@ -433,7 +433,7 @@ rm -rf node_modules .next build
 npm install
 
 # Rebuild native libraries
-cd android && ./scripts/build-apk.sh clean
+cd android-native && ./scripts/build-apk.sh clean
 ```
 
 ### Transaction timeout
