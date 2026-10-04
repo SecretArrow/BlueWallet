@@ -636,9 +636,10 @@ class WalletService extends ChangeNotifier {
           await _rpc(nodeUrl, 'octra_balance', [wallet.address]) as Map;
       final rawBalance = result['balance_raw']?.toString() ?? '0';
       _balanceRaw = int.tryParse(rawBalance) ?? 0;
-      // Prefer pending_nonce (mirrors webcli) so in-flight txs get the right seq
-      final nonceVal = result['pending_nonce'] ?? result['nonce'];
-      _currentNonce = (nonceVal as num?)?.toInt() ?? 0;
+      // Prefer pending_nonce (mirrors webcli) so in-flight txs get the right seq.
+      // parseNonceValue accepts numbers and numeric strings; anything else → 0.
+      _currentNonce =
+          parseNonceValue(result['pending_nonce'] ?? result['nonce']);
       _publicBalance = formatOct(_balanceRaw);
       _accountNotFound = false; // address found on-chain
 
@@ -721,7 +722,7 @@ class WalletService extends ChangeNotifier {
     final c = await DatabaseService.instance.getCachedBalance(id);
     if (c != null) {
       _balanceRaw = int.tryParse(c['balance_raw'].toString()) ?? 0;
-      _currentNonce = (c['nonce'] as int?) ?? 0;
+      _currentNonce = parseNonceValue(c['nonce']);
       _publicBalance = formatOct(_balanceRaw);
       _totalBalance = _publicBalance;
       // Mark wallet as having loaded data from cache
@@ -838,6 +839,43 @@ class WalletService extends ChangeNotifier {
   //  Send transactions
   // ══════════════════════════════════════════════════════════════════════════
 
+  /// Parses a nonce-ish value (number or numeric string) into a usable
+  /// nonce. Anything else (null, garbage, negative) yields 0 — a nonce must
+  /// never go negative. Pure function, unit-tested.
+  static int parseNonceValue(dynamic v) {
+    int n;
+    if (v is num) {
+      n = v.toInt();
+    } else if (v is String) {
+      n = int.tryParse(v.trim()) ?? 0;
+    } else {
+      return 0;
+    }
+    if (n < 0) return 0;
+    if (n > 2147483647) return 2147483647;
+    return n;
+  }
+
+  /// Picks the recommended fee out of a fee-structure bucket. Missing,
+  /// malformed or non-positive buckets yield [fallback]. Pure, unit-tested.
+  static int parseRecommendedFee(dynamic bucket, int fallback) {
+    if (bucket is! Map) return fallback;
+    final rec = int.tryParse(bucket['recommended']?.toString() ?? '');
+    if (rec == null || rec <= 0) return fallback;
+    return rec;
+  }
+
+  /// Extracts the tx hash from a submit result. Throws instead of returning
+  /// an empty hash — recording or polling an empty hash creates phantom
+  /// transactions. Pure, unit-tested.
+  static String requireTxHash(Map result) {
+    final hash = result['tx_hash']?.toString().trim() ?? '';
+    if (hash.isEmpty) {
+      throw Exception('Submit returned no tx_hash (node result: $result)');
+    }
+    return hash;
+  }
+
   /// Fetches recommended fees via JSON-RPC {@code octra_recommendedFee}.
   ///
   /// Replaces the old REST `/api/fee` endpoint which only exists on the
@@ -845,14 +883,12 @@ class WalletService extends ChangeNotifier {
   Future<void> fetchFees(String nodeUrl) async {
     try {
       final result = await _rpc(nodeUrl, 'octra_recommendedFee', []) as Map;
-      final standard = result['standard'] as Map?;
-      final stealth = result['stealth'] as Map?;
-      _standardFee =
-          int.tryParse(standard?['recommended']?.toString() ?? '') ?? 1000;
-      _stealthFee =
-          int.tryParse(stealth?['recommended']?.toString() ?? '') ?? 5000;
+      _standardFee = parseRecommendedFee(result['standard'] as Map?, 1000);
+      _stealthFee = parseRecommendedFee(result['stealth'] as Map?, 5000);
       notifyListeners();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('WalletService.fetchFees failed (keeping previous fees): $e');
+    }
   }
 
   /// Sends a standard OCT transfer.
@@ -884,7 +920,7 @@ class WalletService extends ChangeNotifier {
     );
 
     final result = await _rpc(nodeUrl, 'octra_submit', [signedTx]) as Map;
-    final hash = result['tx_hash']?.toString() ?? '';
+    final hash = requireTxHash(result);
 
     await _recordTx(
         wallet, hash, toAddress, amountRaw.toString(), 'standard', memo);
@@ -918,7 +954,7 @@ class WalletService extends ChangeNotifier {
     );
 
     final result = await _rpc(nodeUrl, 'octra_submit', [signedTx]) as Map;
-    final hash = result['tx_hash']?.toString() ?? '';
+    final hash = requireTxHash(result);
 
     await _recordTx(wallet, hash, tokenAddress, '0', 'call',
         'transfer $amount to $toAddress');
@@ -950,7 +986,7 @@ class WalletService extends ChangeNotifier {
     );
 
     final result = await _rpc(nodeUrl, 'octra_submit', [signedTx]) as Map;
-    final hash = result['tx_hash']?.toString() ?? '';
+    final hash = requireTxHash(result);
 
     await _recordTx(
         wallet, hash, wallet.address, amount.toString(), 'encrypt', null);
@@ -982,7 +1018,7 @@ class WalletService extends ChangeNotifier {
     );
 
     final result = await _rpc(nodeUrl, 'octra_submit', [signedTx]) as Map;
-    final hash = result['tx_hash']?.toString() ?? '';
+    final hash = requireTxHash(result);
 
     await _recordTx(
         wallet, hash, wallet.address, amount.toString(), 'decrypt', null);
@@ -1033,7 +1069,7 @@ class WalletService extends ChangeNotifier {
     );
 
     final result = await _rpc(nodeUrl, 'octra_submit', [signedTx]) as Map;
-    final hash = result['tx_hash']?.toString() ?? '';
+    final hash = requireTxHash(result);
 
     await _recordTx(
         wallet, hash, 'stealth', '0', 'stealth', 'stealth to $toAddress');
@@ -1043,6 +1079,11 @@ class WalletService extends ChangeNotifier {
   /// Records a pending transaction in the local database and updates history.
   Future<void> _recordTx(WalletProfile wallet, String hash, String to,
       String amount, String opType, String? memo) async {
+    // Defense in depth: callers must pass requireTxHash() output — refuse
+    // phantom entries with an empty hash instead of recording them.
+    if (hash.isEmpty) {
+      throw ArgumentError('Refusing to record a transaction with empty hash');
+    }
     await DatabaseService.instance.upsertTxHistory(wallet.id, [
       {
         'hash': hash,
@@ -1380,7 +1421,7 @@ class WalletService extends ChangeNotifier {
     tx['public_key'] = pubKeyB64;
 
     final result = await _rpc(nodeUrl, 'octra_submit', [tx]) as Map;
-    final hash = result['tx_hash']?.toString() ?? '';
+    final hash = requireTxHash(result);
     await _recordTx(wallet, hash, '', '0', 'deploy', null);
     return hash;
   }
@@ -1421,7 +1462,7 @@ class WalletService extends ChangeNotifier {
     tx['public_key'] = pubKeyB64;
 
     final result = await _rpc(nodeUrl, 'octra_submit', [tx]) as Map;
-    final hash = result['tx_hash']?.toString() ?? '';
+    final hash = requireTxHash(result);
     await _recordTx(wallet, hash, contractAddress, '0', 'call', functionName);
     return hash;
   }
@@ -1572,6 +1613,7 @@ class WalletService extends ChangeNotifier {
       encryptedData: encryptedData,
     );
     final result = await _rpc(nodeUrl, 'octra_submit', [signedTx]) as Map;
+    requireTxHash(result);
     return Map<String, dynamic>.from(result);
   }
 
