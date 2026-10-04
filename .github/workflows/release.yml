@@ -34,6 +34,19 @@ jobs:
             echo "keyAlias=${{ secrets.KEY_ALIAS }}"
             echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
           } > keystore.properties
+      # Fail fast instead of silently shipping an unsigned "release"
+      # (build.gradle skips signing when the keystore/alias is unusable).
+      - name: Validate keystore (secrets never printed)
+        run: |
+          test -s scripts/octra.jks && echo "keystore file: present"
+          if keytool -list -keystore scripts/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" >/dev/null 2>&1; then
+            echo "store password: OK"
+          else
+            echo "keystore UNUSABLE (wrong file or wrong KEYSTORE_PASSWORD)"; exit 1
+          fi
+          N=$(keytool -list -keystore scripts/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>/dev/null | grep -c PrivateKeyEntry)
+          echo "private-key entries: $N"
+          if [ "$N" -eq 0 ]; then echo "keystore has no private keys — refusing to ship unsigned release"; exit 1; fi
       # Release splits are arm64-only (see app/build.gradle) — smallest APK.
       # AAB is for Play Store, APKs are for direct download.
       - run: bash gradlew --no-daemon -PsplitAbi=true assembleRelease bundleRelease
@@ -116,6 +129,8 @@ jobs:
           fi
           echo "private-key entries: $(keytool -list -keystore android/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>/dev/null | grep -c PrivateKeyEntry)"
           echo "configured alias present: $(grep -c '^keyAlias=..*' android/keystore.properties)"
+          N=$(keytool -list -keystore android/octra.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>/dev/null | grep -c PrivateKeyEntry)
+          if [ "$N" -eq 0 ]; then echo "keystore has no private keys — refusing to ship unsigned release"; exit 1; fi
       # arm64-only release via --target-platform (proven by CI debug
       # builds). NOTE: --split-per-abi is incompatible with ndk abiFilters
       # in build.gradle — the Flutter Gradle plugin rejects that combination.
