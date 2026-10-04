@@ -52,7 +52,7 @@ void main() {
       c.setUrl('http://h:8080/rpc');
       final r = await c.call('  ');
       expect(r.ok, isFalse);
-      expect(r.error, contains('non-empty'));
+      expect(r.error, contains('must not be empty'));
       expect(calls, 0);
     });
 

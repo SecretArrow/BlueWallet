@@ -67,7 +67,9 @@ public class OctraRpcClientTest {
                 OctraRpcClient.buildRpcEndpoint("http://host:8080"));
         assertEquals("https://octra.network/rpc",
                 OctraRpcClient.buildRpcEndpoint("https://octra.network/rpc"));
-        assertEquals("https://octra.network/rpc",
+        // Trailing slash is preserved (matches pre-refactor android.net.Uri
+        // behavior); callers and the node tolerate it.
+        assertEquals("https://octra.network/rpc/",
                 OctraRpcClient.buildRpcEndpoint("https://octra.network/rpc/"));
     }
 
