@@ -186,7 +186,7 @@ android {
             if (keystorePropertiesFile.exists() &&
                 keystoreProperties.containsKey('storeFile') &&
                 keystoreProperties.containsKey('storePassword')) {
-                def configuredStoreFile = file(keystoreProperties['storeFile'])
+                def configuredStoreFile = rootProject.file(keystoreProperties['storeFile'].toString())
                 def configuredStorePassword = keystoreProperties['storePassword']
                 def configuredAlias = resolveSigningAlias(
                         configuredStoreFile,

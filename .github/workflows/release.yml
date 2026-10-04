@@ -50,6 +50,13 @@ jobs:
       # Release splits are arm64-only (see app/build.gradle) — smallest APK.
       # AAB is for Play Store, APKs are for direct download.
       - run: bash gradlew --no-daemon -PsplitAbi=true assembleRelease bundleRelease
+      # AGP names unsigned outputs *-unsigned.apk — refuse to ship those.
+      - name: Refuse unsigned artifacts
+        run: |
+          if ls app/build/outputs/apk/release/*unsigned*.apk 2>/dev/null | grep -q .; then
+            echo "unsigned release APK produced — signing misconfigured"; exit 1
+          fi
+          ls app/build/outputs/apk/release/*.apk app/build/outputs/bundle/release/*.aab
       # Detect silent fallback to debug signing (storeFile null in build.gradle).
       - name: Show signing certificate DN
         run: |
