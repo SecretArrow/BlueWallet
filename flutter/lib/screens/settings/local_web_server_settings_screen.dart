@@ -247,6 +247,7 @@ class _LocalWebServerSettingsScreenState
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
                         final confirm = await showDialog<bool>(
                           context: context,
                           builder: (ctx) => AlertDialog(
@@ -268,7 +269,6 @@ class _LocalWebServerSettingsScreenState
                         );
 
                         if (confirm == true) {
-                          final messenger = ScaffoldMessenger.of(context);
                           await serverService.regenerateToken();
                           if (mounted) {
                             messenger.showSnackBar(
