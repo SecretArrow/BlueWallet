@@ -26,3 +26,8 @@
 -dontwarn io.flutter.plugins.**
 -dontwarn com.mr.flutter.plugin.**
 -dontwarn dev.fluttercommunity.plus.**
+
+# Flutter engine deferred-components paths reference Play Core splitinstall,
+# which is not bundled (the app uses no deferred components). Unreachable —
+# silence the R8 full-mode missing-class error.
+-dontwarn com.google.android.play.core.**
