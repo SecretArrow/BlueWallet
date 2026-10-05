@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:integration_test/integration_test.dart'; // re-exports flutter_test
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:octopus_wallet/screens/dapp/dapp_browser_screen.dart';
