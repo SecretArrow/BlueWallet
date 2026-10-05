@@ -222,11 +222,16 @@ public class DappBrowserActivity extends AppCompatActivity {
             "  }\n" +
             "\n" +
             "  // Bridge response handler — called from native\n" +
-            "  window.__octra_response = function(id, resultJson, error) {\n" +
+            "  // RFC-O-1: 4th argument carries the numeric error code (0 = none).\n" +
+            "  window.__octra_response = function(id, resultJson, error, code) {\n" +
             "    const p = _pending.get(id);\n" +
             "    if (!p) return;\n" +
             "    _pending.delete(id);\n" +
-            "    if (error) p.reject(new Error(error));\n" +
+            "    if (error) {\n" +
+            "      const err = new Error(error);\n" +
+            "      if (code) err.code = code;\n" +
+            "      p.reject(err);\n" +
+            "    }\n" +
             "    else p.resolve(JSON.parse(resultJson));\n" +
             "  };\n" +
             "\n" +
@@ -274,6 +279,16 @@ public class DappBrowserActivity extends AppCompatActivity {
             "      return this.request({method:'octra_callView', params:[address,method,params]});\n" +
             "    },\n" +
             "    async getBalance() { return this.request({method:'octra_getBalance'}); },\n" +
+            "    // RFC-O-1 aliases (dual-stack with the legacy dialect above).\n" +
+            "    async requestAccounts() {\n" +
+            "      const accounts = await this.request({method:'octra_requestAccounts'});\n" +
+            "      _connected = true; _accounts = accounts;\n" +
+            "      _emit('connect', {address: accounts[0]}); _emit('accountsChanged', _accounts);\n" +
+            "      return accounts;\n" +
+            "    },\n" +
+            "    async getEncryptedBalance() {\n" +
+            "      return this.request({method:'octra_getEncryptedBalance'});\n" +
+            "    },\n" +
             "    async contractCall(opts) {\n" +
             "      return this.request({method:'octra_callContract',\n" +
             "        params:[opts.contractAddress, opts.method, opts.params||[], opts.amount||'0']});\n" +
@@ -514,8 +529,11 @@ public class DappBrowserActivity extends AppCompatActivity {
         @JavascriptInterface
         public void request(final int requestId, final String method, final String paramsJson) {
             runOnUiThread(() -> {
-                if (!isConnected) {
-                    sendError(requestId, "Not connected");
+                if (!isConnected
+                        && !DappBridgeProtocol.REQUEST_ACCOUNTS.equals(
+                                DappBridgeProtocol.canonicalize(method))) {
+                    sendError(requestId, "Not connected",
+                            DappBridgeProtocol.UNAUTHORIZED);
                     return;
                 }
                 handleDappRequest(requestId, method, paramsJson);
@@ -542,7 +560,8 @@ public class DappBrowserActivity extends AppCompatActivity {
                 approveConnection(requestId);
             })
             .setNegativeButton("Deny", (d, w) -> {
-                sendError(requestId, "User rejected connection");
+                sendError(requestId, "User rejected connection",
+                        DappBridgeProtocol.USER_REJECTED);
             })
             .setCancelable(false)
             .show();
@@ -554,7 +573,8 @@ public class DappBrowserActivity extends AppCompatActivity {
         String pubKey = getWalletPublicKeyB64();
 
         if (address == null || address.isEmpty()) {
-            sendError(requestId, "Wallet not loaded");
+            sendError(requestId, "Wallet not loaded",
+                    DappBridgeProtocol.UNAUTHORIZED);
             return;
         }
 
@@ -578,9 +598,13 @@ public class DappBrowserActivity extends AppCompatActivity {
 
     private void handleDappRequest(int requestId, String method, String paramsJson) {
         try {
-            switch (method) {
+            String normalized = DappBridgeProtocol.canonicalize(method);
+            switch (normalized) {
                 case "octra_accounts":
                     sendResult(requestId, "[\"" + connectedAddress + "\"]");
+                    break;
+                case "octra_requestAccounts":
+                    handleRequestAccounts(requestId);
                     break;
                 case "octra_chainId":
                     sendResult(requestId, "\"" + getActiveChainId() + "\"");
@@ -597,12 +621,105 @@ public class DappBrowserActivity extends AppCompatActivity {
                 case "octra_callView":
                     handleCallView(requestId, paramsJson);
                     break;
+                case "octra_requestAccounts":
+                    // (normalized above; kept explicit for registry parity)
+                    handleRequestAccounts(requestId);
+                    break;
+                case "octra_getEncryptedBalance":
+                    fetchEncryptedBalance(requestId);
+                    break;
                 default:
-                    sendError(requestId, "Unsupported method: " + method);
+                    sendError(requestId, "Unsupported method: " + method,
+                            DappBridgeProtocol.UNSUPPORTED_METHOD);
             }
         } catch (Exception e) {
             sendError(requestId, e.getMessage());
         }
+    }
+
+    /**
+     * RFC-O-1 requestAccounts: approval-gated account list. Reuses the
+     * connect approval UI but answers with a plain address array.
+     */
+    private void handleRequestAccounts(int requestId) {
+        String origin = webView.getUrl();
+        if (!isOriginAllowed(origin)) {
+            showRequestAccountsApproval(requestId, origin);
+            return;
+        }
+        String address = getWalletAddress();
+        if (address == null || address.isEmpty()) {
+            sendError(requestId, "Wallet not loaded",
+                    DappBridgeProtocol.UNAUTHORIZED);
+            return;
+        }
+        isConnected = true;
+        connectedAddress = address;
+        sendResult(requestId, "[\"" + address + "\"]");
+    }
+
+    private void showRequestAccountsApproval(int requestId, String origin) {
+        String host = "Unknown";
+        try {
+            android.net.Uri parsed = android.net.Uri.parse(origin);
+            if (parsed.getHost() != null) host = parsed.getHost();
+        } catch (Exception e) { /* keep Unknown */ }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Share account with DApp")
+                .setMessage("Allow " + host + " to see your Octra address?\n\n"
+                        + "This shares your public address with this site.")
+                .setPositiveButton("Allow", (d, w) -> {
+                    try {
+                        android.net.Uri parsed = android.net.Uri.parse(origin);
+                        String h = parsed.getHost();
+                        if (h != null) DappOriginStore.addOrigin(this, h);
+                    } catch (Exception e) { /* */ }
+                    String address = getWalletAddress();
+                    if (address == null || address.isEmpty()) {
+                        sendError(requestId, "Wallet not loaded",
+                                DappBridgeProtocol.UNAUTHORIZED);
+                        return;
+                    }
+                    isConnected = true;
+                    connectedAddress = address;
+                    sendResult(requestId, "[\"" + address + "\"]");
+                })
+                .setNegativeButton("Deny", (d, w) -> {
+                    sendError(requestId, "User rejected connection",
+                            DappBridgeProtocol.USER_REJECTED);
+                })
+                .setCancelable(false)
+                .show();
+    }
+
+    /** RFC-O-1 encrypted balance: authenticated cipher for the active wallet. */
+    private void fetchEncryptedBalance(int requestId) {
+        ((OctraWalletApplication) getApplication()).getIoExecutor().execute(() -> {
+            try {
+                String rpcUrl = getNodeRpcUrl();
+                String address = connectedAddress;
+                if (address == null || address.isEmpty()) {
+                    address = getWalletAddress();
+                }
+                if (address == null || address.isEmpty()) {
+                    runOnUiThread(() -> sendError(requestId, "Wallet not loaded",
+                            DappBridgeProtocol.UNAUTHORIZED));
+                    return;
+                }
+                final String addr = address;
+                WalletRepository repo = new WalletRepository(getApplicationContext());
+                String cipher = repo.fetchEncryptedBalance(rpcUrl, addr);
+                JSONObject out = new JSONObject();
+                out.put("address", addr);
+                out.put("cipher", cipher);
+                final String json = out.toString();
+                runOnUiThread(() -> sendResult(requestId, json));
+            } catch (Exception e) {
+                runOnUiThread(() -> sendError(requestId, e.getMessage(),
+                        DappBridgeProtocol.NETWORK_UNAVAILABLE));
+            }
+        });
     }
 
     private void fetchBalance(int requestId) {
@@ -725,13 +842,22 @@ public class DappBrowserActivity extends AppCompatActivity {
 
     private void sendResult(int requestId, String resultJson) {
         String js = "window.__octra_response(" + requestId + ", '" +
-            resultJson.replace("\\", "\\\\").replace("'", "\\'") + "', null);";
+            resultJson.replace("\\", "\\\\").replace("'", "\\'") + "', null, 0);";
         webView.evaluateJavascript(js, null);
     }
 
     private void sendError(int requestId, String error) {
+        sendError(requestId, error, DappBridgeProtocol.NO_CODE);
+    }
+
+    /**
+     * RFC-O-1 error codes travel as the 4th argument. Old dApps ignore
+     * extra arguments, so this stays backward compatible.
+     */
+    private void sendError(int requestId, String error, int code) {
+        String safe = error == null ? "Unknown error" : error;
         String js = "window.__octra_response(" + requestId + ", null, '" +
-            error.replace("\\", "\\\\").replace("'", "\\'") + "');";
+            safe.replace("\\", "\\\\").replace("'", "\\'") + "', " + code + ");";
         webView.evaluateJavascript(js, null);
     }
 
