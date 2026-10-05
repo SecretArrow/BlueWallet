@@ -585,6 +585,7 @@ class NetworkService extends ChangeNotifier {
     if (!found) return false;
     await _save();
     notifyListeners();
+    return true;
   }
 
   Future<void> _save() async {
