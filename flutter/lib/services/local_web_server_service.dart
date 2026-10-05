@@ -1526,7 +1526,7 @@ class LocalWebServerService extends ChangeNotifier {
     }
   }
 
-    /// `octra_transaction` lookup — the epoch a lock tx landed in.
+  /// `octra_transaction` lookup — the epoch a lock tx landed in.
   ///
   /// bridge.js polls this after the approval-gated call returns, because
   /// `contract_receipt` does not always carry the epoch. Answers
@@ -1569,7 +1569,8 @@ class LocalWebServerService extends ChangeNotifier {
   /// Never reports `found: true` for a null/empty result: the bridge poller
   /// must tell "not mined yet" (retry) from a server fault (report).
   static Map<String, dynamic> normalizeTransaction(
-      String hash, Map<String, dynamic>? tx, {String? error}) {
+      String hash, Map<String, dynamic>? tx,
+      {String? error}) {
     if (tx == null || tx.isEmpty) {
       return {
         'found': false,
