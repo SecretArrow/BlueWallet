@@ -47,7 +47,7 @@ test per cabang, asumsi eksplisit).
 |---|---|---|---|
 | Local server 27 endpoint | `LocalWebServerService.java` | `local_web_server_service.dart` | Belum diaudit |
 | dApp bridge + approval | `DappBrowserActivity` (+bridge), `DeepLinkBridgeActivity`, `TxRequestManager`, `DappOriginStore` | `dapp_browser_screen.dart`, `confirm_contract_call_screen.dart`, `deep_link_service.dart` | Belum diaudit |
-| oct:// render path | `DappBrowserActivity` + `OctUrlParser.java` ✅ teruji (17 test) | `dapp_browser_screen.dart` `_loadOctUrl` | Parser teruji; render belum diaudit |
+| oct:// render path | `DappBrowserActivity` + `OctUrlParser.java` ✅ teruji (17 test) | `dapp_browser_screen.dart` `_loadOctUrl` | ✅ teruji: `OctUrl` murni + E2E serve (bukti Fase 2.0 di bawah) |
 | Deep link intent | `AndroidManifest.xml` (octra://, octra-wallet://) | `deep_link_service.dart`, `app_router.dart` | Belum diaudit |
 | Network profiles + URL | `UrlSecurityValidator.java` ✅ teruji, `NodeProfileStore`, `NetworkSettingsActivity` | `network_service.dart` ✅ migrasi teruji parsial | Validator teruji; store belum |
 | DB + cache + migrasi | `OctraDatabase`, `TxHistoryDao/Entity`, `TokenSnapshot*`, `TxTaskStore`, `WalletProfileStore` | `database_service.dart`, models/* | Belum diaudit |
@@ -78,6 +78,18 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+
+## Bukti Fase 2.0 — oct:// render + serve test
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | URL laporan (`oct://oct99…/index.html`) terparse | case base58 utuh | case base58 utuh | vektor eksak dua sisi |
+| 2 | ID kosong / skema salah | `OctUrlParser` (existing): exception/null-safe | `OctUrl.parse` throw `ArgumentError` spesifik | grup reject |
+| 3 | query/fragment | strip (existing) | strip | grup strip |
+| 4 | gateway URL | N/A (direct RPC) | `gatewayHttpUrl` + port | grup gateway |
+| 5 | MIME parameter/kosong | N/A | `cleanMime` + `isTextMime` | grup MIME |
+| 6 | node serve asetnya | `circleAsset` (existing, E2E manual) | E2E `oct_circle_test`: `circle_asset` → text/html + body non-kosong | nightly/manual emulator |
+| 7 | aset hilang di node | toast kode (existing) | snackbar error (existing) | E2E negatif implisit |
 
 ## Bukti Fase 1.4 — mnemonic, PIN, storage
 
