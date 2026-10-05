@@ -497,14 +497,14 @@ class NetworkService extends ChangeNotifier {
         const NetworkProfile(
           id: 'mainnet',
           name: 'Octra Mainnet',
-          nodeUrl: 'https://rpc.octrascan.io',
+          nodeUrl: 'https://octra.network/rpc',
           explorerUrl: 'https://octrascan.io',
           isActive: true,
         ),
         const NetworkProfile(
           id: 'devnet',
           name: 'Octra Devnet',
-          nodeUrl: 'http://165.227.225.79:8080',
+          nodeUrl: 'https://devnet.octrascan.io/rpc',
           explorerUrl: 'https://devnet.octrascan.io',
           isActive: false,
         ),
@@ -514,8 +514,45 @@ class NetworkService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Test-only: clears in-memory profiles (storage untouched).
+  @visibleForTesting
+  void debugResetForTest() {
+    _profiles = [];
+  }
+
+  /// De-duplicates a display name ("X", "X 2", …). Pure, unit-tested.
+  static String dedupeName(Iterable<String> taken, String base) {
+    var candidate = base;
+    var index = 2;
+    final set = taken.toSet();
+    while (set.contains(candidate)) {
+      candidate = '$base $index';
+      index++;
+    }
+    return candidate;
+  }
+
+  /// Adds a profile after trimming, validating and de-duplicating.
+  /// Throws [ArgumentError] on empty id/nodeUrl. The first profile of an
+  /// empty list becomes active (mirrors Android ensureDefault).
   Future<void> addProfile(NetworkProfile profile) async {
-    _profiles.add(profile);
+    final nodeUrl = profile.nodeUrl.trim();
+    if (profile.id.trim().isEmpty) {
+      throw ArgumentError('Profile id must not be empty');
+    }
+    if (nodeUrl.isEmpty) {
+      throw ArgumentError('Profile nodeUrl must not be empty');
+    }
+    var name = profile.name.trim();
+    if (name.isEmpty) name = 'Node';
+    final candidate = dedupeName(_profiles.map((p) => p.name), name);
+    final active = _profiles.isEmpty ? true : profile.isActive;
+    _profiles.add(profile.copyWith(
+      name: candidate,
+      nodeUrl: nodeUrl,
+      explorerUrl: profile.explorerUrl.trim(),
+      isActive: active,
+    ));
     await _save();
     notifyListeners();
   }
@@ -536,14 +573,19 @@ class NetworkService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> updateProfile(String id,
+  /// Returns true when a profile was actually updated.
+  Future<bool> updateProfile(String id,
       {required String nodeUrl, required String explorerUrl}) async {
+    var found = false;
     _profiles = _profiles.map((p) {
       if (p.id != id) return p;
+      found = true;
       return p.copyWith(nodeUrl: nodeUrl, explorerUrl: explorerUrl);
     }).toList();
+    if (!found) return false;
     await _save();
     notifyListeners();
+    return true;
   }
 
   Future<void> _save() async {

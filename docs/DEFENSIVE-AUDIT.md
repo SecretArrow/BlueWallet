@@ -26,6 +26,7 @@ test per cabang, asumsi eksplisit).
 | A11 | Mnemonic disimpan ternormalisasi (lowercase, spasi tunggal) setelah lolos checksum; validasi import menormalkan dulu sehingga tempelan berantakan tetap diterima bila checksum benar |
 | A12 | Server lokal: auth fail-closed (token kosong = tolak semua) + compare constant-time. Input malformed → 400; gagal bisnis/node → 200 + envelope error (kontrak existing dipertahankan). Request tak-tertangani → 500, tak pernah gantung |
 | A13 | Approval request: ID unik (UUID / collision-loop), duplikat = throw (bukan overwrite verdict dApp lain); entri basi di-purge (Android TTL 10 mnt); interrupt dikembalikan. DeepLinkService Flutter tanpa konsumen = backlog wiring, bukan dihapus |
+| A14 | Room `fallbackToDestructiveMigration` DIPERTAHANKAN sementara: skema v2 belum pernah rilis ke user (histori squash), migrasi eksplisit tanpa skema v1 yang pasti lebih berbahaya (risiko bootloop). Ditinjau ulang sebelum bump versi DB berikutnya |
 
 ## Inventaris modul × risiko × fase
 
@@ -51,8 +52,8 @@ test per cabang, asumsi eksplisit).
 | dApp bridge + approval | `DappBrowserActivity` (+bridge), `DeepLinkBridgeActivity`, `TxRequestManager`, `DappOriginStore` | `dapp_browser_screen.dart`, `confirm_contract_call_screen.dart`, `deep_link_service.dart` | ✅ Fase 2.2 selesai (request tracking + origin; bukti di bawah) |
 | oct:// render path | `DappBrowserActivity` + `OctUrlParser.java` ✅ teruji (17 test) | `dapp_browser_screen.dart` `_loadOctUrl` | ✅ teruji: `OctUrl` murni + E2E serve (bukti Fase 2.0 di bawah) |
 | Deep link intent | `AndroidManifest.xml` (octra://, octra-wallet://) | `deep_link_service.dart`, `app_router.dart` | ✅ Fase 2.2 selesai (parse + startup aman; DeepLinkService tanpa konsumen = backlog) |
-| Network profiles + URL | `UrlSecurityValidator.java` ✅ teruji, `NodeProfileStore`, `NetworkSettingsActivity` | `network_service.dart` ✅ migrasi teruji parsial | Validator teruji; store belum |
-| DB + cache + migrasi | `OctraDatabase`, `TxHistoryDao/Entity`, `TokenSnapshot*`, `TxTaskStore`, `WalletProfileStore` | `database_service.dart`, models/* | Belum diaudit |
+| Network profiles + URL | `UrlSecurityValidator.java` ✅ teruji, `NodeProfileStore`, `NetworkSettingsActivity` | `network_service.dart` ✅ migrasi teruji parsial | ✅ Fase 2.3 selesai (null-guard, dedup, default hidup; bukti di bawah) |
+| DB + cache + migrasi | `OctraDatabase`, `TxHistoryDao/Entity`, `TokenSnapshot*`, `TxTaskStore`, `WalletProfileStore` | `database_service.dart`, models/* | ✅ Fase 2.3 selesai parsial (parse + TTL + guard; migrasi destruktif = risiko diterima, lihat A14) |
 
 ### SEDANG — layanan latar + alur bantu (Fase 3)
 
@@ -80,6 +81,19 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+
+## Bukti Fase 2.3 — profiles, cache, timestamp
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | nama null/kosong/sampah | "Node" + sanitize (dulu: NPE) | trim + "Node" default | sanitize + addProfile grup |
+| 2 | nama duplikat | `uniqueName` diekstrak (perilaku sama) | `dedupeName` statik | kedua grup dedup |
+| 3 | list/item null | `findByName` null-safe | `firstOrNull` + fallback (existing) | findByName grup |
+| 4 | profil korup di storage | dilewati per-item, default bila kosong (existing) | catch → default (existing) | inspeksi |
+| 5 | default mati (host lama) | konstanta → host hidup (terbukti via probe) | konstanta → host hidup + migrasi baca (existing) | inspeksi |
+| 6 | update id asing | void diam (kontrak lama dipertahankan) | `false` (dulu: void diam) | updateProfile test |
+| 7 | timestamp sampah | `optLong/optInt` + default (existing, wajar) | `parseTimestamp` publik + teruji | parseTimestamp 3 grup |
+| 8 | DB destruktif | diterima sementara (A14) | migrasi v1→v3 eksplisit (existing) | — |
 
 ## Bukti Fase 2.2 — bridge approval + origin + deep link
 
