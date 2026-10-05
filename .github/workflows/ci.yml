@@ -50,7 +50,11 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test
+      - run: flutter test --coverage
+      # Coverage summary (Fase 4 gate input, report-only).
+      - name: Coverage summary
+        if: always()
+        run: python3 ../.github/scripts/coverage_report.py --lcov coverage/lcov.info --label "Flutter coverage" >> "$GITHUB_STEP_SUMMARY"
       # Validates the Android embedding + native (FFI/PVAC) compilation.
       - run: flutter build apk --debug --target-platform android-arm64
       - uses: actions/upload-artifact@v4
@@ -77,7 +81,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       # Fast checks only: no assembleDebug here (see android-build).
       # spotlessCheck is ratcheted to origin/main — only changed lines.
-      - run: bash gradlew --no-daemon lintDebug testDebugUnitTest :app:spotlessCheck
+      # jacocoTestReport feeds the Fase 4 coverage gate (report-only).
+      - run: bash gradlew --no-daemon lintDebug testDebugUnitTest :app:spotlessCheck :app:jacocoTestReport
+      # Coverage summary (Fase 4 gate input, report-only).
+      - name: Coverage summary
+        if: always()
+        run: python3 ../.github/scripts/coverage_report.py --jacoco app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml --label "Android coverage" >> "$GITHUB_STEP_SUMMARY"
       # Always print every lint error (the console shows only the first).
       - name: Dump all lint errors
         if: always()

@@ -84,6 +84,29 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+4. Cakupan cabang terlapor per PR (Fase 4): tabel JaCoCo + lcov di
+   ringkasan job; threshold pengetat menyusul setelah baseline ada.
+
+## Bukti Fase 4 — gate cakupan cabang
+
+| # | Skenario | Penanganan | Test |
+|---|---|---|---|
+| 1 | Laporan JaCoCo hilang/rusak | parser lapor eksplisit, exit 0 (report-only; threshold belakangan) | fixture sintetis lokal |
+| 2 | Laporan lcov hilang/rusak | sama | fixture sintetis lokal |
+| 3 | Task report tanpa data exec | `GradleException` eksplisit (tak pernah diam) | CI |
+| 4 | Threshold masa depan | belum diaktifkan — didokumentasikan sebagai langkah berikut (baseline dulu) | — |
+
+## Bukti Fase 3.4 — session timeout + format tampil
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | lock nonaktif (≤0) | tak pernah kunci (existing, kini teruji) | — (tanpa enforcement = backlog fitur, bukan hardening) | matriks expiry |
+| 2 | belum pernah tercatat | paksa kunci (existing) | — | matriks expiry |
+| 3 | tepat di batas / 1ms sebelum | kunci / tidak (existing) | — | boundary tests |
+| 4 | jam mundur / menit raksasa | fail-open eksplisit / long anti-overflow | — | skew + MAX_INT tests |
+| 5 | desimal token absurd | render mentah, cap 0..36 (dulu: potensi OOM) | sama (dulu: hang/OOM `pow`+`padLeft`) | out-of-range grup dua sisi |
+| 6 | nilai sampah | render mentah (existing) | sama (existing) | garbage tests |
+| 7 | hapus wallet terakhir / double-tap / PIN salah | proteksi + disable tombol + pesan (existing, diinspeksi) | — (alur setara di layar, diinspeksi) | inspeksi |
 
 ## Bukti Fase 3.4 — session timeout + format tampil
 
