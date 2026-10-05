@@ -16,23 +16,40 @@ void main() {
   const rpcUrl = 'https://devnet.octrascan.io/rpc';
 
   testWidgets('oct:// circle page is servable', (tester) async {
-    final resp = await http
-        .post(
-          Uri.parse(rpcUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'jsonrpc': '2.0',
-            'method': 'circle_asset',
-            'params': [circleId, '/index.html'],
-            'id': 1,
-          }),
-        )
-        .timeout(const Duration(seconds: 30));
+    // Devnet rate-limits (429) shared CI runners: retry with backoff.
+    // Fail only on exhausted retries or non-retryable responses.
+    Map<String, dynamic>? json;
+    int status = 0;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      if (attempt > 0) {
+        await Future.delayed(Duration(seconds: 5 * attempt));
+      }
+      try {
+        final resp = await http
+            .post(
+              Uri.parse(rpcUrl),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'jsonrpc': '2.0',
+                'method': 'circle_asset',
+                'params': [circleId, '/index.html'],
+                'id': 1,
+              }),
+            )
+            .timeout(const Duration(seconds: 30));
+        status = resp.statusCode;
+        if (status == 429 || status >= 500) continue;
+        json = jsonDecode(resp.body) as Map<String, dynamic>;
+        break;
+      } catch (_) {
+        continue; // socket/timeout hiccup — retry
+      }
+    }
 
-    expect(resp.statusCode, 200);
-    final json = jsonDecode(resp.body) as Map<String, dynamic>;
-    expect(json.containsKey('error'), isFalse,
-        reason: 'node error: ${resp.body}');
+    expect(status, 200, reason: 'node unreachable after retries');
+    expect(json, isNotNull);
+    expect(json!.containsKey('error'), isFalse,
+        reason: 'node error: ${json.toString()}');
     final result = json['result'] as Map<String, dynamic>;
     final contentType =
         (result['content_type']?.toString() ?? '').split(';').first.trim();
