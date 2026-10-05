@@ -65,8 +65,8 @@ test per cabang, asumsi eksplisit).
 | History/token loading | `MainActivity` tokens, `TransactionsManagerActivity`, `HistoryDetailActivity` | `history_tab.dart`, `transactions_manager_screen.dart`, `history_detail_screen.dart` | Belum diaudit |
 | QR scan | `QrScanActivity` (CameraX+MLKit+zxing) | `qr_scan_screen.dart` | Hasil mentah tervalidasi di send (Fase 1.3); parsing payment-URI = backlog |
 | Address book | `AddressBookStore` | `address_book_service.dart`, `address_entry.dart` | ✅ Fase 3.3 selesai (validasi + dedup + load toleran; bukti di bawah) |
-| Biometrik/session lock | `UnlockActivity` (BiometricPrompt) | `biometric_service.dart`, `session_lock_screen.dart`, `biometric_settings_screen.dart` | Belum diaudit |
-| Export/kunci terlihat | `ExportWalletsActivity`, `ViewKeysActivity`, `ConfirmDeleteWalletActivity` | `export/view_keys/wallets_screen.dart`, `confirm_action_screen.dart` | Belum diaudit |
+| Biometrik/session lock | `UnlockActivity` (BiometricPrompt) | `biometric_service.dart`, `session_lock_screen.dart`, `biometric_settings_screen.dart` | ✅ Fase 3.4 parsial Android (keputusan timeout murni + teruji); Flutter tanpa enforcement = backlog fitur |
+| Export/kunci terlihat | `ExportWalletsActivity`, `ViewKeysActivity`, `ConfirmDeleteWalletActivity` | `export/view_keys/wallets_screen.dart`, `confirm_action_screen.dart` | Diinspeksi: PIN-gate + anti-double-tap + proteksi wallet-terakhir OK, tanpa perubahan |
 | Setup/onboarding | `SetupActivity`, `WalletFilePinActivity`, `WalletsMenuActivity` | `setup_screen.dart`, `startup_screen.dart` | Belum diaudit |
 | Tor proxy, data usage, polling settings | `TorProxyStore/SettingsActivity`, `DataUsage*`, `TxSettingsActivity`, `PollingSettingsStore` | `tor_proxy_service.dart`, `data_usage_service.dart`, settings screens | Belum diaudit |
 | Permissions/dApp origins | `PermissionManager`, `PermissionsCenterActivity`, `DappOriginsActivity` | `permissions_center_screen.dart`, `dapp_origins_screen.dart` | Belum diaudit |
@@ -84,6 +84,18 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+
+## Bukti Fase 3.4 — session timeout + format tampil
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | lock nonaktif (≤0) | tak pernah kunci (existing, kini teruji) | — (tanpa enforcement = backlog fitur, bukan hardening) | matriks expiry |
+| 2 | belum pernah tercatat | paksa kunci (existing) | — | matriks expiry |
+| 3 | tepat di batas / 1ms sebelum | kunci / tidak (existing) | — | boundary tests |
+| 4 | jam mundur / menit raksasa | fail-open eksplisit / long anti-overflow | — | skew + MAX_INT tests |
+| 5 | desimal token absurd | render mentah, cap 0..36 (dulu: potensi OOM) | sama (dulu: hang/OOM `pow`+`padLeft`) | out-of-range grup dua sisi |
+| 6 | nilai sampah | render mentah (existing) | sama (existing) | garbage tests |
+| 7 | hapus wallet terakhir / double-tap / PIN salah | proteksi + disable tombol + pesan (existing, diinspeksi) | — (alur setara di layar, diinspeksi) | inspeksi |
 
 ## Bukti Fase 3.3 — address book
 

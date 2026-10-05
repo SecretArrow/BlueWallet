@@ -710,15 +710,7 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private String formatTokenWithDecimals(String rawValue, int decimals) {
-        if (rawValue == null || rawValue.isEmpty()) return "0";
-        try {
-            java.math.BigDecimal raw = new java.math.BigDecimal(rawValue);
-            java.math.BigDecimal divisor = java.math.BigDecimal.TEN.pow(decimals);
-            java.math.BigDecimal formatted = raw.divide(divisor, decimals, java.math.RoundingMode.DOWN);
-            return formatted.stripTrailingZeros().toPlainString();
-        } catch (Exception e) {
-            return rawValue;
-        }
+        return TokenFormat.format(rawValue, decimals);
     }
 
     private void refreshHistory() {
