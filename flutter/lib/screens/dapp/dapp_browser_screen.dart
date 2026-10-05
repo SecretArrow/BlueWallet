@@ -6,6 +6,7 @@ import '../../services/wallet_service.dart';
 import '../../services/network_service.dart';
 import '../../services/local_web_server_service.dart';
 import '../../services/oct_url.dart';
+import '../../services/dapp_bridge_protocol.dart';
 
 /// In-app DApp browser with an embedded WebView and a `window.octra` provider.
 ///
@@ -157,12 +158,13 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       case 'request':
         await _handleRequest(
           id,
-          msg['method'] as String? ?? '',
+          DappBridgeProtocol.canonicalize(msg['method'] as String? ?? ''),
           (msg['params'] as List?)?.cast<dynamic>() ?? [],
         );
         break;
       default:
-        _bridgeError(id, 'Unknown bridge message type: $type');
+        _bridgeError(id, 'Unknown bridge message type: $type',
+            DappBridgeProtocol.unsupportedMethod);
     }
   }
 
@@ -184,18 +186,79 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       setState(() => _connectedAddress = address);
       _bridgeResult(id, jsonEncode({'address': address, 'ok': true}));
     } else {
-      _bridgeError(id, 'User rejected connection');
+      _bridgeError(
+          id, 'User rejected connection', DappBridgeProtocol.userRejected);
     }
+  }
+
+  /// RFC-O-1 requestAccounts: approval-gated account list. Reuses the
+  /// connect approval UI but answers with a plain address array.
+  Future<void> _handleRequestAccounts(int id) async {
+    final ws = context.read<WalletService>();
+    final address = ws.activeWallet?.address;
+    if (address == null || address.isEmpty) {
+      _bridgeError(id, 'No active wallet', DappBridgeProtocol.unauthorized);
+      return;
+    }
+    final approved = await _showApprovalDialog(
+      title: 'Share Account',
+      body: 'This DApp wants to see your Octra address.\n\n'
+          'Address: ${_shortAddr(address)}',
+      confirmLabel: 'Share',
+    );
+    if (approved) {
+      setState(() => _connectedAddress = address);
+      _bridgeResult(id, jsonEncode([address]));
+    } else {
+      _bridgeError(
+          id, 'User rejected connection', DappBridgeProtocol.userRejected);
+    }
+  }
+
+  /// RFC-O-1 encrypted balance: cached PVAC cipher for the active wallet.
+  Future<void> _handleGetEncryptedBalance(int id) async {
+    final ws = context.read<WalletService>();
+    final wallet = ws.activeWallet;
+    if (wallet == null) {
+      _bridgeError(id, 'No active wallet', DappBridgeProtocol.unauthorized);
+      return;
+    }
+    final cipher = ws.encryptedBalanceCipher;
+    if (cipher == null || cipher.isEmpty) {
+      _bridgeError(
+          id, 'Encrypted balance unavailable — refresh the wallet first');
+      return;
+    }
+    _bridgeResult(
+        id, jsonEncode({'address': wallet.address, 'cipher': cipher}));
   }
 
   Future<void> _handleRequest(int id, String method, List params) async {
     final ws = context.read<WalletService>();
     final ns = context.read<NetworkService>();
+    // Pre-connect reads (mirrors the JS provider + Android gate).
+    const preConnect = {
+      'octra_accounts',
+      'octra_chainId',
+      'octra_requestAccounts',
+    };
+    if (_connectedAddress == null && !preConnect.contains(method)) {
+      _bridgeError(id, 'Not connected', DappBridgeProtocol.unauthorized);
+      return;
+    }
     try {
       switch (method) {
         case 'octra_accounts':
           final addr = ws.activeWallet?.address ?? '';
           _bridgeResult(id, jsonEncode([addr]));
+          break;
+
+        case 'octra_requestAccounts':
+          await _handleRequestAccounts(id);
+          break;
+
+        case 'octra_getEncryptedBalance':
+          await _handleGetEncryptedBalance(id);
           break;
 
         case 'octra_chainId':
@@ -301,7 +364,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
           break;
 
         default:
-          _bridgeError(id, 'Unsupported method: $method');
+          _bridgeError(id, 'Unsupported method: $method',
+              DappBridgeProtocol.unsupportedMethod);
       }
     } catch (e) {
       _bridgeError(id, e.toString().replaceFirst('Exception: ', ''));
@@ -311,14 +375,15 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
   /// Sends a successful result back to the injected JS provider.
   void _bridgeResult(int id, String resultJson) {
     _controller.runJavaScript(
-      'window.__octra_response($id, ${jsonEncode(resultJson)}, null)',
+      'window.__octra_response($id, ${jsonEncode(resultJson)}, null, 0)',
     );
   }
 
-  /// Sends an error back to the injected JS provider.
-  void _bridgeError(int id, String error) {
+  /// Sends an error back to the injected JS provider. The numeric RFC-O-1
+  /// code travels as the 4th argument (old dApps ignore extras).
+  void _bridgeError(int id, String error, [int code = 0]) {
     _controller.runJavaScript(
-      'window.__octra_response($id, null, ${jsonEncode(error)})',
+      'window.__octra_response($id, null, ${jsonEncode(error)}, $code)',
     );
   }
 
@@ -819,13 +884,16 @@ const String _octraProviderJs = r'''
     }
   }
 
-  // Called by Flutter: window.__octra_response(id, resultJson, error)
-  window.__octra_response = function(id, resultJson, error) {
+  // Called by Flutter: window.__octra_response(id, resultJson, error, code)
+  // RFC-O-1: the 4th argument carries the numeric error code (0 = none).
+  window.__octra_response = function(id, resultJson, error, code) {
     const p = _pending.get(id);
     if (!p) return;
     _pending.delete(id);
     if (error) {
-      p.reject(new Error(error));
+      const err = new Error(error);
+      if (code) err.code = code;
+      p.reject(err);
     } else {
       try {
         p.resolve(resultJson !== null ? JSON.parse(resultJson) : null);
@@ -875,6 +943,18 @@ const String _octraProviderJs = r'''
     // Convenience helpers
     async getBalance() {
       return this.request({ method: 'octra_getBalance', params: [] });
+    },
+    // RFC-O-1 aliases (dual-stack with the legacy dialect above).
+    async requestAccounts() {
+      const accounts = await this.request({ method: 'octra_requestAccounts' });
+      _connected = true;
+      _accounts = accounts;
+      _emit('connect', { address: accounts[0] });
+      _emit('accountsChanged', _accounts);
+      return accounts;
+    },
+    async getEncryptedBalance() {
+      return this.request({ method: 'octra_getEncryptedBalance' });
     },
     async sendTransaction(to, amount, memo) {
       return this.request({
