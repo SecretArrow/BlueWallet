@@ -7,6 +7,7 @@ import static org.junit.Assert.fail;
 
 import com.octopus.wallet.LocalWebServerService.OctraHttpServer;
 
+import org.json.JSONObject;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -99,6 +100,82 @@ public class LocalServerValidationTest {
     }
 
     // ── static asset MIME ───────────────────────────────────────────────
+
+    // ── /api/transaction normalization ─────────────────────────────────
+
+    /** Object values so JSONObject.NULL can be exercised too. */
+    private static JSONObject tx(Object... kv) {
+        if (kv.length % 2 != 0) {
+            throw new IllegalArgumentException("tx() needs key/value pairs");
+        }
+        JSONObject o = new JSONObject();
+        for (int i = 0; i < kv.length; i += 2) {
+            try {
+                o.put(String.valueOf(kv[i]), kv[i + 1]);
+            } catch (Exception e) {
+                throw new IllegalArgumentException(e);
+            }
+        }
+        return o;
+    }
+
+    @Test
+    public void normalizeTransaction_reportsFoundWithEpoch() throws Exception {
+        JSONObject out = OctraHttpServer.normalizeTransaction("0xabc",
+                tx("tx_hash", "0xabc", "epoch", "42", "status", "confirmed",
+                        "block_height", "9"));
+        assertTrue(out.getBoolean("found"));
+        assertEquals("0xabc", out.getString("hash"));
+        assertEquals(42L, out.getLong("epoch"));
+        assertEquals("confirmed", out.getString("status"));
+        assertEquals(9L, out.getLong("block_height"));
+    }
+
+    @Test
+    public void normalizeTransaction_acceptsEpochIdSpelling() throws Exception {
+        // Older node builds answer epoch_id instead of epoch.
+        assertEquals(7L,
+                OctraHttpServer.normalizeTransaction("0xa", tx("epoch_id", "7"))
+                        .getLong("epoch"));
+    }
+
+    @Test
+    public void normalizeTransaction_missingEpochIsZeroNotAbsent() throws Exception {
+        JSONObject out = OctraHttpServer.normalizeTransaction("0xa", tx("status", "pending"));
+        assertTrue(out.getBoolean("found"));
+        // No epoch in the payload yet: reported as 0 so the poller retries,
+        // never omitted (which would read as "unknown" downstream).
+        assertEquals(0L, out.getLong("epoch"));
+        assertEquals("pending", out.getString("status"));
+        // A payload with no status at all still answers with an empty string
+        // rather than dropping the field.
+        assertEquals("",
+                OctraHttpServer.normalizeTransaction("0xb", tx("epoch", "1"))
+                        .getString("status"));
+    }
+
+    @Test
+    public void normalizeTransaction_nullOrEmptyIsNotFound() throws Exception {
+        for (JSONObject in : new JSONObject[]{null, new JSONObject()}) {
+            JSONObject out = OctraHttpServer.normalizeTransaction("0xdead", in);
+            assertFalse(out.getBoolean("found"));
+            assertEquals("0xdead", out.getString("hash"));
+            assertFalse("a miss must not fake an epoch", out.has("epoch"));
+        }
+    }
+
+    @Test
+    public void normalizeTransaction_surfacesRejectionReason() throws Exception {
+        JSONObject in = new JSONObject();
+        in.put("epoch", 3);
+        in.put("error", "nonce too low");
+        JSONObject out = OctraHttpServer.normalizeTransaction("0x1", in);
+        assertEquals("nonce too low", out.getString("error_detail"));
+        // JSONException on a null value would previously throw a 500.
+        JSONObject withNull = tx("epoch", "1", "error", JSONObject.NULL);
+        assertEquals(1L,
+                OctraHttpServer.normalizeTransaction("0x2", withNull).getLong("epoch"));
+    }
 
     @Test
     public void getMimeType_servesMjsAsScript() {

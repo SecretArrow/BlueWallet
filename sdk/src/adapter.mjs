@@ -127,18 +127,62 @@ export class OctraWalletAdapter {
     const res = await this._withTimeout(t.request('octra_getBalance', []));
     // Injected path answers a JSON-RPC envelope; localhost answers a body.
     const r = unwrapRpc(res) ?? {};
-    const raw = r.balance_raw ?? r.raw ?? null;
-    const encRaw = r.encrypted_raw ?? r.encryptedRaw ?? null;
-    const pub = r.balance ?? (raw != null ? fromMicroOCT(raw) : null);
-    const priv = r.encryptedBalance ?? (encRaw != null ? fromMicroOCT(encRaw) : null);
+    // Field names differ per wallet surface and must all be accepted:
+    //   injected : { balance, balance_raw, encrypted_balance? }
+    //   localhost: { public_raw, encrypted_raw, total_raw,
+    //                public_oct, encrypted_oct, total_oct, nonce }
+    // Localhost answers numbers, injected answers strings — normalize to an
+    // exact decimal string so callers can never lose precision on a float.
+    const raw = strOrNull(firstOf(r, ['balance_raw', 'public_raw', 'raw']));
+    const encRaw = strOrNull(
+      firstOf(r, ['encrypted_raw', 'encryptedBalance_raw']),
+    );
+    const totalRaw = strOrNull(firstOf(r, ['total_raw']));
+    const nonce = firstOf(r, ['nonce']);
+    const pub =
+      firstOf(r, ['balance', 'public_oct']) ??
+      (raw != null ? fromMicroOCT(raw) : null);
+    const priv =
+      firstOf(r, ['encryptedBalance', 'encrypted_oct', 'encryptedBalanceOct']) ??
+      (encRaw != null ? fromMicroOCT(encRaw) : null);
+    const total =
+      firstOf(r, ['total_oct', 'total']) ??
+      (pub != null && priv != null
+        ? addOct(pub, priv)
+        : (pub ?? priv));
     return {
       public: pub,
       private: priv,
-      total: pub != null && priv != null ? addOct(pub, priv) : (pub ?? priv),
+      total,
       raw,
       encryptedRaw: encRaw,
+      // Kept so callers doing micro-OCT math never round-trip a float.
+      totalRaw,
+      nonce: nonce === null ? null : Number(nonce),
       currency: 'OCT',
+      // A server-side failure body must stay visible; silently reporting a
+      // 0 balance would hide a locked wallet behind a valid-looking number.
+      error: typeof r.error === 'string' ? r.error : null,
     };
+  }
+
+  /**
+   * Node transaction lookup (epoch, status, block height). Not wallet state,
+   * so an injected provider cannot serve it — transports that lack the route
+   * throw UNSUPPORTED_METHOD rather than returning a fabricated record.
+   */
+  async getTransaction({ hash } = {}) {
+    if (typeof hash !== 'string' || !hash.trim()) {
+      throw new OctraWalletError(
+        ERROR_CODES.INVALID_PARAMS,
+        'getTransaction needs a tx hash',
+      );
+    }
+    const t = this._requireTransport();
+    const res = await this._withTimeout(
+      t.request('octra_getTransaction', [hash.trim()]),
+    );
+    return unwrapRpc(res) ?? {};
   }
 
   /** PVAC cipher bundle for the connected wallet (may need a refresh first). */
@@ -262,6 +306,31 @@ export class OctraWalletAdapter {
       if (timer !== undefined) clearTimeout(timer);
     }
   }
+}
+
+/**
+ * Exact decimal string for a micro-amount that may arrive as a JSON number
+ * or string. Non-integers are rejected (null) — a float micro-amount would
+ * already have lost precision upstream.
+ */
+function strOrNull(v) {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (!/^\d+$/.test(s)) return null;
+  return s.replace(/^0+(?=\d)/, '');
+}
+
+/**
+ * First defined, non-null value among `keys` of `obj`.
+ * Returns null when the object lacks every key (never throws).
+ */
+function firstOf(obj, keys) {
+  if (!obj || typeof obj !== 'object') return null;
+  for (const k of keys) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && v !== '') return v;
+  }
+  return null;
 }
 
 /** Exact OCT decimal addition on strings (no floats). */

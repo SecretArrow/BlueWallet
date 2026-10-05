@@ -293,3 +293,130 @@ describe('unwrapRpc + withAuthRetry', () => {
     assert.equal(a.isConnected(), true);
   });
 });
+
+describe('getBalance accepts every wallet surface shape', () => {
+  async function balanceOf(wireBody) {
+    const a = adapterWith({
+      octra_requestAccounts: [ADDR],
+      octra_getBalance: wireBody,
+    });
+    await a.initialize();
+    await a.connect();
+    return a.getBalance();
+  }
+
+  it('injected RPC envelope: {balance, balance_raw}', async () => {
+    const b = await balanceOf({
+      jsonrpc: '2.0',
+      id: 1,
+      result: { balance: '10.5', balance_raw: '10500000', nonce: 4 },
+    });
+    assert.equal(b.public, '10.5');
+    assert.equal(b.raw, '10500000');
+    assert.equal(b.nonce, 4);
+    assert.equal(b.total, '10.5');
+  });
+
+  it('localhost body: {public_raw, encrypted_raw, ..._oct}', async () => {
+    // Regression: only balance_raw/balance used to be read, so every
+    // localhost page rendered a 0 OCT balance.
+    const b = await balanceOf({
+      public_raw: 2000000,
+      encrypted_raw: 500000,
+      total_raw: 2500000,
+      public_oct: '2',
+      encrypted_oct: '0.5',
+      total_oct: '2.5',
+      nonce: 9,
+    });
+    assert.equal(b.public, '2');
+    assert.equal(b.private, '0.5');
+    assert.equal(b.total, '2.5');
+    assert.equal(b.raw, '2000000');
+    assert.equal(b.encryptedRaw, '500000');
+    assert.equal(b.totalRaw, '2500000');
+    assert.equal(b.nonce, 9);
+  });
+
+  it('localhost encrypted-only wallet', async () => {
+    const b = await balanceOf({ public_raw: '0', encrypted_raw: '750000', encrypted_oct: '0.75' });
+    assert.equal(b.public, '0');
+    assert.equal(b.private, '0.75');
+    assert.equal(b.total, '0.75');
+  });
+
+  it('empty/unknown shapes yield nulls, never a crash or a fake 0', async () => {
+    for (const body of [{}, null, { error: 'nope' }, 'weird', { balance: '' }]) {
+      const b = await balanceOf(body);
+      assert.equal(b.public, null, `for ${JSON.stringify(body)}`);
+      assert.equal(b.total, null);
+      assert.equal(b.raw, null);
+      assert.equal(b.currency, 'OCT');
+    }
+  });
+
+  it('server error body surfaces, not silently zero', async () => {
+    const b = await balanceOf({ error: 'Wallet not loaded' });
+    assert.equal(b.public, null);
+    assert.equal(b.error, 'Wallet not loaded');
+  });
+});
+
+describe('getTransaction (adapter-only node lookup)', () => {
+  it('routes through the transport and unwraps the envelope', async () => {
+    const a = adapterWith({
+      octra_requestAccounts: [ADDR],
+      octra_getTransaction: { jsonrpc: '2.0', result: { found: true, epoch: 12 } },
+    });
+    await a.initialize();
+    await a.connect();
+    const tx = await a.getTransaction({ hash: '  0xabc  ' });
+    assert.equal(tx.found, true);
+    assert.equal(tx.epoch, 12);
+    assert.equal(a.transport.calls.at(-1).method, 'octra_getTransaction');
+    assert.deepEqual(a.transport.calls.at(-1).params, ['0xabc']);
+  });
+
+  it('rejects empty/non-string hashes before any wire call', async () => {
+    const a = adapterWith({ octra_requestAccounts: [ADDR] });
+    await a.initialize();
+    await a.connect();
+    const n = a.transport.calls.length;
+    for (const bad of [{}, { hash: '' }, { hash: '   ' }, { hash: null }, { hash: 42 }]) {
+      await assert.rejects(() => a.getTransaction(bad),
+        (e) => e.code === ERROR_CODES.INVALID_PARAMS, `for ${JSON.stringify(bad)}`);
+    }
+    await assert.rejects(() => a.getTransaction(), (e) => e.code === ERROR_CODES.INVALID_PARAMS);
+    assert.equal(a.transport.calls.length, n, 'no wire call on invalid hash');
+  });
+
+  it('a miss is data, not an exception', async () => {
+    const a = adapterWith({
+      octra_requestAccounts: [ADDR],
+      octra_getTransaction: { found: false, hash: '0xdead' },
+    });
+    await a.initialize();
+    await a.connect();
+    const tx = await a.getTransaction({ hash: '0xdead' });
+    assert.equal(tx.found, false);
+    assert.equal(tx.epoch, undefined);
+  });
+
+  it('LocalhostTransport URL-encodes the hash', async () => {
+    let seen = '';
+    const t = new LocalhostTransport({
+      fetchImpl: async (url) => {
+        seen = String(url);
+        return { ok: true, status: 200, json: async () => ({ found: false }) };
+      },
+    });
+    await t.request('octra_getTransaction', ['a b&c=d']);
+    // encodeURIComponent leaves '/' and ':' alone — both are legal in a hash.
+    assert.ok(seen.endsWith('/api/transaction?hash=a%20b%26c%3Dd'), `unexpected URL: ${seen}`);
+    assert.ok(!/[&]c=/.test(seen.split('?')[1].replace('hash=a%20b%26c%3Dd', '')), 'hash must not inject extra params');
+    await assert.rejects(() => t.request('octra_getTransaction', ['']),
+      (e) => e.code === ERROR_CODES.INVALID_PARAMS);
+    await assert.rejects(() => t.request('octra_getTransaction', [null]),
+      (e) => e.code === ERROR_CODES.INVALID_PARAMS);
+  });
+});

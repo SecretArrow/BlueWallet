@@ -32,6 +32,15 @@ export const RFC_METHODS = Object.freeze([
 export const SUPPORTED_METHODS = Object.freeze([...LEGACY_METHODS, ...RFC_METHODS]);
 
 /**
+ * Adapter-local reads that no injected wallet implements (they are node
+ * lookups, not wallet state). Only transports that route HTTP can serve
+ * them; the injected provider rejects them with UNSUPPORTED_METHOD.
+ */
+export const ADAPTER_ONLY_METHODS = Object.freeze([
+  'octra_getTransaction',
+]);
+
+/**
  * Trim + null-guard a raw method name. Unknown names pass through unchanged
  * and are rejected downstream as unsupported.
  */

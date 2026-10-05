@@ -10,6 +10,7 @@ export {
   LEGACY_METHODS,
   RFC_METHODS,
   SUPPORTED_METHODS,
+  ADAPTER_ONLY_METHODS,
   canonicalizeMethod,
   isSupportedMethod,
   ERROR_CODES,

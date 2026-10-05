@@ -250,6 +250,14 @@ public class LocalWebServerService extends Service {
                     return cors(jsonOk(handleContractCall(session)));
                 }
 
+                // Public: transaction lookup by hash (bridge epoch resolution).
+                // Public like /api/fee: a read-only node query that needs no
+                // wallet. Authed like the rest of /api/* would 401 the
+                // embedded dApp pages, which ship no token.
+                if ("/api/transaction".equals(uri) && Method.GET.equals(method)) {
+                    return cors(jsonOk(handleTransaction(session)));
+                }
+
                 // Public: batch fee estimation (webcli GET /api/fee parity).
                 // No wallet needed — read-only node query with safe fallbacks.
                 if ("/api/fee".equals(uri) && Method.GET.equals(method)) {
@@ -1252,6 +1260,71 @@ public class LocalWebServerService extends Service {
                 return errorJson("Submit transaction returned null");
             }
             return submitRes;
+        }
+
+        /**
+         * {@code octra_transaction} lookup — the epoch a lock tx landed in.
+         *
+         * <p>bridge.js polls this after the approval-gated call returns,
+         * because {@code contract_receipt} does not always carry the epoch.
+         * Returns {@code {"found": false}} (HTTP 200) for an unknown hash so
+         * the poller can distinguish "not mined yet" from a server error.
+         */
+        private JSONObject handleTransaction(IHTTPSession session) throws Exception {
+            Map<String, List<String>> params = session.getParameters();
+            List<String> hashes = params.get("hash");
+            if (hashes == null || hashes.isEmpty()) {
+                throw new BadRequestException("Missing transaction hash");
+            }
+            String txHash = requireNonEmpty(hashes.get(0), "hash");
+
+            String rpcUrl;
+            try {
+                JSONObject info = safeWalletInfo();
+                rpcUrl = info.optString("rpc_url", UrlSecurityValidator.DEFAULT_RPC);
+            } catch (Exception e) {
+                rpcUrl = UrlSecurityValidator.DEFAULT_RPC;
+            }
+
+            JSONObject tx;
+            try {
+                tx = OctraRpcClient.getInstance().getTransaction(rpcUrl, txHash);
+            } catch (Exception e) {
+                JSONObject out = new JSONObject();
+                out.put("found", false);
+                out.put("hash", txHash);
+                out.put("error", "Transaction lookup failed: " + safeMessage(e));
+                return out;
+            }
+            return normalizeTransaction(txHash, tx);
+        }
+
+        /**
+         * Pure normalizer for {@code octra_transaction} responses — static so
+         * JVM tests cover the shape mapping without a node.
+         *
+         * <p>Never returns {@code found:true} for a null/empty result: the
+         * bridge poller must be able to tell "not mined yet" (retry) from a
+         * server fault (report).
+         */
+        static JSONObject normalizeTransaction(String txHash, JSONObject tx) throws Exception {
+            if (tx == null || tx.length() == 0) {
+                JSONObject miss = new JSONObject();
+                miss.put("found", false);
+                miss.put("hash", txHash);
+                return miss;
+            }
+            JSONObject out = new JSONObject();
+            out.put("found", true);
+            out.put("hash", tx.optString("tx_hash", txHash));
+            // epoch vs epoch_id: both spellings exist across node versions.
+            out.put("epoch", tx.optLong("epoch", tx.optLong("epoch_id", 0)));
+            out.put("status", tx.optString("status", ""));
+            out.put("block_height", tx.optLong("block_height", 0));
+            if (tx.has("error") && !tx.isNull("error")) {
+                out.put("error_detail", tx.opt("error").toString());
+            }
+            return out;
         }
 
         private JSONObject handleFee() throws Exception {

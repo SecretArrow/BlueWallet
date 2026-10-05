@@ -254,6 +254,14 @@ class LocalWebServerService extends ChangeNotifier {
       return;
     }
 
+    // Public: transaction lookup by hash (bridge epoch resolution).
+    // Public like /api/fee: a read-only node query needing no wallet. An
+    // auth guard here would 401 the embedded dApp pages, which ship no token.
+    if (uriPath == '/api/transaction' && request.method == 'GET') {
+      await _handleTransaction(request, response);
+      return;
+    }
+
     // Public: batch fee estimation (webcli GET /api/fee parity).
     if (uriPath == '/api/fee') {
       if (request.method == 'GET') {
@@ -1516,6 +1524,73 @@ class LocalWebServerService extends ChangeNotifier {
       await _sendJsonError(
           response, HttpStatus.internalServerError, e.toString());
     }
+  }
+
+  /// `octra_transaction` lookup — the epoch a lock tx landed in.
+  ///
+  /// bridge.js polls this after the approval-gated call returns, because
+  /// `contract_receipt` does not always carry the epoch. Answers
+  /// `{'found': false}` with HTTP 200 for an unknown hash so the poller can
+  /// tell "not mined yet" apart from a server error.
+  Future<void> _handleTransaction(
+      HttpRequest request, HttpResponse response) async {
+    final hash = request.uri.queryParameters['hash']?.trim() ?? '';
+    if (hash.isEmpty) {
+      await _sendJsonError(
+          response, HttpStatus.badRequest, 'Missing transaction hash');
+      return;
+    }
+
+    try {
+      final client = RpcClient();
+      client.setUrl(NetworkService.instance.activeNodeUrl);
+      final res = await client.getTransaction(hash);
+      await _sendJson(
+          response,
+          HttpStatus.ok,
+          normalizeTransaction(
+              hash,
+              res.ok && res.result is Map
+                  ? Map<String, dynamic>.from(res.result as Map)
+                  : null,
+              error: res.ok ? null : res.error));
+    } catch (e) {
+      await _sendJson(response, HttpStatus.ok, {
+        'found': false,
+        'hash': hash,
+        'error': 'Transaction lookup failed: $e',
+      });
+    }
+  }
+
+  /// Pure normalizer for `octra_transaction` — static so tests cover the shape
+  /// mapping without a node.
+  ///
+  /// Never reports `found: true` for a null/empty result: the bridge poller
+  /// must tell "not mined yet" (retry) from a server fault (report).
+  static Map<String, dynamic> normalizeTransaction(
+      String hash, Map<String, dynamic>? tx,
+      {String? error}) {
+    if (tx == null || tx.isEmpty) {
+      return {
+        'found': false,
+        'hash': hash,
+        if (error != null) 'error': error,
+      };
+    }
+    // epoch vs epoch_id: both spellings exist across node versions.
+    final epoch = tx['epoch'] ?? tx['epoch_id'] ?? 0;
+    final blockHeight = tx['block_height'];
+    return {
+      'found': true,
+      'hash': '${tx['tx_hash'] ?? hash}',
+      'epoch': epoch is num ? epoch.toInt() : int.tryParse('$epoch') ?? 0,
+      'status': '${tx['status'] ?? ''}',
+      'block_height': blockHeight is num
+          ? blockHeight.toInt()
+          : int.tryParse('$blockHeight') ?? 0,
+      if (tx['error'] != null) 'error_detail': '${tx['error']}',
+    };
   }
 
   Future<void> _handleFee(HttpResponse response) async {

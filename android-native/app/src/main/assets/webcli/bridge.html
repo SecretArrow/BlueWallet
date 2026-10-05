@@ -272,6 +272,17 @@ tr:hover td { background: #F6F7F9; }
   </div>
 </div>
 
-<script src="bridge.js?v=3"></script>
+<div class="modal-bg" id="token-modal">
+  <div class="modal-box">
+    <h2>local server token</h2>
+    <div class="confirm-detail" id="token-msg"></div>
+    <input type="password" id="token-input" maxlength="128" placeholder="Bearer token" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:8px;font-family:monospace">
+    <div class="modal-btns">
+      <button class="btn-cancel" data-action="cancelToken">cancel</button>
+      <button class="btn-confirm" data-action="saveToken">save</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="bridge.js?v=4"></script>
 </body>
 </html>
