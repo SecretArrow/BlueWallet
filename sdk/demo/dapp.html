@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OctraWalletAdapter demo</title>
+<style>
+  body { font-family: monospace; max-width: 640px; margin: 2em auto; padding: 0 1em; }
+  button { margin: 0.25em 0.5em 0.25em 0; padding: 0.5em 1em; }
+  pre { background: #f4f4f4; padding: 1em; overflow-x: auto; }
+  input { width: 100%; box-sizing: border-box; margin: 0.25em 0; padding: 0.4em; }
+</style>
+</head>
+<body>
+<h1>OctraWalletAdapter demo</h1>
+<p>Needs a BlueWallet in-app browser (injected <code>window.octra</code>) or a
+local server on <code>127.0.0.1:8420</code> (token optional for reads).</p>
+<label>Local token (from Local Web Server settings, optional):
+<input id="token" type="text" placeholder="Bearer token"></label>
+<div>
+  <button data-action="connect">connect</button>
+  <button data-action="balance">getBalance</button>
+  <button data-action="view">contractView (reserves)</button>
+</div>
+<pre id="out">…</pre>
+<script type="module">
+  import {
+    OctraWalletAdapter, InjectedTransport, LocalhostTransport,
+  } from '../src/index.mjs';
+
+  const out = document.getElementById('out');
+  const log = (x) => { out.textContent = typeof x === 'string' ? x : JSON.stringify(x, null, 2); };
+
+  const adapter = new OctraWalletAdapter({
+    appName: 'Adapter demo',
+    transports: [
+      new InjectedTransport(),
+      new LocalhostTransport({
+        get token() { return document.getElementById('token').value.trim(); },
+      }),
+    ],
+  });
+
+  document.querySelectorAll('button[data-action]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const action = btn.dataset.action;
+      try {
+        if (!(await adapter.initialize())) throw new Error('no transport available');
+        if (!adapter.isConnected()) await adapter.connect();
+        if (action === 'connect') log(await adapter.connect());
+        if (action === 'balance') log(await adapter.getBalance());
+        if (action === 'view') {
+          log('contract + method required — edit demo source with real addresses');
+        }
+      } catch (e) {
+        log(`ERROR [${e.code ?? '?'}] ${e.message}`);
+      }
+    });
+  });
+  log('ready — pick an action');
+</script>
+</body>
+</html>

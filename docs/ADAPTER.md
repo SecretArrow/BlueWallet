@@ -7,6 +7,21 @@ The in-app browsers (Android `DappBrowserActivity`, Flutter
 Third-party adapters (e.g. 0xio `OctraProviderAdapter`) auto-detect this
 wallet via the RFC-O-1 names; existing integrations keep working untouched.
 
+## Status: Fase B — `OctraWalletAdapter` JS package (`sdk/`)
+
+Vanilla `.mjs`, zero dependencies, clean-room implementation (patterns
+learned from OrionWallet `src/sdk` + 0xio guide — no code copied).
+
+- `src/protocol.mjs` — method registry (legacy + RFC), error codes, capabilities
+- `src/errors.mjs` — typed `OctraWalletError`
+- `src/units.mjs` — exact OCT↔micro conversion, address shape check
+- `src/transports.mjs` — `InjectedTransport` (window.octra), `LocalhostTransport` (reads + approval-gated calls; plain sends refused by design)
+- `src/adapter.mjs` — `OctraWalletAdapter` (lifecycle, reads, approved writes, events)
+- `test/*.test.mjs` — `node --test`, CI job `sdk`
+- `demo/dapp.html` — runnable demo (relative import, serve over HTTP)
+
+Amounts are exact decimal strings; `ou` is wallet-decided (fee oracle).
+
 ## Method surface
 
 | Legacy (existing) | RFC-O-1 alias | Notes |

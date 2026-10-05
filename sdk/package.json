@@ -1,0 +1,16 @@
+{
+  "name": "@bluewallet/octra-wallet-adapter",
+  "version": "0.1.0",
+  "description": "OctraWalletAdapter — dApp adapter for BlueWallet/Octra wallets (RFC-O-1). Zero dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
