@@ -43,6 +43,15 @@ void main() {
     });
   });
 
+  group('exceedsDirectLimit', () {
+    test('guards the 8MB render budget', () {
+      expect(OctUrl.exceedsDirectLimit(0), isFalse);
+      expect(OctUrl.exceedsDirectLimit(OctUrl.maxDirectBytes), isFalse);
+      expect(OctUrl.exceedsDirectLimit(OctUrl.maxDirectBytes + 1), isTrue);
+      expect(OctUrl.exceedsDirectLimit(-1), isTrue);
+    });
+  });
+
   group('gatewayHttpUrl', () {
     test('builds the local gateway URL', () {
       expect(OctUrl.gatewayHttpUrl(fieldId, '/index.html'),

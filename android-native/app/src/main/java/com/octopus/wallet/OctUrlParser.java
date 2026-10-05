@@ -13,7 +13,20 @@ public final class OctUrlParser {
 
     public static final String OCT_SCHEME = "oct://";
 
+    /**
+     * Direct-render budget: assets bigger than this are refused with HTTP 413
+     * so a 32 MB circle asset can never OOM the WebView process by buffering
+     * fully in RAM. Oversized pages must go through the localhost gateway
+     * (streamed) instead.
+     */
+    public static final int MAX_DIRECT_BYTES = 8 * 1024 * 1024;
+
     private OctUrlParser() {
+    }
+
+    /** True when rendering {@code byteLength} directly would risk OOM. */
+    public static boolean isTooLarge(int byteLength) {
+        return byteLength < 0 || byteLength > MAX_DIRECT_BYTES;
     }
 
     public static boolean isOctUrl(String url) {

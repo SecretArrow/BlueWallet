@@ -29,6 +29,7 @@ test per cabang, asumsi eksplisit).
 | A14 | Room `fallbackToDestructiveMigration` DIPERTAHANKAN sementara: skema v2 belum pernah rilis ke user (histori squash), migrasi eksplisit tanpa skema v1 yang pasti lebih berbahaya (risiko bootloop). Ditinjau ulang sebelum bump versi DB berikutnya |
 | A15 | Polling bounds: interval 1 dtk–24 jam, threshold 0–7 hari. UI memvalidasi batas yang sama (tanpa itu setter throw = crash). Threshold 0 = selalu notifikasi |
 | A16 | Proxy: host wajib isi, port 1..65535, tipe SOCKS/HTTP (kanonik upper). UI memvalidasi duluan; setter throw + row-tap toast sebagai jaring. Send: recipient tak-kosong + amount > 0 sebelum network (builder tetap validasi ulang) |
+| A17 | Render langsung dibatasi 8 MB dua sisi (aset lebih besar via gateway streaming atau pesan jelas). Renderer crash tak lagi membunuh activity (Android dialog reload). E2E browser membuka URL laporan sungguhan |
 
 ## Inventaris modul × risiko × fase
 
@@ -119,6 +120,15 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
 | 5 | desimal token absurd | render mentah, cap 0..36 (dulu: potensi OOM) | sama (dulu: hang/OOM `pow`+`padLeft`) | out-of-range grup dua sisi |
 | 6 | nilai sampah | render mentah (existing) | sama (existing) | garbage tests |
 | 7 | hapus wallet terakhir / double-tap / PIN salah | proteksi + disable tombol + pesan (existing, diinspeksi) | — (alur setara di layar, diinspeksi) | inspeksi |
+
+## Bukti browser hardening — cap render + renderer + E2E
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | aset > 8 MB | 413 + tawaran gateway/aktifkan server (dulu: buffer penuh → risiko OOM) | sama via snackbar/gateway | `isTooLarge`/`exceedsDirectLimit` grup |
+| 2 | renderer mati (OOM/crash) | dialog Reload/Close, activity hidup (dulu: ikut mati) | — (plugin tak ekspos API; backlog) | inspeksi |
+| 3 | URL laporan di browser asli | E2E manual | E2E `oct_browser_test`: render tanpa "Cannot open" | emulator |
+| 4 | error body kosong | `octError` kini bawa pesan (dulu: body kosong) | snackbar sudah deskriptif (existing) | inspeksi |
 
 ## Bukti Fase 3.3 — address book
 
