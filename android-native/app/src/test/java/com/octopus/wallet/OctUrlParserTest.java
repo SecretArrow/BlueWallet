@@ -52,6 +52,15 @@ public class OctUrlParserTest {
     }
 
     @Test
+    public void parseOctUrl_fieldReportUrl() {
+        // Exact production URL from the field report.
+        assertArrayEquals(
+                new String[]{"oct99BWHFpV5r54DXKc2FhsBmZEaS6Q8zvCQrHRgXUcK4Fk", "/index.html"},
+                OctUrlParser.parseOctUrl(
+                        "oct://oct99BWHFpV5r54DXKc2FhsBmZEaS6Q8zvCQrHRgXUcK4Fk/index.html"));
+    }
+
+    @Test
     public void isTextMime_classifiesCorrectly() {
         assertTrue(OctUrlParser.isTextMime("text/html"));
         assertTrue(OctUrlParser.isTextMime("text/css"));
