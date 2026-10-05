@@ -45,8 +45,8 @@ class PollingService extends ChangeNotifier {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    _intervalMs = clampInterval(
-        prefs.getInt(_kIntervalKey) ?? defaultIntervalMs);
+    _intervalMs =
+        clampInterval(prefs.getInt(_kIntervalKey) ?? defaultIntervalMs);
     _thresholdSendMs = clampThreshold(
         prefs.getInt(_kThresholdSendKey) ?? defaultThresholdSendMs,
         defaultThresholdSendMs);

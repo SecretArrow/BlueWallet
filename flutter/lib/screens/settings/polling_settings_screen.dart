@@ -55,8 +55,8 @@ class _PollingSettingsScreenState extends State<PollingSettingsScreen> {
     if (intInterval > 86400 || intSend > 10080 || intAdvanced > 10080) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text(
-                'Interval max 86400s (24h), thresholds max 10080m (7d)')),
+            content:
+                Text('Interval max 86400s (24h), thresholds max 10080m (7d)')),
       );
       return;
     }
