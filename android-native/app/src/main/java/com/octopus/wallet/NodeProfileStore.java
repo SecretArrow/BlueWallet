@@ -86,13 +86,11 @@ public final class NodeProfileStore {
 
     public static NodeProfile addProfile(Context context, String preferredName, String rpcUrl, String explorerUrl) {
         List<NodeProfile> list = getProfiles(context);
-        String base = sanitizeName(preferredName.isEmpty() ? "Node" : preferredName);
-        String candidate = base;
-        int index = 2;
-        while (findByName(list, candidate) != null) {
-            candidate = base + " " + index;
-            index++;
+        String base = sanitizeName(preferredName == null || preferredName.isEmpty() ? "Node" : preferredName);
+        if (base.isEmpty()) {
+            base = "Node";
         }
+        String candidate = uniqueName(list, base);
         String normalizedRpc = UrlSecurityValidator.normalizeRpcUrl(rpcUrl);
         String normalizedExplorer = UrlSecurityValidator.normalizeExplorerUrl(explorerUrl);
         if (normalizedRpc == null || normalizedRpc.trim().isEmpty()) {
@@ -143,8 +141,9 @@ public final class NodeProfileStore {
     }
 
     public static NodeProfile findByName(List<NodeProfile> list, String name) {
+        if (list == null || name == null) return null;
         for (NodeProfile item : list) {
-            if (item.name.equals(name)) {
+            if (item != null && name.equals(item.name)) {
                 return item;
             }
         }
@@ -169,7 +168,22 @@ public final class NodeProfileStore {
                 .apply();
     }
 
-    private static String sanitizeName(String input) {
+    /**
+     * Deduplicate a display name ("X", "X 2", "X 3", …). Pure and unit-tested.
+     */
+    static String uniqueName(List<NodeProfile> existing, String base) {
+        String candidate = base;
+        int index = 2;
+        while (findByName(existing, candidate) != null) {
+            candidate = base + " " + index;
+            index++;
+        }
+        return candidate;
+    }
+
+    /** Package-visible for tests. */
+    static String sanitizeName(String input) {
+        if (input == null) return "";
         return input.replaceAll("[^A-Za-z0-9 _-]", "").trim();
     }
 
