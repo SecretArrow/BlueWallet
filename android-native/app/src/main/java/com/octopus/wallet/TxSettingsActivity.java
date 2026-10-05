@@ -53,6 +53,11 @@ public class TxSettingsActivity extends BaseTxActivity {
                 showError("Timeout must be at least 1 minute");
                 return;
             }
+            // Mirror PollingSettingsStore bounds (setters throw beyond these).
+            if (intervalS > 86400 || thresholdSendM > 10080 || thresholdAdvancedM > 10080) {
+                showError("Interval max 86400s (24h), timeouts max 10080m (7d)");
+                return;
+            }
 
             PollingSettingsStore.setIntervalMs(this, intervalS * 1000);
             PollingSettingsStore.setThresholdSendMs(this, thresholdSendM * 60000);
