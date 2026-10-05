@@ -17,6 +17,7 @@ jobs:
       flutter: ${{ steps.filter.outputs.flutter }}
       android: ${{ steps.filter.outputs.android }}
       webcli: ${{ steps.filter.outputs.webcli }}
+      sdk: ${{ steps.filter.outputs.sdk }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,6 +33,8 @@ jobs:
             webcli:
               - 'webcli/**'
               - '.gitmodules'
+            sdk:
+              - 'sdk/**'
 
   flutter:
     needs: changes
@@ -130,6 +133,24 @@ jobs:
         with:
           name: android-debug-apk
           path: android-native/app/build/outputs/apk/debug/*.apk
+
+  sdk:
+    needs: changes
+    if: needs.changes.outputs.sdk == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sdk/package-lock.json
+      # Zero runtime dependencies: install only validates the manifest.
+      - run: npm ci --ignore-scripts
+      - run: npm test
 
   size-report:
     needs: [flutter, android-build]
