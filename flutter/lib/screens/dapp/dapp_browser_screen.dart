@@ -186,8 +186,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       setState(() => _connectedAddress = address);
       _bridgeResult(id, jsonEncode({'address': address, 'ok': true}));
     } else {
-      _bridgeError(id, 'User rejected connection',
-          DappBridgeProtocol.userRejected);
+      _bridgeError(
+          id, 'User rejected connection', DappBridgeProtocol.userRejected);
     }
   }
 
@@ -210,8 +210,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       setState(() => _connectedAddress = address);
       _bridgeResult(id, jsonEncode([address]));
     } else {
-      _bridgeError(id, 'User rejected connection',
-          DappBridgeProtocol.userRejected);
+      _bridgeError(
+          id, 'User rejected connection', DappBridgeProtocol.userRejected);
     }
   }
 
@@ -225,8 +225,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
     }
     final cipher = ws.encryptedBalanceCipher;
     if (cipher == null || cipher.isEmpty) {
-      _bridgeError(id,
-          'Encrypted balance unavailable — refresh the wallet first');
+      _bridgeError(
+          id, 'Encrypted balance unavailable — refresh the wallet first');
       return;
     }
     _bridgeResult(
@@ -243,8 +243,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       'octra_requestAccounts',
     };
     if (_connectedAddress == null && !preConnect.contains(method)) {
-      _bridgeError(
-          id, 'Not connected', DappBridgeProtocol.unauthorized);
+      _bridgeError(id, 'Not connected', DappBridgeProtocol.unauthorized);
       return;
     }
     try {

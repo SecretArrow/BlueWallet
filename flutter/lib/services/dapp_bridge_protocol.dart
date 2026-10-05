@@ -47,8 +47,7 @@ class DappBridgeProtocol {
   };
 
   /// Trim + null-guard a raw method name from JS.
-  static String canonicalize(String? method) =>
-      method?.trim() ?? '';
+  static String canonicalize(String? method) => method?.trim() ?? '';
 
   /// True when the bridge dispatches this method (either dialect).
   static bool isSupported(String? method) {

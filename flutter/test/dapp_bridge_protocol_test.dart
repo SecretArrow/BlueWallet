@@ -39,19 +39,16 @@ void main() {
     });
 
     test('RFC-O-1 aliases dispatch', () {
+      expect(DappBridgeProtocol.isSupported('octra_requestAccounts'), isTrue);
       expect(
-          DappBridgeProtocol.isSupported('octra_requestAccounts'), isTrue);
-      expect(
-          DappBridgeProtocol.isSupported('octra_getEncryptedBalance'),
-          isTrue);
+          DappBridgeProtocol.isSupported('octra_getEncryptedBalance'), isTrue);
     });
 
     test('unknown stays unknown', () {
       expect(DappBridgeProtocol.isSupported('octra_broadcast'), isFalse);
       expect(DappBridgeProtocol.isSupported(''), isFalse);
       expect(DappBridgeProtocol.isSupported(null), isFalse);
-      expect(
-          DappBridgeProtocol.isSupported('eth_sendTransaction'), isFalse);
+      expect(DappBridgeProtocol.isSupported('eth_sendTransaction'), isFalse);
     });
   });
 }
