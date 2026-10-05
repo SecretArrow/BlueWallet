@@ -74,7 +74,7 @@ public class LocalServerValidationTest {
             try {
                 OctraHttpServer.requireNonEmpty(bad, "hash");
                 fail("expected BadRequestException");
-            } catch (LocalWebServerService.BadRequestException e) {
+            } catch (OctraHttpServer.BadRequestException e) {
                 assertTrue(e.getMessage().contains("hash"));
             }
         }
@@ -88,7 +88,7 @@ public class LocalServerValidationTest {
             try {
                 OctraHttpServer.requireUintString(bad, "amount");
                 fail("expected BadRequestException for: '" + bad + "'");
-            } catch (LocalWebServerService.BadRequestException e) {
+            } catch (OctraHttpServer.BadRequestException e) {
                 assertTrue(e.getMessage().contains("amount"));
             }
         }
