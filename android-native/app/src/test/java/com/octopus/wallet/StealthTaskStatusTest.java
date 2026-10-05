@@ -29,8 +29,10 @@ public class StealthTaskStatusTest {
 
     @Test
     public void normalizeStatus_unfinishedIsNotSuccess() {
-        // "unfinished" contains "finish" — must not classify as success.
+        // "unfinished" contains "finish" — explicit negations beat substring.
         assertEquals("failed", StealthTaskManager.normalizeStatus("unfinished"));
+        assertEquals("failed", StealthTaskManager.normalizeStatus("cancelled"));
+        assertEquals("failed", StealthTaskManager.normalizeStatus("incomplete"));
     }
 
     @Test
