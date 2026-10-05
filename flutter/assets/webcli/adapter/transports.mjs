@@ -215,6 +215,18 @@ export class LocalhostTransport {
         });
         return this._fetch(`/api/contract/view?${q.toString()}`);
       }
+      case 'octra_getTransaction': {
+        const [hash] = params;
+        if (!hash || typeof hash !== 'string' || !hash.trim()) {
+          throw new OctraWalletError(
+            ERROR_CODES.INVALID_PARAMS,
+            'getTransaction needs a tx hash',
+          );
+        }
+        return this._fetch(
+          `/api/transaction?hash=${encodeURIComponent(hash.trim())}`,
+        );
+      }
       case 'octra_callContract':
       case 'octra_sendTransaction':
         throw new OctraWalletError(

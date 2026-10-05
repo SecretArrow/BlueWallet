@@ -1,3 +1,5 @@
+import { createAdapter } from './adapter/boot.mjs';
+
 const BRIDGE_VAULT = 'oct5MrNfjiXFNRDLwsodn8Zm9hDKNGAYt3eQDCQ52bSpCHq';
 const WOCT_ADDR = '0x4647e1fE715c9e23959022C2416C71867F5a6E80';
 const ETH_BRIDGE = '0xE7eD69b852fd2a1406080B26A37e8E04e7dA4caE';
@@ -187,6 +189,77 @@ async function wcli(method, path, body) {
   return res.json();
 }
 
+// ---- OctraWalletAdapter wiring (Fase C2) ----
+// Authed reads (balance) and the lock call go through the adapter, which
+// handles 401 token re-prompting. Public endpoints (wallet/status,
+// contract/receipt) keep direct fetch. Ethereum-side calls are untouched —
+// MetaMask is not an Octra wallet surface.
+var _adapterBox = null;
+
+async function adapter() {
+  if (!_adapterBox) {
+    _adapterBox = createAdapter({ appName: 'Octra Bridge', promptToken: promptTokenModal });
+    var ok = await _adapterBox.adapter.initialize();
+    if (!ok) throw new Error('no wallet transport available');
+  }
+  return _adapterBox;
+}
+
+// Single-slot prompt: withAuthRetry retries once, so two prompts never
+// need to stack; a second caller chains onto the open one.
+var _pendingTokenPrompt = null;
+
+function closeTokenModal(value) {
+  var el = $('token-modal');
+  if (el) el.classList.remove('show');
+  var input = $('token-input');
+  if (input) input.value = '';
+  var resolve = _pendingTokenPrompt;
+  _pendingTokenPrompt = null;
+  if (resolve) resolve(value || null);
+}
+
+function saveToken() { closeTokenModal($('token-input') ? $('token-input').value.trim() : ''); }
+function cancelToken() { closeTokenModal(null); }
+
+function promptTokenModal(reason) {
+  if (_pendingTokenPrompt) return new Promise(function(r) {
+    var prev = _pendingTokenPrompt;
+    _pendingTokenPrompt = function(v) { prev(v); r(v); };
+  });
+  var box = $('token-modal');
+  if (!box) return Promise.resolve(null);
+  var msg = $('token-msg');
+  if (msg) msg.textContent = reason || 'Paste the Bearer token from Local Web Server settings in the wallet app.';
+  var input = $('token-input');
+  if (input) input.value = '';
+  box.classList.add('show');
+  if (input) input.focus();
+  return new Promise(function(resolve) { _pendingTokenPrompt = resolve; });
+}
+
+// Adapter errors carry a numeric code; show code + message so a failing
+// branch is diagnosable instead of a bare "undefined".
+function adapterMsg(e) {
+  if (e && typeof e.code === 'number') return '[' + e.code + '] ' + e.message;
+  return e && e.message ? e.message : String(e);
+}
+
+// Exact micro-OCT from any wallet surface (public_raw / balance_raw /
+// balance / public_oct) so no path renders 0 for a funded wallet.
+function octRawFrom(bal) {
+  if (!bal || typeof bal !== 'object') return '0';
+  var r = bal.raw != null ? bal.raw : bal.balance_raw;
+  if (r === undefined || r === null || r === '') {
+    // No micro value reported — derive it from the decimal form when one
+    // exists, otherwise report an honest zero.
+    var oct = bal.public != null ? bal.public : bal.balance;
+    if (oct === undefined || oct === null || oct === '') return '0';
+    return parseU(String(oct), OCT_DECIMALS);
+  }
+  return String(r).replace(/^0+(?=\d)/, '');
+}
+
 async function connectOctra() {
   try {
     var st = await wcli('GET', '/wallet/status');
@@ -366,7 +439,19 @@ async function connectWithProvider(w) {
 
 async function refreshBalances() {
   if (_octraAddr) {
-    try { var b = await wcli('GET', '/balance'); _octBalance = b.public_balance || b.balance_raw || '0'; $('bal-oct').textContent = fmtU(_octBalance, OCT_DECIMALS); } catch(e) {}
+    var box = await adapter().catch(function(e) { showStatus('err', adapterMsg(e)); return null; });
+    if (!box) { _octBalance = '0'; $('bal-oct').textContent = '0'; }
+    else {
+      try {
+        var b = await box.withAuthRetry(function() { return box.adapter.getBalance(); });
+        _octBalance = octRawFrom(b);
+        $('bal-oct').textContent = fmtU(_octBalance, OCT_DECIMALS);
+      } catch(e) {
+        // Never leave a stale or fabricated balance on screen.
+        _octBalance = '0';
+        $('bal-oct').textContent = adapterMsg(e);
+      }
+    }
   }
   if (_ethAddr && WOCT_ADDR) {
     try {
@@ -516,18 +601,20 @@ async function doForward() {
   ]);
   setStep('lock', 'active');
   try {
-    var r = await wcli('POST', '/contract/call', {
-      address: BRIDGE_VAULT, method: 'lock_to_eth', params: [recip], amount: rawAmt, ou: '1000'
+    var box = await adapter();
+    var r = await box.withAuthRetry(function() {
+      return box.adapter.callContract({ contract: BRIDGE_VAULT, method: 'lock_to_eth', params: [recip], amount: rawAmt });
     });
-    if (!r.tx_hash) throw new Error('no tx_hash');
+    var lockHash = r.txHash;
+    if (!lockHash) throw new Error('no tx_hash');
     setStep('lock', 'done'); setStep('confirm', 'active');
-    showStatus('info', 'locked! <a href="https://octrascan.io/tx.html?hash=' + r.tx_hash + '" target="_blank" style="color:#3B567F">' + r.tx_hash.substring(0, 16) + '...</a>');
+    showStatus('info', 'locked! <a href="https://octrascan.io/tx.html?hash=' + lockHash + '" target="_blank" style="color:#3B567F">' + lockHash.substring(0, 16) + '...</a>');
 
-    _activeHistoryId = 'lock_' + r.tx_hash.substring(0, 10) + '_' + Date.now();
+    _activeHistoryId = 'lock_' + lockHash.substring(0, 10) + '_' + Date.now();
     historyAdd({
       id: _activeHistoryId,
       locked_at: Date.now(),
-      lock_tx_hash: r.tx_hash,
+      lock_tx_hash: lockHash,
       epoch: 0,
       recipient: recip,
       amount_raw: rawAmt,
@@ -535,18 +622,26 @@ async function doForward() {
       status: 'pending_header'
     });
 
-    var receipt = await waitReceipt(r.tx_hash, 60);
+    var receipt = await waitReceipt(lockHash, 60);
     if (!receipt || !receipt.success) {
-      if (_activeHistoryId) historyUpdate(_activeHistoryId, {last_error:'lock tx not confirmed in 60s, check refresh status later'});
-      throw new Error('lock transaction failed');
+      var why = _lastReceiptError ? ' (' + _lastReceiptError + ')' : '';
+      if (_activeHistoryId) historyUpdate(_activeHistoryId, {last_error:'lock tx not confirmed in 60s' + why + ', check refresh status later'});
+      throw new Error('lock transaction failed' + why);
     }
     setStep('confirm', 'done'); setStep('header', 'active');
     showStatus('info', 'OCT locked. waiting for bridge header (~1-2 min)...');
 
     var epochId = receipt.epoch || 0;
     if (!epochId) {
-      var txInfo = await wcli('GET', '/transaction?hash=' + r.tx_hash);
-      epochId = txInfo.epoch || 0;
+      // The receipt omits the epoch; ask the node directly (route added in
+      // Fase C2 — before this, every lookup 404'd and epoch stayed 0).
+      var txInfo = await box.withAuthRetry(function() {
+        return box.adapter.getTransaction({ hash: lockHash });
+      });
+      epochId = Number(txInfo.epoch || 0);
+    }
+    if (!epochId) {
+      throw new Error('lock tx confirmed but no epoch assigned yet — check history below, it auto-resumes once the epoch lands');
     }
 
     if (_activeHistoryId) historyUpdate(_activeHistoryId, {epoch: epochId});
@@ -874,17 +969,25 @@ async function historyCheckOne(entry) {
   }
   if (entry.direction === 'e2o') return historyCheckE2o(entry);
   if (!entry.epoch && entry.lock_tx_hash) {
+    var hbox = await adapter().catch(function() { return null; });
+    if (!hbox) {
+      historyUpdate(entry.id, {last_checked:Date.now(), last_error:'no wallet transport for epoch lookup'});
+      return;
+    }
     try {
-      var txi = await wcli('GET', '/transaction?hash=' + entry.lock_tx_hash);
+      var txi = await hbox.withAuthRetry(function() {
+        return hbox.adapter.getTransaction({ hash: entry.lock_tx_hash });
+      });
       if (txi && txi.epoch) {
         historyUpdate(entry.id, {epoch: txi.epoch});
         entry.epoch = txi.epoch;
       } else {
-        historyUpdate(entry.id, {last_checked:Date.now(), last_error:'tx not finalized yet'});
+        // found:false — the lock is not finalized yet. Retry on the next poll.
+        historyUpdate(entry.id, {last_checked:Date.now(), last_error: txi && txi.error ? String(txi.error) : 'tx not finalized yet'});
         return;
       }
     } catch(e) {
-      historyUpdate(entry.id, {last_checked:Date.now(), last_error:'epoch lookup failed'});
+      historyUpdate(entry.id, {last_checked:Date.now(), last_error:'epoch lookup failed: ' + adapterMsg(e)});
       return;
     }
   }
@@ -1324,12 +1427,26 @@ async function doReverse() {
   btn.classList.remove('loading'); validateForm();
 }
 
+// Reason the last waitReceipt() call gave up, so callers can report it.
+var _lastReceiptError = '';
+
 async function waitReceipt(hash, maxWait) {
   var start = Date.now();
+  var lastError = '';
+  _lastReceiptError = '';
   while (Date.now() - start < maxWait * 1000) {
-    try { var r = await wcli('GET', '/contract/receipt?hash=' + hash); if (r && r.success !== undefined) return r; } catch(e) {}
+    try {
+      var r = await wcli('GET', '/contract/receipt?hash=' + encodeURIComponent(hash));
+      if (r && r.success !== undefined) return r;
+      lastError = (r && (r.error || r.revert_reason)) ? String(r.error || r.revert_reason) : 'receipt not ready';
+    } catch(e) {
+      // Not mined yet, or a transient server hiccup — keep polling until the
+      // bounded window is exhausted, then report why it gave up.
+      lastError = adapterMsg(e);
+    }
     await sleep(3000);
   }
+  _lastReceiptError = lastError;
   return null;
 }
 
@@ -1408,7 +1525,14 @@ async function getWoctBalance() {
 
 async function getOctBalance() {
   if (!_octraAddr) return '0';
-  try { var b = await wcli('GET', '/balance'); return b.public_balance || '0'; } catch(e) { return '0'; }
+  var box = await adapter().catch(function() { return null; });
+  if (!box) return '0';
+  try {
+    var b = await box.withAuthRetry(function() { return box.adapter.getBalance(); });
+    return octRawFrom(b);
+  } catch(e) {
+    return '0';
+  }
 }
 
 async function pollUntilAtLeast(getFn, target, maxSec) {
@@ -1450,7 +1574,7 @@ setTimeout(function() {
   var actions = {
     connectOctra, connectEth, setDir, validateForm, setMax, doBridge,
     historyRefreshAll, historyClearOld, closeModal, confirmBridge, closeWalletModal,
-    selectWallet,
+    selectWallet, saveToken, cancelToken,
     recoveryFetch: function() { recoveryFetch(false); }
   };
   function run(e, attr) {
@@ -1463,4 +1587,11 @@ setTimeout(function() {
   }
   document.addEventListener('click', function(e) { run(e, 'data-action'); });
   document.addEventListener('input', function(e) { run(e, 'data-input'); });
+  // Enter confirms, Escape declines — a declined prompt must always be reachable.
+  document.addEventListener('keydown', function(e) {
+    var input = $('token-input');
+    if (!input || $('token-modal').classList.contains('show') === false) return;
+    if (e.key === 'Enter') { saveToken(); }
+    if (e.key === 'Escape') { cancelToken(); }
+  });
 })();

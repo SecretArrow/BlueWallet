@@ -312,3 +312,50 @@ mengeksekusi request. Embed Android + Flutter disinkronkan byte-identik
 - A22 — Divergensi swap.js hanya ada di embed (submodule `webcli/` upstream
   tidak disentuh) supaya upstream tetap bisa dipakai sebagai referensi
   vanilla dan sync submodule tidak Bentrok.
+
+## Bukti Fase C2 — bridge.js pindah ke adapter + dua route mati
+
+Selain migrasi, dua bug nyata ditemukan dan diperbaiki (bukan kosmetik).
+Embed Android + Flutter tetap sinkron byte-identik.
+
+| # | Skenario | Lokasi penanganan | Test |
+|---|---|---|---|
+| 1 | Saldo OCT selalu 0 di localhost | `adapter.getBalance()` kini menerima `public_raw`/`public_oct` **dan** `balance`/`balance_raw`/`encrypted_*` | `getBalance accepts every wallet surface shape` (5 test) |
+| 2 | Micro-amount tiba sebagai JSON number (bulat) risking kehilangan presisi | `strOrNull()` menormalkan ke string desimal exact; non-bulat ditolak (null) | `localhost body: {public_raw…}` |
+| 3 | Dompet terkunci/server error ditampilkan sebagai saldo 0 | `getBalance()` mengembalikan `error` + `public: null`, bukan angka 0 | `server error body surfaces, not silently zero`, `empty/unknown shapes…` |
+| 4 | Hanya saldo terenkripsi (sembunyi) | `private` dari `encrypted_oct`/`encrypted_raw`, `total` = public+private | `localhost encrypted-only wallet` |
+| 5 | `epoch` kosong setelah lock terkonfirmasi | `throw` eksplisit + saran auto-resume lewat history | cabang `if (!epochId)` di `doForward` |
+| 6 | `/api/transaction?hash=` tidak pernah ada (404) | route baru publik + read-only di kedua server | `normalizeTransaction_*` (JVM) & `/api/transaction normalization` (Dart) |
+| 7 | Node menjawab `epoch_id` (spelling lama) | normalizer menerima keduanya | `acceptsEpochIdSpelling` (JVM & Dart) |
+| 8 | Hash tak dikenal vs error server | `found: false` + HTTP 200 (bukan 404/500) agar poller retry, bukan gagal | `normalizeTransaction_nullOrEmptyIsNotFound` |
+| 9 | `hash` kosong di query | `BadRequestException`/`400 Missing transaction hash` | guard `requireNonEmpty` (JVM) |
+| 10 | Hash berisi `&`/`=` (injeksi query) | `encodeURIComponent` di transport + validasi router | `LocalhostTransport URL-encodes the hash` |
+| 11 | `error: null` di respons tx (JSONException/null) | `isNull`/`!= null` dijaga, `error_detail` hanya bila ada | `surfacesRejectionReason…` (JVM & Dart) |
+| 12 | Hash tak ada di respons node | fallback ke `hash` param, tidak pernah string kosong | `reportsFoundWithEpoch` |
+| 13 | 401 saat baca saldo / lock | `boot.mjs withAuthRetry` → modal token sekali → sessionStorage → retry sekali | test boot (Fase C1) + `embed.test.mjs` |
+| 14 | Prompt token pada halaman ber-CSP | modal ditambahkan ke `bridge.html`, tombol lewat `data-action` yang sama | `bridge.html loads bridge.js as a module` |
+| 15 | Token tak bisa ditutup via keyboard | Escape → batal, Enter → simpan | handler `keydown` + tabel A24 |
+| 16 | `catch {}` kosong bertambah di `bridge.js` | baseline 13 di-pin di `embed.test.mjs` (hanya boleh turun) | `bridge.js empty catches do not grow` |
+| 17 | `/balance` atau `/transaction` masih dipanggil langsung | prohibited-pattern assertion | `bridge.js routes Octra reads/writes through the adapter` |
+| 18 | `ou` hardcode tinggalkan tx kurang bayar | prohibited-pattern `\d+` | idem |
+| 19 | `waitReceipt` menelan alasan kegagalan | `_lastReceiptError` dipakai di pesan forward + history | cabang `waitReceipt` |
+| 20 | Tidak ada transport untuk epoch lookup history | `last_error: 'no wallet transport for epoch lookup'` (retry, bukan gagal diam) | `historyCheckOne` |
+
+### Asumsi eksplisit (C2)
+
+- A23 — `/api/transaction` dibuat **publik** seperti `/api/fee` (read-only,
+  tanpa dompet). Endpoint authed akan membuat halaman dApp tertanam yang
+  tidak membawa token selalu 401.
+- A24 — MetaMask/EVM tidak dimigrasikan: `eth_*` milik MetaMask, bukan
+  permukaan dompet Octra, dan memindahkannya ke adapter tak menambah nilai.
+- A25 — `/api/contract/receipt` tetap `fetch` langsung: publik, dan adapter
+  tidak menambah apa pun selain lapisan error.
+- A26 — 13 `catch {}` warisan upstream sengaja **belum** ditutup: flow
+  Ethereum (receipt poller, signer poller, localStorage) belum dipetakan
+  kasusnya. Dibatasi dan dipin, bukan diabaikan.
+- A27 — `/api/transaction` mengembalikan bentuk ringkas (`found`, `epoch`,
+  `status`, `block_height`), bukan objek tx penuh — cukup untuk bridge dan
+  tidak membocorkan `signature`/`public_key` seperti `/api/tx` upstream.
+- A28 — `octra_getTransaction` masuk `ADAPTER_ONLY_METHODS`, bukan
+  `LEGACY_METHODS`: ia lookup node, bukan state dompet, jadi injected
+  provider memang tidak wajib menyediakannya.
