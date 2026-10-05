@@ -464,9 +464,9 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       final server = LocalWebServerService.instance;
       if (server.enabled && server.isRunning) {
         // Full gateway: subresources + interactive /api/* work.
-        await _controller.loadRequest(Uri.parse(
-            OctUrl.gatewayHttpUrl(parts[0], parts[1],
-                port: LocalWebServerService.port)));
+        await _controller.loadRequest(Uri.parse(OctUrl.gatewayHttpUrl(
+            parts[0], parts[1],
+            port: LocalWebServerService.port)));
         return;
       }
       // Direct RPC fetch (read-only render, no server needed).

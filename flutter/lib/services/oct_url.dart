@@ -15,8 +15,7 @@ class OctUrl {
 
   OctUrl._();
 
-  static bool isOctUrl(String url) =>
-      url.toLowerCase().startsWith(scheme);
+  static bool isOctUrl(String url) => url.toLowerCase().startsWith(scheme);
 
   /// Split into [circleId, path]. Throws [ArgumentError] on empty input.
   static OctCircleRef parse(String url) {
