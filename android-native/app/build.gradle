@@ -181,6 +181,13 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Unit tests run on plain JVM: Android framework stubs return defaults
+    // instead of throwing ("not mocked"), so pure logic calling Log.* etc.
+    // stays testable. Documented in docs/DEFENSIVE-AUDIT.md (A7 revised).
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
     signingConfigs {
         release {
             if (keystorePropertiesFile.exists() &&
