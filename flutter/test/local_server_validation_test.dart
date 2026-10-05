@@ -62,6 +62,31 @@ void main() {
     });
   });
 
+  group('mimeTypeFor', () {
+    test('.mjs is served as a script type (ES modules need it)', () {
+      expect(LocalWebServerService.mimeTypeFor('adapter/index.mjs'),
+          startsWith('application/javascript'));
+      expect(LocalWebServerService.mimeTypeFor('adapter/boot.mjs'),
+          startsWith('application/javascript'));
+      expect(LocalWebServerService.mimeTypeFor('swap.js'),
+          startsWith('application/javascript'));
+      expect(LocalWebServerService.mimeTypeFor('swap.html'),
+          startsWith('text/html'));
+      expect(LocalWebServerService.mimeTypeFor('style.css'),
+          startsWith('text/css'));
+      expect(LocalWebServerService.mimeTypeFor('logo.svg'),
+          startsWith('image/svg'));
+    });
+
+    test('unknown and empty paths fall back to octet-stream', () {
+      expect(LocalWebServerService.mimeTypeFor('notes.txt'),
+          'application/octet-stream');
+      expect(LocalWebServerService.mimeTypeFor(''), 'application/octet-stream');
+      expect(
+          LocalWebServerService.mimeTypeFor('mjs'), 'application/octet-stream');
+    });
+  });
+
   group('isUintString', () {
     test('accepts only digit strings', () {
       expect(LocalWebServerService.isUintString('0'), isTrue);

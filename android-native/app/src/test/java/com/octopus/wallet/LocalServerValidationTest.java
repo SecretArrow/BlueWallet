@@ -97,4 +97,25 @@ public class LocalServerValidationTest {
         multi.put("limit", Arrays.asList("10", "20"));
         assertEquals(10, OctraHttpServer.parseBoundedInt(multi, "limit", 20, 1, 200));
     }
+
+    // ── static asset MIME ───────────────────────────────────────────────
+
+    @Test
+    public void getMimeType_servesMjsAsScript() {
+        // Browsers reject ES module imports served with a non-script type.
+        assertEquals("application/javascript", OctraHttpServer.getMimeType("adapter/index.mjs"));
+        assertEquals("application/javascript", OctraHttpServer.getMimeType("adapter/boot.mjs"));
+        assertEquals("application/javascript", OctraHttpServer.getMimeType("swap.js"));
+        assertEquals("text/html", OctraHttpServer.getMimeType("swap.html"));
+        assertEquals("text/css", OctraHttpServer.getMimeType("style.css"));
+        assertEquals("image/svg+xml", OctraHttpServer.getMimeType("logo.svg"));
+    }
+
+    @Test
+    public void getMimeType_fallsBackForUnknownAndNull() {
+        assertEquals("application/octet-stream", OctraHttpServer.getMimeType("notes.txt"));
+        assertEquals("application/octet-stream", OctraHttpServer.getMimeType(""));
+        assertEquals("application/octet-stream", OctraHttpServer.getMimeType("mjs"));
+        assertEquals("application/octet-stream", OctraHttpServer.getMimeType(null));
+    }
 }

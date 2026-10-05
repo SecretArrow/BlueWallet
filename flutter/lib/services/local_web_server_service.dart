@@ -469,7 +469,7 @@ class LocalWebServerService extends ChangeNotifier {
     try {
       final bytes = await _loadAssetBytes('assets/webcli/$path');
       _addCorsHeaders(response);
-      response.headers.contentType = ContentType.parse(_getMimeType(path));
+      response.headers.contentType = ContentType.parse(mimeTypeFor(path));
       response.add(bytes);
       await response.close();
     } catch (_) {
@@ -493,12 +493,17 @@ class LocalWebServerService extends ChangeNotifier {
     return byteData.buffer.asUint8List();
   }
 
-  String _getMimeType(String path) {
+  /// Static so tests can assert MIME mapping without a live server.
+  static String mimeTypeFor(String path) {
     if (path.endsWith('.html') || path.endsWith('.htm')) {
       return 'text/html; charset=utf-8';
     }
     if (path.endsWith('.css')) {
       return 'text/css; charset=utf-8';
+    }
+    // .mjs must be a script type or browsers refuse ES module imports.
+    if (path.endsWith('.mjs')) {
+      return 'application/javascript; charset=utf-8';
     }
     if (path.endsWith('.js')) {
       return 'application/javascript; charset=utf-8';
