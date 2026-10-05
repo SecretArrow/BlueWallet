@@ -28,6 +28,7 @@ test per cabang, asumsi eksplisit).
 | A13 | Approval request: ID unik (UUID / collision-loop), duplikat = throw (bukan overwrite verdict dApp lain); entri basi di-purge (Android TTL 10 mnt); interrupt dikembalikan. DeepLinkService Flutter tanpa konsumen = backlog wiring, bukan dihapus |
 | A14 | Room `fallbackToDestructiveMigration` DIPERTAHANKAN sementara: skema v2 belum pernah rilis ke user (histori squash), migrasi eksplisit tanpa skema v1 yang pasti lebih berbahaya (risiko bootloop). Ditinjau ulang sebelum bump versi DB berikutnya |
 | A15 | Polling bounds: interval 1 dtk–24 jam, threshold 0–7 hari. UI memvalidasi batas yang sama (tanpa itu setter throw = crash). Threshold 0 = selalu notifikasi |
+| A16 | Proxy: host wajib isi, port 1..65535, tipe SOCKS/HTTP (kanonik upper). UI memvalidasi duluan; setter throw + row-tap toast sebagai jaring. Send: recipient tak-kosong + amount > 0 sebelum network (builder tetap validasi ulang) |
 
 ## Inventaris modul × risiko × fase
 
@@ -82,6 +83,16 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+
+## Bukti Fase 3.2 — proxy + send guards
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | host kosong/port liar/tipe asing | `validateProxy` throw di tulis (dulu: gagal misterius di OkHttp) | sama + `canonicalType` | matriks dua sisi |
+| 2 | entry legacy sampah di-tap | toast eksplisit (dulu: crash) | snackbar eksplisit (dulu: crash) | inspeksi |
+| 3 | JSON simpanan korup | dilewati per-item? (existing: seluruh list gagal → default? A-term) | entry sampah di-skip, list kosong → pertahankan (dulu: seluruh list hilang) | `tryFromJson` grup |
+| 4 | recipient kosong / amount ≤ 0 | `requireRecipient` + `requireAmountRaw` (Fase 1.3) | guard di `send*` pra-network (builder validasi ulang) | builder tests (Fase 1.3) |
+| 5 | QR berisi sampah | masuk field → ditolak di send (Fase 1.3) | sama (field → send guard) | inspeksi |
 
 ## Bukti Fase 3.1 — status stealth + polling bounds
 
