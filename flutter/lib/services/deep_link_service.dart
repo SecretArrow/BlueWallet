@@ -47,6 +47,9 @@ class DeepLinkService with WidgetsBindingObserver {
       }
     } on MissingPluginException {
       // Platform channel not available (e.g., desktop) — ignore
+    } catch (e) {
+      // Any other channel failure must not crash startup.
+      debugPrint('DeepLinkService.checkInitialLink failed: $e');
     }
   }
 
