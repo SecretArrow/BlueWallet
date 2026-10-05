@@ -20,12 +20,10 @@ void main() {
       expect(AddressEntry.tryFromJson({}), isNull);
       expect(AddressEntry.tryFromJson({'id': '1', 'label': 'L'}), isNull);
       expect(
-          AddressEntry.tryFromJson(
-              {'id': '1', 'label': 'L', 'address': '   '}),
+          AddressEntry.tryFromJson({'id': '1', 'label': 'L', 'address': '   '}),
           isNull);
       expect(
-          AddressEntry.tryFromJson(
-              {'id': '1', 'label': 'L', 'address': 123}),
+          AddressEntry.tryFromJson({'id': '1', 'label': 'L', 'address': 123}),
           isNull);
     });
   });
@@ -44,12 +42,12 @@ void main() {
       await expectLater(
           s.add(const AddressEntry(id: 'x', label: 'L', address: '  ')),
           throwsArgumentError);
-      final a = await s.add(const AddressEntry(
-          id: 'a', label: '  Alice  ', address: '  octA  '));
+      final a = await s.add(
+          const AddressEntry(id: 'a', label: '  Alice  ', address: '  octA  '));
       expect(a.label, 'Alice');
       expect(a.address, 'octA');
-      final b = await s.add(const AddressEntry(
-          id: 'b', label: 'Alice2', address: 'OCTA'));
+      final b = await s
+          .add(const AddressEntry(id: 'b', label: 'Alice2', address: 'OCTA'));
       expect(b.id, 'a', reason: 'duplicate returns existing');
       expect(s.entries.length, 1);
     });
