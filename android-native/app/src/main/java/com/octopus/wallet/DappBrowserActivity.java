@@ -621,10 +621,6 @@ public class DappBrowserActivity extends AppCompatActivity {
                 case "octra_callView":
                     handleCallView(requestId, paramsJson);
                     break;
-                case "octra_requestAccounts":
-                    // (normalized above; kept explicit for registry parity)
-                    handleRequestAccounts(requestId);
-                    break;
                 case "octra_getEncryptedBalance":
                     fetchEncryptedBalance(requestId);
                     break;
