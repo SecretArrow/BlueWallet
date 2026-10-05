@@ -139,7 +139,13 @@ public class TorProxySettingsActivity extends AppCompatActivity {
 
             // Row click selects proxy
             View.OnClickListener selectListener = v -> {
-                TorProxyStore.setActiveProxy(this, server.host, server.port, server.type);
+                try {
+                    TorProxyStore.setActiveProxy(this, server.host, server.port, server.type);
+                } catch (IllegalArgumentException e) {
+                    Toast.makeText(this, "Invalid proxy entry: " + e.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
                 refreshUi();
                 Toast.makeText(this, "Active proxy: " + server.name, Toast.LENGTH_SHORT).show();
             };

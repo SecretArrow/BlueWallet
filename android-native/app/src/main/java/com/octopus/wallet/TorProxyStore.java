@@ -55,10 +55,11 @@ public final class TorProxyStore {
     }
 
     public static void setActiveProxy(Context context, String host, int port, String type) {
+        validateProxy(host, port, type);
         prefs(context).edit()
-                .putString(KEY_ACTIVE_HOST, host)
+                .putString(KEY_ACTIVE_HOST, host.trim())
                 .putInt(KEY_ACTIVE_PORT, port)
-                .putString(KEY_ACTIVE_TYPE, type)
+                .putString(KEY_ACTIVE_TYPE, canonicalType(type))
                 .apply();
     }
 
@@ -68,29 +69,50 @@ public final class TorProxyStore {
         List<ProxyConfig> list = new ArrayList<>();
 
         if (listJson == null || listJson.isEmpty()) {
-            // Load default servers
-            list.add(new ProxyConfig("Orbot SOCKS (Lokal)", "127.0.0.1", 9050, "SOCKS", true));
-            list.add(new ProxyConfig("Orbot HTTP (Lokal)", "127.0.0.1", 8118, "HTTP", true));
-            list.add(new ProxyConfig("Public Tor Proxy (Free)", "173.249.49.52", 9050, "SOCKS", true));
-            list.add(new ProxyConfig("SOCKS5 Proxy (Fast)", "45.140.13.125", 9050, "SOCKS", true));
+            list.addAll(defaultServers());
             saveProxyServers(context, list);
         } else {
             try {
                 JSONArray arr = new JSONArray(listJson);
+                int skipped = 0;
                 for (int i = 0; i < arr.length(); i++) {
-                    JSONObject obj = arr.getJSONObject(i);
-                    list.add(new ProxyConfig(
-                            obj.getString("name"),
-                            obj.getString("host"),
-                            obj.getInt("port"),
-                            obj.getString("type"),
-                            obj.optBoolean("isDefault", false)
-                    ));
+                    try {
+                        JSONObject obj = arr.getJSONObject(i);
+                        list.add(new ProxyConfig(
+                                obj.getString("name"),
+                                obj.getString("host"),
+                                obj.getInt("port"),
+                                obj.getString("type"),
+                                obj.optBoolean("isDefault", false)
+                        ));
+                    } catch (Exception entryError) {
+                        // Skip corrupt entries, keep the rest (never lose the
+                        // whole list over one bad row).
+                        skipped++;
+                    }
+                }
+                if (arr.length() > 0 && list.isEmpty()) {
+                    // Stored JSON exists but nothing parsed: fall back to
+                    // defaults in memory (prefs untouched until user saves).
+                    Log.w(TAG, "Stored proxy list unparseable (" + skipped
+                            + " bad entries), using defaults");
+                    list.addAll(defaultServers());
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error loading proxy list JSON", e);
+                list.addAll(defaultServers());
             }
         }
+        return list;
+    }
+
+    /** Built-in servers. Package-visible for tests. */
+    static List<ProxyConfig> defaultServers() {
+        List<ProxyConfig> list = new ArrayList<>();
+        list.add(new ProxyConfig("Orbot SOCKS (Lokal)", "127.0.0.1", 9050, "SOCKS", true));
+        list.add(new ProxyConfig("Orbot HTTP (Lokal)", "127.0.0.1", 8118, "HTTP", true));
+        list.add(new ProxyConfig("Public Tor Proxy (Free)", "173.249.49.52", 9050, "SOCKS", true));
+        list.add(new ProxyConfig("SOCKS5 Proxy (Fast)", "45.140.13.125", 9050, "SOCKS", true));
         return list;
     }
 
@@ -113,9 +135,35 @@ public final class TorProxyStore {
     }
 
     public static void addProxyServer(Context context, ProxyConfig config) {
+        if (config == null) {
+            throw new IllegalArgumentException("Proxy config must not be null");
+        }
+        validateProxy(config.host, config.port, config.type);
         List<ProxyConfig> list = getProxyServers(context);
         list.add(config);
         saveProxyServers(context, list);
+    }
+
+    /**
+     * Validate proxy parameters. Pure and unit-tested.
+     *
+     * @throws IllegalArgumentException with a specific message on violation
+     */
+    public static void validateProxy(String host, int port, String type) {
+        if (host == null || host.trim().isEmpty()) {
+            throw new IllegalArgumentException("Proxy host must not be empty");
+        }
+        if (port < 1 || port > 65535) {
+            throw new IllegalArgumentException("Proxy port must be 1..65535 (got " + port + ")");
+        }
+        if (!"SOCKS".equalsIgnoreCase(type) && !"HTTP".equalsIgnoreCase(type)) {
+            throw new IllegalArgumentException("Proxy type must be SOCKS or HTTP (got '" + type + "')");
+        }
+    }
+
+    /** Canonical upper-case type. Pure and unit-tested. */
+    public static String canonicalType(String type) {
+        return "HTTP".equalsIgnoreCase(type) ? "HTTP" : "SOCKS";
     }
 
     public static boolean removeProxyServer(Context context, String host, int port) {
