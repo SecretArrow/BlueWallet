@@ -1172,7 +1172,8 @@ class WalletService extends ChangeNotifier {
       if (decimals <= 0) return rawValue;
       // Use BigInt for arbitrary-precision token amounts
       final raw = BigInt.tryParse(rawValue);
-      if (raw == null || raw == BigInt.zero) return '0';
+      if (raw == null) return rawValue;
+      if (raw == BigInt.zero) return '0';
       final divisor = BigInt.from(10).pow(decimals);
       final whole = raw ~/ divisor;
       final frac = (raw % divisor).abs();
