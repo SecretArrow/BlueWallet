@@ -13,6 +13,13 @@ public final class PollingSettingsStore {
     public static final long DEFAULT_THRESHOLD_SEND_MS = 300_000L; // 5m
     public static final long DEFAULT_THRESHOLD_ADVANCED_MS = 600_000L; // 10m
 
+    /** Hard bounds: below 1s burns battery / crashes schedulers. */
+    public static final long MIN_INTERVAL_MS = 1_000L;
+    public static final long MAX_INTERVAL_MS = 86_400_000L; // 24h
+    /** Threshold bounds (A15: 0 = always notify, capped at 7 days). */
+    public static final long MIN_THRESHOLD_MS = 0L;
+    public static final long MAX_THRESHOLD_MS = 604_800_000L; // 7d
+
     private PollingSettingsStore() {}
 
     private static SharedPreferences getPrefs(Context context) {
@@ -47,26 +54,55 @@ public final class PollingSettingsStore {
     }
 
     public static long getIntervalMs(Context context) {
-        return getSafeLong(context, KEY_INTERVAL, DEFAULT_INTERVAL_MS);
+        return clampInterval(getSafeLong(context, KEY_INTERVAL, DEFAULT_INTERVAL_MS));
     }
 
     public static void setIntervalMs(Context context, long ms) {
+        if (ms < MIN_INTERVAL_MS || ms > MAX_INTERVAL_MS) {
+            throw new IllegalArgumentException(
+                    "Polling interval must be 1000..86400000 ms (got " + ms + ")");
+        }
         getPrefs(context).edit().putLong(KEY_INTERVAL, ms).apply();
     }
 
+    /** Clamp stored/legacy values into range. Package-visible for tests. */
+    static long clampInterval(long ms) {
+        if (ms < MIN_INTERVAL_MS) return MIN_INTERVAL_MS;
+        if (ms > MAX_INTERVAL_MS) return MAX_INTERVAL_MS;
+        return ms;
+    }
+
+    /** Clamp stored/legacy values into range. Package-visible for tests. */
+    static long clampThreshold(long ms, long fallback) {
+        if (ms < MIN_THRESHOLD_MS || ms > MAX_THRESHOLD_MS) return fallback;
+        return ms;
+    }
+
     public static long getThresholdSendMs(Context context) {
-        return getSafeLong(context, KEY_THRESHOLD_SEND, DEFAULT_THRESHOLD_SEND_MS);
+        return clampThreshold(
+                getSafeLong(context, KEY_THRESHOLD_SEND, DEFAULT_THRESHOLD_SEND_MS),
+                DEFAULT_THRESHOLD_SEND_MS);
     }
 
     public static void setThresholdSendMs(Context context, long ms) {
+        if (ms < MIN_THRESHOLD_MS || ms > MAX_THRESHOLD_MS) {
+            throw new IllegalArgumentException(
+                    "Threshold must be 0..604800000 ms (got " + ms + ")");
+        }
         getPrefs(context).edit().putLong(KEY_THRESHOLD_SEND, ms).apply();
     }
 
     public static long getThresholdAdvancedMs(Context context) {
-        return getSafeLong(context, KEY_THRESHOLD_ADVANCED, DEFAULT_THRESHOLD_ADVANCED_MS);
+        return clampThreshold(
+                getSafeLong(context, KEY_THRESHOLD_ADVANCED, DEFAULT_THRESHOLD_ADVANCED_MS),
+                DEFAULT_THRESHOLD_ADVANCED_MS);
     }
 
     public static void setThresholdAdvancedMs(Context context, long ms) {
+        if (ms < MIN_THRESHOLD_MS || ms > MAX_THRESHOLD_MS) {
+            throw new IllegalArgumentException(
+                    "Threshold must be 0..604800000 ms (got " + ms + ")");
+        }
         getPrefs(context).edit().putLong(KEY_THRESHOLD_ADVANCED, ms).apply();
     }
 }

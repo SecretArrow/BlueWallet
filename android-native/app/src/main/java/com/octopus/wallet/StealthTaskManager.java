@@ -108,8 +108,8 @@ public final class StealthTaskManager {
         }
     }
 
-    /** Parse the numerator from a step string like "7/9" → 7. Returns -1 on failure. */
-    private static int parseStepNumerator(String step) {
+    /** Parse the numerator from a step string like "7/9" → 7. Returns -1 on failure. Package-visible for tests. */
+    static int parseStepNumerator(String step) {
         if (step == null || step.trim().isEmpty()) return -1;
         try {
             String trimmed = step.trim();
@@ -136,14 +136,18 @@ public final class StealthTaskManager {
         String value = status == null ? "" : status.trim().toLowerCase();
         if (value.isEmpty()) return STATUS_QUEUED;
         if (value.contains("queue")) return STATUS_QUEUED;
-        if (value.contains("run") || value.contains("pending")) return STATUS_RUNNING;
-        if (value.contains("success") || value.contains("confirm") || value.contains("done") || value.contains("finish")) {
-            return STATUS_SUCCESS;
-        }
+        // Failure words first: "unfinished" contains "finish" and must not
+        // be misclassified as success.
         if (value.contains("fail") || value.contains("error") || value.contains("reject") || value.contains("invalid") || value.contains("timeout")) {
             return STATUS_FAILED;
         }
-        return STATUS_RUNNING;
+        if (value.contains("success") || value.contains("confirm") || value.contains("done") || value.contains("finish")) {
+            return STATUS_SUCCESS;
+        }
+        if (value.contains("run") || value.contains("pending")) return STATUS_RUNNING;
+        // Unknown statuses fail loudly (retryable) instead of hanging as
+        // "running" forever with perpetual heartbeat bumps.
+        return STATUS_FAILED;
     }
 
     public static synchronized void clearAll(Context context) {

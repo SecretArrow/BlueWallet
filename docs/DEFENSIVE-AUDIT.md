@@ -27,6 +27,7 @@ test per cabang, asumsi eksplisit).
 | A12 | Server lokal: auth fail-closed (token kosong = tolak semua) + compare constant-time. Input malformed → 400; gagal bisnis/node → 200 + envelope error (kontrak existing dipertahankan). Request tak-tertangani → 500, tak pernah gantung |
 | A13 | Approval request: ID unik (UUID / collision-loop), duplikat = throw (bukan overwrite verdict dApp lain); entri basi di-purge (Android TTL 10 mnt); interrupt dikembalikan. DeepLinkService Flutter tanpa konsumen = backlog wiring, bukan dihapus |
 | A14 | Room `fallbackToDestructiveMigration` DIPERTAHANKAN sementara: skema v2 belum pernah rilis ke user (histori squash), migrasi eksplisit tanpa skema v1 yang pasti lebih berbahaya (risiko bootloop). Ditinjau ulang sebelum bump versi DB berikutnya |
+| A15 | Polling bounds: interval 1 dtk–24 jam, threshold 0–7 hari. UI memvalidasi batas yang sama (tanpa itu setter throw = crash). Threshold 0 = selalu notifikasi |
 
 ## Inventaris modul × risiko × fase
 
@@ -81,6 +82,17 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+
+## Bukti Fase 3.1 — status stealth + polling bounds
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | status asing/typo | gagal keras (dulu: gantung `running` + heartbeat abadi) | layar baca status lokal tanpa normalisasi terpusat (backlog) | unknown test (Android) |
+| 2 | "unfinished" dikira sukses | fail-first ordering | — | `unfinished` test |
+| 3 | step non-numerik | -1 (existing, kini teruji) | — | parseStepNumerator grup |
+| 4 | interval/threshold liar | throw saat tulis + clamp saat baca | throw + clamp (cermin) | clamp grup dua sisi |
+| 5 | UI simpan di luar bounds | UI ikut validasi (tanpa itu = crash) | UI ikut validasi | inspeksi |
+| 6 | overflow `mnt*60000` | dibatasi UI ≤10080 (604,8jt < 2^63) | sama (di bawah 2^31) | inspeksi |
 
 ## Bukti Fase 2.3 — profiles, cache, timestamp
 
