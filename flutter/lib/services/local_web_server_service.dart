@@ -50,6 +50,19 @@ class LocalWebServerService extends ChangeNotifier {
 
   static final Map<String, PendingTxRequest> pendingRequests = {};
 
+  /// Generates a collision-free approval request ID. Loops against [taken]
+  /// (practically never more than once — UUID entropy) and fails loudly
+  /// after 100 tries instead of overwriting another dApp's verdict.
+  /// Static + pure for tests.
+  static String newRequestId(Set<String> taken) {
+    for (var i = 0; i < 100; i++) {
+      final id =
+          'req_${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 32)}';
+      if (!taken.contains(id)) return id;
+    }
+    throw StateError('Could not mint a unique approval request ID');
+  }
+
   LocalWebServerService._() {
     _loadSettingsAndStart();
   }
@@ -957,7 +970,7 @@ class LocalWebServerService extends ChangeNotifier {
       }
 
       final requestId =
-          'req_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000)}';
+          LocalWebServerService.newRequestId(pendingRequests.keys.toSet());
       final completer = Completer<Map<String, dynamic>>();
 
       final req = PendingTxRequest(

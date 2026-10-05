@@ -20,7 +20,16 @@ public final class DappOriginStore {
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         ensureInitialized(prefs);
         Set<String> stored = prefs.getStringSet(KEY_ALLOWED, defaultOrigins());
-        return new HashSet<>(stored == null ? defaultOrigins() : stored);
+        if (stored == null) return defaultOrigins();
+        // Self-healing: normalize on read so entries stored by older
+        // versions (e.g. with ports) keep matching. An explicitly emptied
+        // set stays empty (deny-all is respected).
+        Set<String> out = new HashSet<>();
+        for (String o : stored) {
+            String h = normalizeHost(o);
+            if (!h.isEmpty()) out.add(h);
+        }
+        return out;
     }
 
     public static void setAllowedOrigins(Context context, Set<String> origins) {
@@ -84,6 +93,27 @@ public final class DappOriginStore {
         int hashIndex = host.indexOf('#');
         if (hashIndex >= 0) {
             host = host.substring(0, hashIndex);
+        }
+        // Strip ports ("site:8080" never matched Uri.getHost() output, so
+        // keeping them made entries silently ineffective — fail usable).
+        // Bracketed IPv6 ([::1]:8080) keeps the brackets, drops the port.
+        if (host.startsWith("[")) {
+            int close = host.indexOf(']');
+            if (close >= 0) {
+                host = host.substring(0, close + 1);
+            }
+        } else {
+            int colon = host.lastIndexOf(':');
+            if (colon >= 0) {
+                String maybePort = host.substring(colon + 1);
+                if (maybePort.isEmpty() || maybePort.matches("\\d+")) {
+                    host = host.substring(0, colon);
+                }
+            }
+        }
+        // Trailing dots never match either ("evil.com." vs "evil.com").
+        while (host.endsWith(".") && host.length() > 1) {
+            host = host.substring(0, host.length() - 1);
         }
         return host.trim();
     }
