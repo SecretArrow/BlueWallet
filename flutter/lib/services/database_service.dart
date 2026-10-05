@@ -297,16 +297,21 @@ class DatabaseService {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   /// Normalises timestamps to millis (Unix seconds <-> ms heuristic,
-  /// garbage -> 0). Pure, unit-tested.
+  /// garbage and negatives -> 0). Pure, unit-tested.
   static int parseTimestamp(dynamic ts) {
     if (ts == null) return 0;
-    if (ts is int) return ts;
+    if (ts is int) {
+      if (ts < 0) return 0;
+      return ts > 1000000000000 ? ts : ts * 1000;
+    }
     if (ts is double) {
+      if (ts < 0) return 0;
       // Normalise: Unix seconds → ms (same logic as string branch below).
       return ts > 1e12 ? ts.toInt() : (ts * 1000).toInt();
     }
     final d = double.tryParse(ts.toString());
     if (d != null) {
+      if (d < 0) return 0;
       // if seconds (< year 10000), convert to ms
       return d > 1e12 ? d.toInt() : (d * 1000).toInt();
     }

@@ -75,9 +75,11 @@ void main() {
       expect(DatabaseService.parseTimestamp([]), 0);
     });
 
-    test('ints pass through', () {
+    test('ints pass through millis, convert seconds, reject negatives', () {
       expect(DatabaseService.parseTimestamp(1700000000000), 1700000000000);
+      expect(DatabaseService.parseTimestamp(1700000000), 1700000000000);
       expect(DatabaseService.parseTimestamp(0), 0);
+      expect(DatabaseService.parseTimestamp(-5), 0);
     });
 
     test('seconds become millis, millis stay', () {
