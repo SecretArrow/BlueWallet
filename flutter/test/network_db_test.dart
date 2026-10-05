@@ -11,8 +11,7 @@ void main() {
     test('dedupes like Android uniqueName', () {
       expect(NetworkService.dedupeName([], 'X'), 'X');
       expect(NetworkService.dedupeName(['X'], 'X'), 'X 2');
-      expect(
-          NetworkService.dedupeName(['X', 'X 2'], 'X'), 'X 3');
+      expect(NetworkService.dedupeName(['X', 'X 2'], 'X'), 'X 3');
       expect(NetworkService.dedupeName(['X'], 'Y'), 'Y');
     });
   });

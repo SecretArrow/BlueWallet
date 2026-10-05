@@ -521,7 +521,8 @@ class NetworkService extends ChangeNotifier {
   }
 
   /// De-duplicates a display name ("X", "X 2", …). Pure, unit-tested.
-  static String dedupeName(Iterable<String> taken, String base) {    var candidate = base;
+  static String dedupeName(Iterable<String> taken, String base) {
+    var candidate = base;
     var index = 2;
     final set = taken.toSet();
     while (set.contains(candidate)) {
