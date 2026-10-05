@@ -25,6 +25,7 @@ test per cabang, asumsi eksplisit).
 | A10 | Kebijakan PIN: tepat 6 digit saat SET (selaras kedua app + verifier). VERIFY tidak menegakkan format (PIN lama tetap bisa diverifikasi). PinStore Android menyimpan PIN mentah karena arsitektur butuh PIN untuk dekripsi wallet — dilindungi EncryptedSharedPreferences + keystore; fallback plaintext kini ber-Log.w |
 | A11 | Mnemonic disimpan ternormalisasi (lowercase, spasi tunggal) setelah lolos checksum; validasi import menormalkan dulu sehingga tempelan berantakan tetap diterima bila checksum benar |
 | A12 | Server lokal: auth fail-closed (token kosong = tolak semua) + compare constant-time. Input malformed → 400; gagal bisnis/node → 200 + envelope error (kontrak existing dipertahankan). Request tak-tertangani → 500, tak pernah gantung |
+| A13 | Approval request: ID unik (UUID / collision-loop), duplikat = throw (bukan overwrite verdict dApp lain); entri basi di-purge (Android TTL 10 mnt); interrupt dikembalikan. DeepLinkService Flutter tanpa konsumen = backlog wiring, bukan dihapus |
 
 ## Inventaris modul × risiko × fase
 
@@ -47,9 +48,9 @@ test per cabang, asumsi eksplisit).
 | Area | android-native | flutter | Status |
 |---|---|---|---|
 | Local server 27 endpoint | `LocalWebServerService.java` | `local_web_server_service.dart` | ✅ Fase 2.1 selesai (auth + validasi; bukti di bawah) |
-| dApp bridge + approval | `DappBrowserActivity` (+bridge), `DeepLinkBridgeActivity`, `TxRequestManager`, `DappOriginStore` | `dapp_browser_screen.dart`, `confirm_contract_call_screen.dart`, `deep_link_service.dart` | Belum diaudit |
+| dApp bridge + approval | `DappBrowserActivity` (+bridge), `DeepLinkBridgeActivity`, `TxRequestManager`, `DappOriginStore` | `dapp_browser_screen.dart`, `confirm_contract_call_screen.dart`, `deep_link_service.dart` | ✅ Fase 2.2 selesai (request tracking + origin; bukti di bawah) |
 | oct:// render path | `DappBrowserActivity` + `OctUrlParser.java` ✅ teruji (17 test) | `dapp_browser_screen.dart` `_loadOctUrl` | ✅ teruji: `OctUrl` murni + E2E serve (bukti Fase 2.0 di bawah) |
-| Deep link intent | `AndroidManifest.xml` (octra://, octra-wallet://) | `deep_link_service.dart`, `app_router.dart` | Belum diaudit |
+| Deep link intent | `AndroidManifest.xml` (octra://, octra-wallet://) | `deep_link_service.dart`, `app_router.dart` | ✅ Fase 2.2 selesai (parse + startup aman; DeepLinkService tanpa konsumen = backlog) |
 | Network profiles + URL | `UrlSecurityValidator.java` ✅ teruji, `NodeProfileStore`, `NetworkSettingsActivity` | `network_service.dart` ✅ migrasi teruji parsial | Validator teruji; store belum |
 | DB + cache + migrasi | `OctraDatabase`, `TxHistoryDao/Entity`, `TokenSnapshot*`, `TxTaskStore`, `WalletProfileStore` | `database_service.dart`, models/* | Belum diaudit |
 
@@ -79,6 +80,19 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+
+## Bukti Fase 2.2 — bridge approval + origin + deep link
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | id null/kosong/duplikat | throw `IAE`/`ISE` (dulu: overwrite verdict!) | collision-loop + throw (dulu: overwrite) | `createRejects*`, `newRequestId` grup |
+| 2 | complete/remove id tak dikenal/null | no-op aman (CHM tolak null → guard) | `remove` aman (existing) | `nullIdsAreSafeNoops`, `completeMissingIdIsNoop` |
+| 3 | waiter dibangunkan | latch + verdict (existing) | completer 5 mnt (existing) | `completeWakesWaiterWithVerdict` |
+| 4 | entri basi menumpuk | purge TTL 10 mnt + cap 500 | — (completer timeout 5 mnt existing) | `purgeDropsOnlyStaleEntries` |
+| 5 | interrupt saat tunggu | flag dikembalikan (dulu: hilang) | N/A (Future-based) | inspeksi |
+| 6 | origin ber-port/titik/besar-kecil | strip port + titik + lower (dulu: entry ber-port tak pernah cocok) + self-heal baca + deny-all dihormati | — (allowlist di Android; Flutter pakai dialog per-request) | 5 grup normalize |
+| 7 | deep link rusak/startup | N/A (OS memvalidasi skema) | `_dispatch` abaikan + `checkInitialLink` tak bisa crash startup | inspeksi |
+| 8 | ID collision | UUID (dulu: ms+rand1000) | microsecond+32bit+loop (dulu: ms+rand1000) | uniqueness 1000x |
 
 ## Bukti Fase 2.1 — validasi local server
 

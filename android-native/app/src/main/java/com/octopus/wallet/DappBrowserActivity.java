@@ -160,7 +160,7 @@ public class DappBrowserActivity extends AppCompatActivity {
             String host = uri.getHost();
             if (host == null) return false;
             Set<String> allowed = DappOriginStore.getAllowedOrigins(this);
-            return allowed.contains(host.toLowerCase());
+            return allowed.contains(DappOriginStore.normalizeHost(host));
         } catch (Exception e) {
             return false;
         }

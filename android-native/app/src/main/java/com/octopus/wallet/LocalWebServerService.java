@@ -918,7 +918,7 @@ public class LocalWebServerService extends Service {
                 return errorJson("Missing address or method");
             }
 
-            String requestId = "req_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000);
+            String requestId = "req_" + java.util.UUID.randomUUID().toString();
             TxRequestManager.TxRequest txReq = TxRequestManager.createRequest(requestId);
 
             Uri.Builder uriBuilder = Uri.parse("octra-wallet://contract-call").buildUpon();
@@ -947,6 +947,7 @@ public class LocalWebServerService extends Service {
                     return errorJson("Transaction confirmation timed out after 5 minutes");
                 }
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 TxRequestManager.removeRequest(requestId);
                 return errorJson("Transaction confirmation interrupted");
             }
