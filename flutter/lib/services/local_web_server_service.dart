@@ -143,227 +143,222 @@ class LocalWebServerService extends ChangeNotifier {
 
   /// Full API routing, extracted so the listener stays a thin fail-safe shell.
   Future<void> _route(HttpRequest request, HttpResponse response) async {
-
-      // Handle OPTIONS preflight
-      if (request.method == 'OPTIONS') {
-        _addCorsHeaders(response);
-        response.statusCode = HttpStatus.ok;
-        await response.close();
-        return;
-      }
-
-      final uriPath = request.uri.path;
-
-      // CORS checks & Host validation
-      if (uriPath.startsWith('/api/')) {
-        final origin = request.headers.value('origin');
-        final referer = request.headers.value('referer');
-
-        if (origin != null &&
-            origin.trim().isNotEmpty &&
-            !_isSafeHost(origin)) {
-          debugPrint('[LocalWebServerService] CORS origin blocked: $origin');
-          await _sendJsonError(
-              response, HttpStatus.forbidden, 'Forbidden: Invalid Origin');
-          return;
-        }
-        if (referer != null &&
-            referer.trim().isNotEmpty &&
-            !_isSafeHost(referer)) {
-          debugPrint('[LocalWebServerService] CORS referer blocked: $referer');
-          await _sendJsonError(
-              response, HttpStatus.forbidden, 'Forbidden: Invalid Referer');
-          return;
-        }
-      }
-
-      // Dynamic Circle asset rendering
-      if (uriPath.startsWith('/oct/')) {
-        _addCorsHeaders(response);
-        await _serveCircleAssetDynamic(request, response);
-        return;
-      }
-
-      // Serve static assets for non-API calls
-      if (!uriPath.startsWith('/api/')) {
-        await _serveStaticAsset(request, response);
-        return;
-      }
-
-      // ── API routing ──
+    // Handle OPTIONS preflight
+    if (request.method == 'OPTIONS') {
       _addCorsHeaders(response);
+      response.statusCode = HttpStatus.ok;
+      await response.close();
+      return;
+    }
 
-      // Public APIs (No authorization)
-      if (uriPath == '/api/status' || uriPath == '/api/wallet/status') {
-        if (request.method == 'GET') {
-          await _handleStatus(response);
-        } else {
-          await _sendJsonError(
-              response, HttpStatus.methodNotAllowed, 'Method not allowed');
-        }
+    final uriPath = request.uri.path;
+
+    // CORS checks & Host validation
+    if (uriPath.startsWith('/api/')) {
+      final origin = request.headers.value('origin');
+      final referer = request.headers.value('referer');
+
+      if (origin != null && origin.trim().isNotEmpty && !_isSafeHost(origin)) {
+        debugPrint('[LocalWebServerService] CORS origin blocked: $origin');
+        await _sendJsonError(
+            response, HttpStatus.forbidden, 'Forbidden: Invalid Origin');
         return;
       }
-
-      if (uriPath == '/api/wallet/unlock') {
-        if (request.method == 'POST') {
-          await _handleUnlock(request, response);
-        } else {
-          await _sendJsonError(
-              response, HttpStatus.methodNotAllowed, 'Method not allowed');
-        }
+      if (referer != null &&
+          referer.trim().isNotEmpty &&
+          !_isSafeHost(referer)) {
+        debugPrint('[LocalWebServerService] CORS referer blocked: $referer');
+        await _sendJsonError(
+            response, HttpStatus.forbidden, 'Forbidden: Invalid Referer');
         return;
       }
+    }
 
-      if (uriPath == '/api/contract/view') {
-        if (request.method == 'GET') {
-          await _handleContractView(request, response);
-        } else {
-          await _sendJsonError(
-              response, HttpStatus.methodNotAllowed, 'Method not allowed');
-        }
-        return;
+    // Dynamic Circle asset rendering
+    if (uriPath.startsWith('/oct/')) {
+      _addCorsHeaders(response);
+      await _serveCircleAssetDynamic(request, response);
+      return;
+    }
+
+    // Serve static assets for non-API calls
+    if (!uriPath.startsWith('/api/')) {
+      await _serveStaticAsset(request, response);
+      return;
+    }
+
+    // ── API routing ──
+    _addCorsHeaders(response);
+
+    // Public APIs (No authorization)
+    if (uriPath == '/api/status' || uriPath == '/api/wallet/status') {
+      if (request.method == 'GET') {
+        await _handleStatus(response);
+      } else {
+        await _sendJsonError(
+            response, HttpStatus.methodNotAllowed, 'Method not allowed');
       }
+      return;
+    }
 
-      if (uriPath == '/api/contract/receipt') {
-        if (request.method == 'GET') {
-          await _handleContractReceipt(request, response);
-        } else {
-          await _sendJsonError(
-              response, HttpStatus.methodNotAllowed, 'Method not allowed');
-        }
-        return;
+    if (uriPath == '/api/wallet/unlock') {
+      if (request.method == 'POST') {
+        await _handleUnlock(request, response);
+      } else {
+        await _sendJsonError(
+            response, HttpStatus.methodNotAllowed, 'Method not allowed');
       }
+      return;
+    }
 
-      if (uriPath == '/api/contract/call') {
-        if (request.method == 'POST') {
-          await _handleContractCall(request, response);
-        } else {
-          await _sendJsonError(
-              response, HttpStatus.methodNotAllowed, 'Method not allowed');
-        }
-        return;
+    if (uriPath == '/api/contract/view') {
+      if (request.method == 'GET') {
+        await _handleContractView(request, response);
+      } else {
+        await _sendJsonError(
+            response, HttpStatus.methodNotAllowed, 'Method not allowed');
       }
+      return;
+    }
 
-      // Public: batch fee estimation (webcli GET /api/fee parity).
-      if (uriPath == '/api/fee') {
-        if (request.method == 'GET') {
-          await _handleFee(response);
-        } else {
-          await _sendJsonError(
-              response, HttpStatus.methodNotAllowed, 'Method not allowed');
-        }
-        return;
+    if (uriPath == '/api/contract/receipt') {
+      if (request.method == 'GET') {
+        await _handleContractReceipt(request, response);
+      } else {
+        await _sendJsonError(
+            response, HttpStatus.methodNotAllowed, 'Method not allowed');
       }
+      return;
+    }
 
-      // Authenticated APIs (Bearer token check)
-      if (!_isAuthorized(request)) {
-        await _sendJsonError(response, HttpStatus.unauthorized, 'Unauthorized');
-        return;
+    if (uriPath == '/api/contract/call') {
+      if (request.method == 'POST') {
+        await _handleContractCall(request, response);
+      } else {
+        await _sendJsonError(
+            response, HttpStatus.methodNotAllowed, 'Method not allowed');
       }
+      return;
+    }
 
-      if ((uriPath == '/api/wallet/info' || uriPath == '/api/wallet') &&
-          request.method == 'GET') {
-        await _handleWalletInfo(response);
-        return;
+    // Public: batch fee estimation (webcli GET /api/fee parity).
+    if (uriPath == '/api/fee') {
+      if (request.method == 'GET') {
+        await _handleFee(response);
+      } else {
+        await _sendJsonError(
+            response, HttpStatus.methodNotAllowed, 'Method not allowed');
       }
+      return;
+    }
 
-      if (uriPath == '/api/balance' && request.method == 'GET') {
-        await _handleBalance(response);
-        return;
-      }
+    // Authenticated APIs (Bearer token check)
+    if (!_isAuthorized(request)) {
+      await _sendJsonError(response, HttpStatus.unauthorized, 'Unauthorized');
+      return;
+    }
 
-      if (uriPath == '/api/history' && request.method == 'GET') {
-        await _handleHistory(request, response);
-        return;
-      }
+    if ((uriPath == '/api/wallet/info' || uriPath == '/api/wallet') &&
+        request.method == 'GET') {
+      await _handleWalletInfo(response);
+      return;
+    }
 
-      if (uriPath == '/api/token-history' && request.method == 'GET') {
-        await _handleTokenHistory(request, response);
-        return;
-      }
+    if (uriPath == '/api/balance' && request.method == 'GET') {
+      await _handleBalance(response);
+      return;
+    }
 
-      if (uriPath == '/api/keys/info' && request.method == 'GET') {
-        await _handleKeysInfo(response);
-        return;
-      }
+    if (uriPath == '/api/history' && request.method == 'GET') {
+      await _handleHistory(request, response);
+      return;
+    }
 
-      if (uriPath == '/api/stealth/outputs' && request.method == 'GET') {
-        await _handleStealthOutputs(request, response);
-        return;
-      }
+    if (uriPath == '/api/token-history' && request.method == 'GET') {
+      await _handleTokenHistory(request, response);
+      return;
+    }
 
-      if (uriPath == '/api/wallet/rename' && request.method == 'POST') {
-        await _handleRename(request, response);
-        return;
-      }
+    if (uriPath == '/api/keys/info' && request.method == 'GET') {
+      await _handleKeysInfo(response);
+      return;
+    }
 
-      if (uriPath == '/api/wallets' && request.method == 'GET') {
-        await _handleWalletList(response);
-        return;
-      }
+    if (uriPath == '/api/stealth/outputs' && request.method == 'GET') {
+      await _handleStealthOutputs(request, response);
+      return;
+    }
 
-      if (uriPath == '/api/circle/info' && request.method == 'GET') {
-        await _handleCircleInfo(request, response);
-        return;
-      }
+    if (uriPath == '/api/wallet/rename' && request.method == 'POST') {
+      await _handleRename(request, response);
+      return;
+    }
 
-      if (uriPath == '/api/circle/asset' && request.method == 'GET') {
-        await _handleCircleAsset(request, response);
-        return;
-      }
+    if (uriPath == '/api/wallets' && request.method == 'GET') {
+      await _handleWalletList(response);
+      return;
+    }
 
-      if (uriPath == '/api/circle/asset_ciphertext' &&
-          request.method == 'GET') {
-        await _handleCircleAssetCiphertext(request, response);
-        return;
-      }
+    if (uriPath == '/api/circle/info' && request.method == 'GET') {
+      await _handleCircleInfo(request, response);
+      return;
+    }
 
-      if (uriPath == '/api/circle/asset_ciphertext_by_key' &&
-          request.method == 'GET') {
-        await _handleCircleAssetCiphertextByKey(request, response);
-        return;
-      }
+    if (uriPath == '/api/circle/asset' && request.method == 'GET') {
+      await _handleCircleAsset(request, response);
+      return;
+    }
 
-      if (uriPath == '/api/circle/deploy' && request.method == 'POST') {
-        await _handleCircleDeploy(request, response);
-        return;
-      }
+    if (uriPath == '/api/circle/asset_ciphertext' && request.method == 'GET') {
+      await _handleCircleAssetCiphertext(request, response);
+      return;
+    }
 
-      if (uriPath == '/api/circle/asset_encrypted' &&
-          request.method == 'POST') {
-        await _handleCircleAssetEncrypted(request, response);
-        return;
-      }
+    if (uriPath == '/api/circle/asset_ciphertext_by_key' &&
+        request.method == 'GET') {
+      await _handleCircleAssetCiphertextByKey(request, response);
+      return;
+    }
 
-      if (uriPath == '/api/fhe/encrypt' && request.method == 'POST') {
-        await _handleFheEncrypt(request, response);
-        return;
-      }
+    if (uriPath == '/api/circle/deploy' && request.method == 'POST') {
+      await _handleCircleDeploy(request, response);
+      return;
+    }
 
-      if (uriPath == '/api/fhe/decrypt' && request.method == 'POST') {
-        await _handleFheDecrypt(request, response);
-        return;
-      }
+    if (uriPath == '/api/circle/asset_encrypted' && request.method == 'POST') {
+      await _handleCircleAssetEncrypted(request, response);
+      return;
+    }
 
-      if (uriPath == '/api/bridge/signer' && request.method == 'POST') {
-        await _handleBridgeSigner(request, response);
-        return;
-      }
+    if (uriPath == '/api/fhe/encrypt' && request.method == 'POST') {
+      await _handleFheEncrypt(request, response);
+      return;
+    }
 
-      // PVAC key rotation (webcli POST /api/key_switch parity)
-      if (uriPath == '/api/key_switch' && request.method == 'POST') {
-        await _handleKeySwitch(request, response);
-        return;
-      }
+    if (uriPath == '/api/fhe/decrypt' && request.method == 'POST') {
+      await _handleFheDecrypt(request, response);
+      return;
+    }
 
-      // Fast token listing (webcli GET /api/tokens parity)
-      if (uriPath == '/api/tokens' && request.method == 'GET') {
-        await _handleTokens(response);
-        return;
-      }
+    if (uriPath == '/api/bridge/signer' && request.method == 'POST') {
+      await _handleBridgeSigner(request, response);
+      return;
+    }
 
-      // 404 Not Found
-      await _sendJsonError(response, HttpStatus.notFound, 'Not found');
+    // PVAC key rotation (webcli POST /api/key_switch parity)
+    if (uriPath == '/api/key_switch' && request.method == 'POST') {
+      await _handleKeySwitch(request, response);
+      return;
+    }
+
+    // Fast token listing (webcli GET /api/tokens parity)
+    if (uriPath == '/api/tokens' && request.method == 'GET') {
+      await _handleTokens(response);
+      return;
+    }
+
+    // 404 Not Found
+    await _sendJsonError(response, HttpStatus.notFound, 'Not found');
   }
 
   void _addCorsHeaders(HttpResponse response) {
@@ -430,8 +425,7 @@ class LocalWebServerService extends ChangeNotifier {
   }
 
   /// Non-negative integer strings (microcoin amounts, OU). Static for tests.
-  static bool isUintString(String value) =>
-      RegExp(r'^\d+$').hasMatch(value);
+  static bool isUintString(String value) => RegExp(r'^\d+$').hasMatch(value);
 
   Future<void> _sendJson(
       HttpResponse response, int status, Map<String, dynamic> data) async {
@@ -935,8 +929,8 @@ class LocalWebServerService extends ChangeNotifier {
       final method = body['method']?.toString().trim() ?? '';
       final params = body['params'] ?? [];
       if (params is! List) {
-        await _sendJsonError(response, HttpStatus.badRequest,
-            'params must be a JSON array');
+        await _sendJsonError(
+            response, HttpStatus.badRequest, 'params must be a JSON array');
         return;
       }
       final paramsStr = jsonEncode(params);

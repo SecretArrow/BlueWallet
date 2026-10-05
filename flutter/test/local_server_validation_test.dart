@@ -6,8 +6,7 @@ import 'package:octopus_wallet/services/local_web_server_service.dart';
 void main() {
   group('isAuthorizedToken', () {
     test('accepts the exact Bearer token', () {
-      expect(
-          LocalWebServerService.isAuthorizedToken('abc123', 'Bearer abc123'),
+      expect(LocalWebServerService.isAuthorizedToken('abc123', 'Bearer abc123'),
           isTrue);
       expect(
           LocalWebServerService.isAuthorizedToken(
@@ -16,19 +15,15 @@ void main() {
     });
 
     test('rejects mismatch and malformed headers', () {
-      expect(
-          LocalWebServerService.isAuthorizedToken('abc123', 'Bearer wrong'),
+      expect(LocalWebServerService.isAuthorizedToken('abc123', 'Bearer wrong'),
           isFalse);
       expect(LocalWebServerService.isAuthorizedToken('abc123', 'Bearer '),
           isFalse);
-      expect(LocalWebServerService.isAuthorizedToken('abc123', 'Bearer'),
-          isFalse);
       expect(
-          LocalWebServerService.isAuthorizedToken(
-              'abc123', 'Basic abc123'),
+          LocalWebServerService.isAuthorizedToken('abc123', 'Bearer'), isFalse);
+      expect(LocalWebServerService.isAuthorizedToken('abc123', 'Basic abc123'),
           isFalse);
-      expect(LocalWebServerService.isAuthorizedToken('abc123', null),
-          isFalse);
+      expect(LocalWebServerService.isAuthorizedToken('abc123', null), isFalse);
       expect(LocalWebServerService.isAuthorizedToken('abc123', ''), isFalse);
     });
 
