@@ -84,6 +84,17 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+4. Cakupan cabang terlapor per PR (Fase 4): tabel JaCoCo + lcov di
+   ringkasan job; threshold pengetat menyusul setelah baseline ada.
+
+## Bukti Fase 4 — gate cakupan cabang
+
+| # | Skenario | Penanganan | Test |
+|---|---|---|---|
+| 1 | Laporan JaCoCo hilang/rusak | parser lapor eksplisit, exit 0 (report-only; threshold belakangan) | fixture sintetis lokal |
+| 2 | Laporan lcov hilang/rusak | sama | fixture sintetis lokal |
+| 3 | Task report tanpa data exec | `GradleException` eksplisit (tak pernah diam) | CI |
+| 4 | Threshold masa depan | belum diaktifkan — didokumentasikan sebagai langkah berikut (baseline dulu) | — |
 
 ## Bukti Fase 3.4 — session timeout + format tampil
 

@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'jacoco'
 }
 apply plugin: 'com.diffplug.spotless'
 
@@ -224,6 +225,8 @@ android {
         debug {
             debuggable true
             jniDebuggable false
+            // Unit-test coverage data (.exec) for the Fase 4 gate.
+            enableUnitTestCoverage true
         }
     }
 
@@ -320,4 +323,43 @@ dependencies {
     testImplementation 'org.json:json:20240303'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}
+
+// ── Fase 4: unit-test coverage report (JaCoCo XML for the CI gate) ──────
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+tasks.register("jacocoTestReport", JacocoReport) {
+    dependsOn("testDebugUnitTest")
+    group = "verification"
+    description = "JaCoCo XML coverage from debug unit tests (Fase 4 gate input)."
+
+    reports {
+        xml.required = true
+        html.required = false
+        csv.required = false
+    }
+
+    def javaClasses = fileTree(
+            dir: "${layout.buildDirectory.get().asFile}/intermediates/javac/debug/classes",
+            excludes: [
+                "**/R.class", "**/R\$*.class", "**/BuildConfig.*",
+                "**/Manifest*.*", "**/*Test*.*", "**/databinding/*",
+            ])
+    // Fallback for AGP layouts that nest one level deeper.
+    def altClasses = fileTree(
+            dir: "${layout.buildDirectory.get().asFile}/intermediates/javac/debug/compileDebugJavaWithJavac/classes",
+            excludes: ["**/R.class", "**/R\$*.class", "**/BuildConfig.*"])
+    classDirectories.setFrom(files([javaClasses, altClasses]))
+    sourceDirectories.setFrom(files("src/main/java"))
+    executionData.setFrom(files(
+            "${layout.buildDirectory.get().asFile}/jacoco/testDebugUnitTest.exec"))
+    // Missing execution data (e.g. no tests ran) fails loudly, never silent.
+    doFirst {
+        def exec = new File("${layout.buildDirectory.get().asFile}/jacoco/testDebugUnitTest.exec")
+        if (!exec.exists()) {
+            throw new GradleException("JaCoCo execution data missing at ${exec} — did testDebugUnitTest run?");
+        }
+    }
 }
