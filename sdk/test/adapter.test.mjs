@@ -182,6 +182,24 @@ describe('callContract / contractView / balances', () => {
 });
 
 describe('LocalhostTransport guards (no network)', () => {
+  function transportWith(routes) {
+    return new LocalhostTransport({
+      fetchImpl: async (url, opts = {}) => {
+        const path = String(url).split('127.0.0.1:8420')[1] || '/';
+        const hit = routes[path] ?? routes[path.split('?')[0]];
+        if (typeof hit === 'function') return hit(opts);
+        if (hit) return hit;
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ error: 'not found' }),
+        };
+      },
+    });
+  }
+
+  const ok = (body) => ({ ok: true, status: 200, json: async () => body });
+
   it('unsupported methods fail explicitly', async () => {
     const t = new LocalhostTransport({ fetchImpl: async () => {
       throw new Error('must not be called');
@@ -193,5 +211,85 @@ describe('LocalhostTransport guards (no network)', () => {
     await assert.rejects(
       () => t.callContractViaApproval({ address: '', method: 'm' }),
       (e) => e.code === ERROR_CODES.INVALID_PARAMS);
+  });
+
+  it('connectRaw reads the authed wallet address', async () => {
+    const t = transportWith({ '/api/wallet/info': ok({ address: 'octAAA' }) });
+    assert.deepEqual(await t.connectRaw(), { address: 'octAAA' });
+    const bad = transportWith({ '/api/wallet/info': ok({}) });
+    await assert.rejects(() => bad.connectRaw(),
+      (e) => e.code === ERROR_CODES.UNAUTHORIZED);
+  });
+
+  it('setToken updates auth and HTTP errors carry status', async () => {
+    let seenAuth = '';
+    const t = new LocalhostTransport({
+      fetchImpl: async (url, opts = {}) => {
+        seenAuth = (opts.headers || {}).Authorization || '';
+        return { ok: false, status: 401, json: async () => ({ error: 'Unauthorized' }) };
+      },
+    });
+    t.setToken('tok123');
+    await assert.rejects(() => t.request('octra_getBalance', []),
+      (e) => e.code === ERROR_CODES.NETWORK_UNAVAILABLE && e.status === 401);
+    assert.equal(seenAuth, 'Bearer tok123');
+  });
+});
+
+describe('unwrapRpc + withAuthRetry', () => {
+  it('unwraps envelopes, passes bodies through', async () => {
+    const m = await import('../src/adapter.mjs');
+    assert.deepEqual(m.unwrapRpc({ jsonrpc: '2.0', result: { a: 1 }, id: 1 }), { a: 1 });
+    assert.deepEqual(m.unwrapRpc({ result: 5, value: 5 }), { result: 5, value: 5 });
+    assert.equal(m.unwrapRpc('raw'), 'raw');
+    assert.equal(m.unwrapRpc(null), null);
+    assert.deepEqual(m.unwrapRpc([1]), [1]);
+  });
+
+  it('retries once after a 401 re-prompt', async () => {
+    const m = await import('../src/adapter.mjs');
+    let calls = 0;
+    const err401 = Object.assign(new Error('Unauthorized'), { status: 401 });
+    const fn = async () => {
+      calls++;
+      if (calls === 1) throw err401;
+      return 'ok-second-try';
+    };
+    let applied = '';
+    const out = await m.withAuthRetry(fn, async () => 'tok', async (t) => { applied = t; });
+    assert.equal(out, 'ok-second-try');
+    assert.equal(calls, 2);
+    assert.equal(applied, 'tok');
+  });
+
+  it('passes through non-401 and declined prompts', async () => {
+    const m = await import('../src/adapter.mjs');
+    const boom = new Error('boom');
+    await assert.rejects(() => m.withAuthRetry(async () => { throw boom; }, async () => 'tok'), (e) => e === boom);
+    const err401 = Object.assign(new Error('Unauthorized'), { status: 401 });
+    await assert.rejects(
+      () => m.withAuthRetry(async () => { throw err401; }, async () => null),
+      (e) => e === err401);
+  });
+
+  it('connects over localhost via connectRaw', async () => {
+    const { OctraWalletAdapter, LocalhostTransport } = await import('../src/index.mjs');
+    const t = new LocalhostTransport({
+      fetchImpl: async (url) => {
+        const u = String(url);
+        if (u.endsWith('/api/status')) {
+          return { ok: true, status: 200, json: async () => ({ status: 'running' }) };
+        }
+        if (u.endsWith('/api/wallet/info')) {
+          return { ok: true, status: 200, json: async () => ({ address: 'oct' + '3'.repeat(44) }) };
+        }
+        throw new Error('unexpected ' + url);
+      },
+    });
+    const a = new OctraWalletAdapter({ transports: [t] });
+    assert.equal(await a.initialize(), true);
+    const res = await a.connect();
+    assert.equal(res.address, 'oct' + '3'.repeat(44));
+    assert.equal(a.isConnected(), true);
   });
 });
