@@ -13,7 +13,16 @@ class OctCircleRef {
 class OctUrl {
   static const scheme = 'oct://';
 
+  /// Direct-render budget: bigger assets are refused so they can never OOM
+  /// the WebView by buffering fully in RAM. Oversized pages go through the
+  /// localhost gateway (streamed) instead.
+  static const int maxDirectBytes = 8 * 1024 * 1024;
+
   OctUrl._();
+
+  /// True when rendering [byteLength] directly would risk OOM.
+  static bool exceedsDirectLimit(int byteLength) =>
+      byteLength < 0 || byteLength > maxDirectBytes;
 
   static bool isOctUrl(String url) => url.toLowerCase().startsWith(scheme);
 

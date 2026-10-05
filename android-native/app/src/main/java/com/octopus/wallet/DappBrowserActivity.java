@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
@@ -330,6 +331,25 @@ public class DappBrowserActivity extends AppCompatActivity {
             }
             return super.shouldInterceptRequest(view, request);
         }
+
+        @Override
+        public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+            // Never die with the renderer (e.g. OOM under memory pressure):
+            // keep the activity alive and offer an explicit reload instead.
+            progressBar.setVisibility(View.GONE);
+            boolean crashed = detail.didCrash();
+            Log.w("DappBrowser",
+                    "Renderer gone (crashed=" + crashed + "), offering reload");
+            new AlertDialog.Builder(DappBrowserActivity.this)
+                    .setTitle(crashed ? "Page crashed" : "Page stopped")
+                    .setMessage("The browser engine ran out of resources. "
+                            + "Reload the page to try again.")
+                    .setPositiveButton("Reload", (d, w) -> view.reload())
+                    .setNegativeButton("Close", (d, w) -> finish())
+                    .setCancelable(false)
+                    .show();
+            return true;
+        }
     }
 
     // ─── oct:// protocol support ───────────────────────────────────────
@@ -356,8 +376,14 @@ public class DappBrowserActivity extends AppCompatActivity {
     private WebResourceResponse octError(int code, String reason) {
         Map<String, String> headers = new HashMap<>();
         headers.put("Cache-Control", "no-store");
+        byte[] body;
+        try {
+            body = reason.getBytes("UTF-8");
+        } catch (java.io.UnsupportedEncodingException impossible) {
+            body = new byte[0];
+        }
         return new WebResourceResponse("text/plain", "utf-8", code, reason,
-                headers, new java.io.ByteArrayInputStream(new byte[0]));
+                headers, new java.io.ByteArrayInputStream(body));
     }
 
     /**
@@ -387,6 +413,11 @@ public class DappBrowserActivity extends AppCompatActivity {
                     .base64Decode(asset.optString("body_b64", ""));
             if (raw == null) {
                 raw = new byte[0];
+            }
+            if (OctUrlParser.isTooLarge(raw.length)) {
+                return octError(413, "Asset too large (" + raw.length
+                        + " bytes, limit " + OctUrlParser.MAX_DIRECT_BYTES
+                        + ") — open via the local gateway instead");
             }
             Map<String, String> headers = new HashMap<>();
             headers.put("Cache-Control", "no-store");
@@ -418,6 +449,19 @@ public class DappBrowserActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 progressBar.setVisibility(View.GONE);
                 int code = res != null ? res.getStatusCode() : 500;
+                if (code == 413) {
+                    // Too large to buffer: offer the streaming gateway.
+                    if (LocalWebServerStore.isEnabled(this)) {
+                        String[] parts = parseOctUrl(octUrl);
+                        webView.loadUrl("http://127.0.0.1:" + LocalWebServerStore.PORT
+                                + "/oct/" + parts[0] + parts[1]);
+                    } else {
+                        Toast.makeText(this, "Page too large to render directly. "
+                                + "Enable Local Web Server in Settings for large circle pages.",
+                                Toast.LENGTH_LONG).show();
+                    }
+                    return;
+                }
                 if (res == null || code < 200 || code >= 300) {
                     Toast.makeText(this, "Cannot open " + octUrl +
                             " (circle not found, code " + code + ")",

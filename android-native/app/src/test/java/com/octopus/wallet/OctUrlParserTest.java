@@ -61,6 +61,14 @@ public class OctUrlParserTest {
     }
 
     @Test
+    public void isTooLarge_guardsDirectRenderBudget() {
+        assertFalse(OctUrlParser.isTooLarge(0));
+        assertFalse(OctUrlParser.isTooLarge(OctUrlParser.MAX_DIRECT_BYTES));
+        assertTrue(OctUrlParser.isTooLarge(OctUrlParser.MAX_DIRECT_BYTES + 1));
+        assertTrue(OctUrlParser.isTooLarge(-1));
+    }
+
+    @Test
     public void isTextMime_classifiesCorrectly() {
         assertTrue(OctUrlParser.isTextMime("text/html"));
         assertTrue(OctUrlParser.isTextMime("text/css"));

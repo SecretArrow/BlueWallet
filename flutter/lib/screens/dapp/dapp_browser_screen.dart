@@ -481,6 +481,21 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       final mime = OctUrl.cleanMime(map['content_type']?.toString());
       final raw = base64Decode(map['body_b64']?.toString() ?? '');
       if (!mounted) return;
+      if (OctUrl.exceedsDirectLimit(raw.lengthInBytes)) {
+        if (server.enabled && server.isRunning) {
+          await _controller.loadRequest(Uri.parse(OctUrl.gatewayHttpUrl(
+              parts[0], parts[1],
+              port: LocalWebServerService.port)));
+        } else {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Page too large to render directly. '
+                    'Enable Local Web Server in Settings for large circle pages.')),
+          );
+        }
+        return;
+      }
       if (_isTextMime(mime)) {
         await _controller.loadHtmlString(
           utf8.decode(raw, allowMalformed: true),
