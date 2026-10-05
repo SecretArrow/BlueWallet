@@ -16,8 +16,7 @@ void main() {
     test('out-of-range decimals render raw (no hang/OOM)', () {
       expect(WalletService.formatTokenBalance('123', -1), '123');
       expect(WalletService.formatTokenBalance('123', 37), '123');
-      expect(
-          WalletService.formatTokenBalance('123', 1000000000), '123');
+      expect(WalletService.formatTokenBalance('123', 1000000000), '123');
     });
 
     test('garbage renders raw', () {
