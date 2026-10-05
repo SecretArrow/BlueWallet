@@ -169,7 +169,8 @@ public class LocalWebServerService extends Service {
     //  NanoHTTPD Server Implementation
     // ══════════════════════════════════════════════════════════════════════
 
-    private static final class OctraHttpServer extends NanoHTTPD {
+    /* Package-visible for unit tests (pure helpers inside). */
+    static final class OctraHttpServer extends NanoHTTPD {
 
         private final String authToken;
         private final Context appContext;
@@ -353,9 +354,21 @@ public class LocalWebServerService extends Service {
                 // 404
                 return cors(jsonError(404, "Not found"));
 
+            } catch (BadRequestException e) {
+                return cors(jsonError(400, e.getMessage()));
             } catch (Exception e) {
                 Log.e("LocalWebServer", "Error handling request: " + e.getMessage());
                 return cors(jsonError(500, "Internal server error: " + safeMessage(e)));
+            }
+        }
+
+        /**
+         * Malformed client input (bad JSON body, invalid params). Mapped to
+         * HTTP 400 by the router above — distinct from 500 internal errors.
+         */
+        static final class BadRequestException extends Exception {
+            BadRequestException(String message) {
+                super(message);
             }
         }
 
@@ -419,8 +432,8 @@ public class LocalWebServerService extends Service {
 
         private JSONObject handleHistory(IHTTPSession session) throws Exception {
             Map<String, List<String>> params = session.getParameters();
-            int limit = parseIntParam(params, "limit", 20);
-            int offset = parseIntParam(params, "offset", 0);
+            int limit = parseBoundedInt(params, "limit", 20, 1, 200);
+            int offset = parseBoundedInt(params, "offset", 0, 0, 1000000);
 
             JSONObject info = safeWalletInfo();
             if (info.has("error")) return info;
@@ -444,8 +457,8 @@ public class LocalWebServerService extends Service {
 
         private JSONObject handleTokenHistory(IHTTPSession session) throws Exception {
             Map<String, List<String>> params = session.getParameters();
-            int limit = parseIntParam(params, "limit", 20);
-            int offset = parseIntParam(params, "offset", 0);
+            int limit = parseBoundedInt(params, "limit", 20, 1, 200);
+            int offset = parseBoundedInt(params, "offset", 0, 0, 1000000);
 
             JSONObject info = safeWalletInfo();
             if (info.has("error")) return info;
@@ -483,7 +496,7 @@ public class LocalWebServerService extends Service {
 
         private JSONObject handleStealthOutputs(IHTTPSession session) throws Exception {
             Map<String, List<String>> params = session.getParameters();
-            int fromEpoch = parseIntParam(params, "from_epoch", 0);
+            int fromEpoch = parseBoundedInt(params, "from_epoch", 0, 0, Integer.MAX_VALUE);
 
             JSONObject info = safeWalletInfo();
             if (info.has("error")) return info;
@@ -545,19 +558,41 @@ public class LocalWebServerService extends Service {
 
         private boolean isAuthorized(IHTTPSession session) {
             Map<String, String> headers = session.getHeaders();
-            String authHeader = headers.get("authorization");
-            if (authToken != null && !authToken.isEmpty()) {
-                if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                    Log.w(TAG, "Unauthorized request: missing or invalid Bearer token");
-                    return false;
-                }
-                String token = authHeader.substring(7).trim();
-                if (!authToken.equals(token)) {
-                    Log.w(TAG, "Unauthorized request: token mismatch");
-                    return false;
-                }
+            return isAuthorizedToken(authToken, headers.get("authorization"));
+        }
+
+        /**
+         * Bearer-token check. Fail-closed: a missing/empty configured token
+         * denies everything (an open server on misconfiguration is never
+         * acceptable). Comparison is constant-time. Package-visible for tests.
+         */
+        static boolean isAuthorizedToken(String configuredToken, String authHeader) {
+            if (configuredToken == null || configuredToken.isEmpty()) {
+                Log.w(TAG, "Unauthorized request: server has no auth token configured");
+                return false;
             }
-            return true;
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                Log.w(TAG, "Unauthorized request: missing or invalid Bearer token");
+                return false;
+            }
+            String presented = authHeader.substring(7).trim();
+            if (presented.isEmpty()) {
+                Log.w(TAG, "Unauthorized request: empty Bearer token");
+                return false;
+            }
+            byte[] a;
+            byte[] b;
+            try {
+                a = configuredToken.getBytes("UTF-8");
+                b = presented.getBytes("UTF-8");
+            } catch (java.io.UnsupportedEncodingException impossible) {
+                return false;
+            }
+            boolean ok = java.security.MessageDigest.isEqual(a, b);
+            if (!ok) {
+                Log.w(TAG, "Unauthorized request: token mismatch");
+            }
+            return ok;
         }
 
         private boolean isSafeHost(String urlStr) {
@@ -641,6 +676,40 @@ public class LocalWebServerService extends Service {
             }
         }
 
+        /**
+         * Bounded query integer: garbage falls back to {@code defaultVal},
+         * out-of-range values clamp into {@code [min, max]} (prevents absurd
+         * limit/offset/epoch values from reaching the node). Package-visible
+         * for tests.
+         */
+        static int parseBoundedInt(Map<String, List<String>> params,
+                                   String key, int defaultVal, int min, int max) {
+            int v = parseIntParam(params, key, defaultVal);
+            if (v < min) return min;
+            if (v > max) return max;
+            return v;
+        }
+
+        /**
+         * Require a non-blank value, else throw a 400-mapped error naming
+         * the missing field. Package-visible for tests.
+         */
+        static String requireNonEmpty(String value, String fieldName) throws BadRequestException {
+            if (value == null || value.trim().isEmpty()) {
+                throw new BadRequestException(fieldName + " is required");
+            }
+            return value.trim();
+        }
+
+        /** Amount/OU strings must be non-negative integers (microcoins). */
+        static String requireUintString(String value, String fieldName) throws BadRequestException {
+            String v = requireNonEmpty(value, fieldName);
+            if (!v.matches("\\d+")) {
+                throw new BadRequestException(fieldName + " must be a non-negative integer (got '" + value + "')");
+            }
+            return v;
+        }
+
         private static String safeMessage(Exception e) {
             if (e == null) return "unknown error";
             String msg = e.getMessage();
@@ -698,7 +767,12 @@ public class LocalWebServerService extends Service {
                 return errorJson("Missing request body");
             }
 
-            JSONObject req = new JSONObject(postBody);
+            JSONObject req;
+            try {
+                req = new JSONObject(postBody);
+            } catch (org.json.JSONException e) {
+                return errorJson("Request body must be valid JSON");
+            }
             String pin = req.optString("pin", "").trim();
             if (pin.isEmpty()) {
                 return errorJson("pin is required");
@@ -739,7 +813,12 @@ public class LocalWebServerService extends Service {
             String rpcUrl = info.optString("rpc_url", UrlSecurityValidator.DEFAULT_RPC);
             String walletAddr = info.optString("address", "");
 
-            JSONArray args = new JSONArray(paramsStr);
+            JSONArray args;
+            try {
+                args = new JSONArray(paramsStr);
+            } catch (org.json.JSONException e) {
+                return errorJson("params must be a valid JSON array");
+            }
             JSONObject result = OctraRpcClient.getInstance().contractView(rpcUrl, contractAddr, method, args, walletAddr);
             if (result == null) {
                 return errorJson("Contract view call returned null");
@@ -765,7 +844,7 @@ public class LocalWebServerService extends Service {
             if (hashes == null || hashes.isEmpty()) {
                 return errorJson("Missing transaction hash");
             }
-            String txHash = hashes.get(0);
+            String txHash = requireNonEmpty(hashes.get(0), "hash");
 
             JSONObject info = safeWalletInfo();
             String rpcUrl = info.optString("rpc_url", UrlSecurityValidator.DEFAULT_RPC);
@@ -813,13 +892,27 @@ public class LocalWebServerService extends Service {
                 return errorJson("Missing request body");
             }
 
-            JSONObject req = new JSONObject(postBody);
+            JSONObject req;
+            try {
+                req = new JSONObject(postBody);
+            } catch (org.json.JSONException e) {
+                return errorJson("Request body must be valid JSON");
+            }
             String contractAddr = req.optString("address", "").trim();
             String method = req.optString("method", "").trim();
             JSONArray params = req.optJSONArray("params");
+            if (req.has("params") && params == null) {
+                return errorJson("params must be a JSON array");
+            }
             String paramsStr = params != null ? params.toString() : "[]";
-            String amount = req.optString("amount", "0").trim();
-            String ou = req.optString("ou", "1000").trim();
+            String amount;
+            String ou;
+            try {
+                amount = requireUintString(req.optString("amount", "0"), "amount");
+                ou = requireUintString(req.optString("ou", "1000"), "ou");
+            } catch (BadRequestException e) {
+                return errorJson(e.getMessage());
+            }
 
             if (contractAddr.isEmpty() || method.isEmpty()) {
                 return errorJson("Missing address or method");
@@ -1006,12 +1099,18 @@ public class LocalWebServerService extends Service {
             Map<String, String> body = new HashMap<>();
             try {
                 session.parseBody(body);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                throw new BadRequestException("Malformed request body: " + safeMessage(e));
+            }
             String postBody = body.get("postData");
             if (postBody == null || postBody.isEmpty()) {
                 return new JSONObject();
             }
-            return new JSONObject(postBody);
+            try {
+                return new JSONObject(postBody);
+            } catch (org.json.JSONException e) {
+                throw new BadRequestException("Request body must be valid JSON");
+            }
         }
 
         private JSONObject handleCircleDeploy(IHTTPSession session) throws Exception {

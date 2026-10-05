@@ -24,6 +24,7 @@ test per cabang, asumsi eksplisit).
 | A9 | `submitTx`/send yang tanpa tx_hash = gagal (throw), bukan sukses kosong. Phantom-tx dilarang di kedua app |
 | A10 | Kebijakan PIN: tepat 6 digit saat SET (selaras kedua app + verifier). VERIFY tidak menegakkan format (PIN lama tetap bisa diverifikasi). PinStore Android menyimpan PIN mentah karena arsitektur butuh PIN untuk dekripsi wallet — dilindungi EncryptedSharedPreferences + keystore; fallback plaintext kini ber-Log.w |
 | A11 | Mnemonic disimpan ternormalisasi (lowercase, spasi tunggal) setelah lolos checksum; validasi import menormalkan dulu sehingga tempelan berantakan tetap diterima bila checksum benar |
+| A12 | Server lokal: auth fail-closed (token kosong = tolak semua) + compare constant-time. Input malformed → 400; gagal bisnis/node → 200 + envelope error (kontrak existing dipertahankan). Request tak-tertangani → 500, tak pernah gantung |
 
 ## Inventaris modul × risiko × fase
 
@@ -45,7 +46,7 @@ test per cabang, asumsi eksplisit).
 
 | Area | android-native | flutter | Status |
 |---|---|---|---|
-| Local server 27 endpoint | `LocalWebServerService.java` | `local_web_server_service.dart` | Belum diaudit |
+| Local server 27 endpoint | `LocalWebServerService.java` | `local_web_server_service.dart` | ✅ Fase 2.1 selesai (auth + validasi; bukti di bawah) |
 | dApp bridge + approval | `DappBrowserActivity` (+bridge), `DeepLinkBridgeActivity`, `TxRequestManager`, `DappOriginStore` | `dapp_browser_screen.dart`, `confirm_contract_call_screen.dart`, `deep_link_service.dart` | Belum diaudit |
 | oct:// render path | `DappBrowserActivity` + `OctUrlParser.java` ✅ teruji (17 test) | `dapp_browser_screen.dart` `_loadOctUrl` | ✅ teruji: `OctUrl` murni + E2E serve (bukti Fase 2.0 di bawah) |
 | Deep link intent | `AndroidManifest.xml` (octra://, octra-wallet://) | `deep_link_service.dart`, `app_router.dart` | Belum diaudit |
@@ -78,6 +79,18 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+
+## Bukti Fase 2.1 — validasi local server
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | token salah/hilang/header non-Bearer | tolak + log (existing) | tolak (existing) | grup auth |
+| 2 | token server kosong (belum generate) | TOLAK (dulu: terbuka!) | TOLAK (dulu: terbuka bila header `Bearer ` kosong!) | fail-closed tests |
+| 3 | limit/offset/epoch negatif-raksasa-sampah | clamp 1..200 / 0..1jt / ≥0 | clamp sama | bounded matrix dua sisi |
+| 4 | body bukan JSON object | 400 terpusat (`parsePostBody`→`BadRequestException`; unlock/call dibungkus eksplisit) | 400 per-handler + jaring 500 global anti-gantung | integrasi; 400-path via handler |
+| 5 | params non-array / amount-ou non-digit | `params must be array`, `requireUintString` → 400 | sama → 400 | `requireUintString` grup + integrasi |
+| 6 | hash kosong | `requireNonEmpty` → 400 (dulu: mengalir ke node) | cek existing → 400 (tetap) | grup require + inspeksi |
+| 7 | error tak-terduga lolos handler | 500 existing (`serve` catch) | 500 global baru (dulu: gantung) | inspeksi |
 
 ## Bukti Fase 2.0 — oct:// render + serve test
 

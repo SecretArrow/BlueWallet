@@ -126,6 +126,23 @@ class LocalWebServerService extends ChangeNotifier {
   void _listen() {
     _server?.listen((HttpRequest request) async {
       final response = request.response;
+      // Never leave a request hanging: any escaping error becomes a 500
+      // instead of a silent endless wait.
+      try {
+        await _route(request, response);
+      } catch (e) {
+        try {
+          await _sendJsonError(response, HttpStatus.internalServerError,
+              'Internal server error: $e');
+        } catch (_) {
+          debugPrint('[LocalWebServerService] failed to send 500: $e');
+        }
+      }
+    });
+  }
+
+  /// Full API routing, extracted so the listener stays a thin fail-safe shell.
+  Future<void> _route(HttpRequest request, HttpResponse response) async {
 
       // Handle OPTIONS preflight
       if (request.method == 'OPTIONS') {
@@ -347,7 +364,6 @@ class LocalWebServerService extends ChangeNotifier {
 
       // 404 Not Found
       await _sendJsonError(response, HttpStatus.notFound, 'Not found');
-    });
   }
 
   void _addCorsHeaders(HttpResponse response) {
@@ -380,10 +396,42 @@ class LocalWebServerService extends ChangeNotifier {
 
   bool _isAuthorized(HttpRequest request) {
     final auth = request.headers.value('authorization');
-    if (auth == null || !auth.startsWith('Bearer ')) return false;
-    final token = auth.substring(7).trim();
-    return token == _authToken;
+    return isAuthorizedToken(_authToken, auth);
   }
+
+  /// Bearer-token check. Fail-closed: an empty/missing configured token
+  /// denies everything. Constant-time comparison. Static + pure for tests.
+  static bool isAuthorizedToken(String configuredToken, String? authHeader) {
+    if (configuredToken.isEmpty) {
+      debugPrint('[LocalWebServerService] no auth token configured — deny');
+      return false;
+    }
+    if (authHeader == null || !authHeader.startsWith('Bearer ')) {
+      return false;
+    }
+    final presented = authHeader.substring(7).trim();
+    if (presented.isEmpty) return false;
+    if (presented.length != configuredToken.length) return false;
+    var diff = 0;
+    for (var i = 0; i < presented.length; i++) {
+      diff |= presented.codeUnitAt(i) ^ configuredToken.codeUnitAt(i);
+    }
+    return diff == 0;
+  }
+
+  /// Bounded query integer: garbage falls back, out-of-range clamps.
+  /// Static + pure for tests.
+  static int parseBoundedQueryInt(Map<String, String> params, String key,
+      int defaultValue, int min, int max) {
+    final v = int.tryParse(params[key] ?? '') ?? defaultValue;
+    if (v < min) return min;
+    if (v > max) return max;
+    return v;
+  }
+
+  /// Non-negative integer strings (microcoin amounts, OU). Static for tests.
+  static bool isUintString(String value) =>
+      RegExp(r'^\d+$').hasMatch(value);
 
   Future<void> _sendJson(
       HttpResponse response, int status, Map<String, dynamic> data) async {
@@ -598,8 +646,8 @@ class LocalWebServerService extends ChangeNotifier {
     }
 
     final params = request.uri.queryParameters;
-    final limit = int.tryParse(params['limit'] ?? '20') ?? 20;
-    final offset = int.tryParse(params['offset'] ?? '0') ?? 0;
+    final limit = parseBoundedQueryInt(params, 'limit', 20, 1, 200);
+    final offset = parseBoundedQueryInt(params, 'offset', 0, 0, 1000000);
 
     try {
       final client = RpcClient();
@@ -633,8 +681,8 @@ class LocalWebServerService extends ChangeNotifier {
     }
 
     final params = request.uri.queryParameters;
-    final limit = int.tryParse(params['limit'] ?? '20') ?? 20;
-    final offset = int.tryParse(params['offset'] ?? '0') ?? 0;
+    final limit = parseBoundedQueryInt(params, 'limit', 20, 1, 200);
+    final offset = parseBoundedQueryInt(params, 'offset', 0, 0, 1000000);
 
     try {
       final client = RpcClient();
@@ -693,7 +741,8 @@ class LocalWebServerService extends ChangeNotifier {
       HttpRequest request, HttpResponse response) async {
     final ns = NetworkService.instance;
     final params = request.uri.queryParameters;
-    final fromEpoch = int.tryParse(params['from_epoch'] ?? '0') ?? 0;
+    final fromEpoch =
+        parseBoundedQueryInt(params, 'from_epoch', 0, 0, 2147483647);
 
     try {
       final client = RpcClient();
@@ -872,13 +921,24 @@ class LocalWebServerService extends ChangeNotifier {
 
   Future<void> _handleContractCall(
       HttpRequest request, HttpResponse response) async {
+    Map<String, dynamic> body;
     try {
-      final bodyStr = await utf8.decoder.bind(request).join();
-      final body = jsonDecode(bodyStr) as Map<String, dynamic>;
-
+      body = jsonDecode(await utf8.decoder.bind(request).join())
+          as Map<String, dynamic>;
+    } catch (_) {
+      await _sendJsonError(response, HttpStatus.badRequest,
+          'Request body must be a JSON object');
+      return;
+    }
+    try {
       final contractAddr = body['address']?.toString().trim() ?? '';
       final method = body['method']?.toString().trim() ?? '';
       final params = body['params'] ?? [];
+      if (params is! List) {
+        await _sendJsonError(response, HttpStatus.badRequest,
+            'params must be a JSON array');
+        return;
+      }
       final paramsStr = jsonEncode(params);
       final amount = body['amount']?.toString().trim() ?? '0';
       final ou = body['ou']?.toString().trim() ?? '1000';
@@ -886,6 +946,11 @@ class LocalWebServerService extends ChangeNotifier {
       if (contractAddr.isEmpty || method.isEmpty) {
         await _sendJsonError(
             response, HttpStatus.badRequest, 'Missing address or method');
+        return;
+      }
+      if (!isUintString(amount) || !isUintString(ou)) {
+        await _sendJsonError(response, HttpStatus.badRequest,
+            'amount and ou must be non-negative integers');
         return;
       }
 
