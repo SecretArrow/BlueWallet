@@ -1161,13 +1161,19 @@ class WalletService extends ChangeNotifier {
 
   /// Formats a raw token integer using the contract's decimal places.
   /// Uses pure integer/string arithmetic to avoid floating-point precision loss.
-  static String _formatTokenBalance(String rawValue, int decimals) {
+  /// Decimals outside 0..36 render raw: a malicious token advertising absurd
+  /// decimals would otherwise hang/OOM on BigInt.pow + padLeft. Pure/tested.
+  static const int maxTokenDecimals = 36;
+
+  static String formatTokenBalance(String rawValue, int decimals) {
     if (rawValue.isEmpty || rawValue == '0') return '0';
+    if (decimals < 0 || decimals > maxTokenDecimals) return rawValue;
     try {
       if (decimals <= 0) return rawValue;
       // Use BigInt for arbitrary-precision token amounts
       final raw = BigInt.tryParse(rawValue);
-      if (raw == null || raw == BigInt.zero) return '0';
+      if (raw == null) return rawValue;
+      if (raw == BigInt.zero) return '0';
       final divisor = BigInt.from(10).pow(decimals);
       final whole = raw ~/ divisor;
       final frac = (raw % divisor).abs();
@@ -1252,7 +1258,7 @@ class WalletService extends ChangeNotifier {
             tokenList.add(TokenBalance(
               symbol: symbol,
               name: name,
-              balance: _formatTokenBalance(balance, decimals),
+              balance: formatTokenBalance(balance, decimals),
               address: addr,
             ));
           }
@@ -1327,7 +1333,7 @@ class WalletService extends ChangeNotifier {
             return TokenBalance(
               symbol: symbol,
               name: name,
-              balance: _formatTokenBalance(balance, decimals),
+              balance: formatTokenBalance(balance, decimals),
               address: addr,
             );
           } catch (_) {

@@ -83,13 +83,21 @@ public class SessionLockActivity extends BaseTxActivity {
     public static boolean isSessionExpired(android.content.Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         int lockMinutes = prefs.getInt(KEY_LOCK_MINUTES, 0);
-        if (lockMinutes <= 0) return false; // Never lock
-
         long lastActive = prefs.getLong(KEY_LAST_ACTIVE, 0);
-        if (lastActive <= 0) return true; // Never recorded, force lock
+        return isExpiredAt(lastActive, lockMinutes, System.currentTimeMillis());
+    }
 
-        long elapsed = System.currentTimeMillis() - lastActive;
-        long timeoutMs = lockMinutes * 60L * 1000L;
+    /**
+     * Pure session-expiry decision (no clock/Context — unit-tested).
+     * Never lock when disabled (≤0); always lock when never recorded;
+     * long arithmetic is overflow-safe for any int minutes.
+     */
+    static boolean isExpiredAt(long lastActiveMs, int lockMinutes, long nowMs) {
+        if (lockMinutes <= 0) return false; // Never lock
+        if (lastActiveMs <= 0) return true; // Never recorded, force lock
+        long elapsed = nowMs - lastActiveMs;
+        if (elapsed < 0) return false; // Clock moved backwards — fail open briefly
+        long timeoutMs = (long) lockMinutes * 60L * 1000L;
         return elapsed >= timeoutMs;
     }
 }
