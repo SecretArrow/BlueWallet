@@ -81,10 +81,9 @@ void main() {
     test('unknown and empty paths fall back to octet-stream', () {
       expect(LocalWebServerService.mimeTypeFor('notes.txt'),
           'application/octet-stream');
-      expect(LocalWebServerService.mimeTypeFor(''),
-          'application/octet-stream');
-      expect(LocalWebServerService.mimeTypeFor('mjs'),
-          'application/octet-stream');
+      expect(LocalWebServerService.mimeTypeFor(''), 'application/octet-stream');
+      expect(
+          LocalWebServerService.mimeTypeFor('mjs'), 'application/octet-stream');
     });
   });
 
