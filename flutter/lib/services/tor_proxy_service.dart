@@ -32,6 +32,31 @@ class ProxyConfig {
         type: json['type'] as String,
         isDefault: json['isDefault'] as bool? ?? false,
       );
+
+  /// Lenient parse for stored data: garbage entries become null and are
+  /// skipped by the loader instead of killing the whole list. Pure/tested.
+  static ProxyConfig? tryFromJson(dynamic e) {
+    if (e is! Map) return null;
+    final m = Map<String, dynamic>.from(e);
+    final host = m['host']?.toString().trim() ?? '';
+    final port = m['port'] is int
+        ? m['port'] as int
+        : int.tryParse(m['port']?.toString() ?? '');
+    final type = m['type']?.toString().trim() ?? '';
+    if (host.isEmpty || port == null) return null;
+    try {
+      TorProxyService.validateProxy(host, port, type);
+    } catch (_) {
+      return null;
+    }
+    return ProxyConfig(
+      name: m['name']?.toString() ?? host,
+      host: host,
+      port: port,
+      type: TorProxyService.canonicalType(type),
+      isDefault: m['isDefault'] == true,
+    );
+  }
 }
 
 class TorProxyService extends ChangeNotifier {
@@ -102,9 +127,16 @@ class TorProxyService extends ChangeNotifier {
     } else {
       try {
         final List<dynamic> decoded = jsonDecode(serversJson);
-        _servers = decoded
-            .map((e) => ProxyConfig.fromJson(e as Map<String, dynamic>))
-            .toList();
+        final parsed = decoded.map(ProxyConfig.tryFromJson).toList();
+        // Keep only valid entries; a fully-corrupt list falls back to
+        // whatever was already loaded (never wipe to empty silently).
+        final valid = parsed.whereType<ProxyConfig>().toList();
+        if (valid.isNotEmpty || decoded.isEmpty) {
+          _servers = valid;
+        } else {
+          debugPrint(
+              '[TorProxyService] Stored server list unparseable — keeping previous');
+        }
       } catch (e) {
         debugPrint('[TorProxyService] Failed to load servers JSON: $e');
       }
@@ -120,21 +152,41 @@ class TorProxyService extends ChangeNotifier {
   }
 
   Future<void> setActiveProxy(String host, int port, String type) async {
-    _activeHost = host;
+    validateProxy(host, port, type);
+    _activeHost = host.trim();
     _activePort = port;
-    _activeType = type;
+    _activeType = canonicalType(type);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('${_kPrefsName}_$_kActiveHost', host);
+    await prefs.setString('${_kPrefsName}_$_kActiveHost', _activeHost);
     await prefs.setInt('${_kPrefsName}_$_kActivePort', port);
-    await prefs.setString('${_kPrefsName}_$_kActiveType', type);
+    await prefs.setString('${_kPrefsName}_$_kActiveType', _activeType);
     notifyListeners();
   }
 
   Future<void> addProxyServer(ProxyConfig config) async {
+    validateProxy(config.host, config.port, config.type);
     _servers.add(config);
     await _saveServers();
     notifyListeners();
   }
+
+  /// Validates proxy parameters. Pure, unit-tested. Throws [ArgumentError].
+  static void validateProxy(String? host, int? port, String? type) {
+    if (host == null || host.trim().isEmpty) {
+      throw ArgumentError('Proxy host must not be empty');
+    }
+    if (port == null || port < 1 || port > 65535) {
+      throw ArgumentError('Proxy port must be 1..65535 (got $port)');
+    }
+    final t = type?.trim().toUpperCase() ?? '';
+    if (t != 'SOCKS' && t != 'HTTP') {
+      throw ArgumentError('Proxy type must be SOCKS or HTTP (got "$type")');
+    }
+  }
+
+  /// Canonical upper-case type. Pure, unit-tested.
+  static String canonicalType(String type) =>
+      type.trim().toUpperCase() == 'HTTP' ? 'HTTP' : 'SOCKS';
 
   Future<bool> removeProxyServer(String host, int port) async {
     int idx = -1;

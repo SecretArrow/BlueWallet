@@ -900,12 +900,18 @@ class WalletService extends ChangeNotifier {
   }) async {
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    if (toAddress.trim().isEmpty) {
+      throw ArgumentError('Recipient address must not be empty');
+    }
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
 
     // Convert decimal OCT to raw microcoins, matching Android's amountRaw = (long)(inputAmount * 1_000_000)
     final amountRaw = parseOct(amount);
     if (amountRaw < 0) throw Exception('Amount cannot be negative');
+    if (amountRaw == 0) {
+      throw ArgumentError('Amount must be greater than 0 (got "$amount")');
+    }
 
     await refresh(nodeUrl);
     final nonce = _currentNonce + 1;
@@ -937,6 +943,17 @@ class WalletService extends ChangeNotifier {
   }) async {
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    if (tokenAddress.trim().isEmpty) {
+      throw ArgumentError('Token address must not be empty');
+    }
+    if (toAddress.trim().isEmpty) {
+      throw ArgumentError('Recipient address must not be empty');
+    }
+    final amountVal = int.tryParse(amount.trim());
+    if (amountVal == null || amountVal <= 0) {
+      throw ArgumentError(
+          'Token amount must be a positive integer (got "$amount")');
+    }
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
 

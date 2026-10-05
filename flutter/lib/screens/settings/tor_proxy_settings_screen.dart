@@ -291,7 +291,14 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
 
                   return InkWell(
                     onTap: () {
-                      tor.setActiveProxy(s.host, s.port, s.type);
+                      try {
+                        tor.setActiveProxy(s.host, s.port, s.type);
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Invalid proxy entry: $e')),
+                        );
+                        return;
+                      }
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('Switched proxy to ${s.name}'),
