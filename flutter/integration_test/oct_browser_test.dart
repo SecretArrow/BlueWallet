@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
-import 'package:provider/provider.dart';
 
 import 'package:octopus_wallet/screens/dapp/dapp_browser_screen.dart';
 import 'package:octopus_wallet/services/address_book_service.dart';
@@ -33,8 +32,7 @@ void main() {
           ChangeNotifierProvider(create: (_) => AddressBookService()),
           ChangeNotifierProvider(create: (_) => PollingService()),
           ChangeNotifierProvider(create: (_) => TorProxyService.instance),
-          ChangeNotifierProvider(
-              create: (_) => LocalWebServerService.instance),
+          ChangeNotifierProvider(create: (_) => LocalWebServerService.instance),
         ],
         child: const MaterialApp(
           home: DappBrowserScreen(initialUrl: octUrl),

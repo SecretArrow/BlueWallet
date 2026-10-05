@@ -483,9 +483,9 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       if (!mounted) return;
       if (OctUrl.exceedsDirectLimit(raw.lengthInBytes)) {
         if (server.enabled && server.isRunning) {
-          await _controller.loadRequest(Uri.parse(
-              OctUrl.gatewayHttpUrl(parts[0], parts[1],
-                  port: LocalWebServerService.port)));
+          await _controller.loadRequest(Uri.parse(OctUrl.gatewayHttpUrl(
+              parts[0], parts[1],
+              port: LocalWebServerService.port)));
         } else {
           setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
