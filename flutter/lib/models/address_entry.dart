@@ -21,4 +21,19 @@ class AddressEntry {
         label: json['label'] as String,
         address: json['address'] as String,
       );
+
+  /// Lenient parse for stored data: garbage rows become null and are
+  /// skipped by the loader instead of wiping the whole book.
+  /// Pure, unit-tested.
+  static AddressEntry? tryFromJson(dynamic e) {
+    if (e is! Map) return null;
+    final m = Map<String, dynamic>.from(e);
+    final address = m['address']?.toString().trim() ?? '';
+    if (address.isEmpty) return null;
+    return AddressEntry(
+      id: m['id']?.toString() ?? 'addr_unknown',
+      label: m['label']?.toString() ?? '',
+      address: address,
+    );
+  }
 }

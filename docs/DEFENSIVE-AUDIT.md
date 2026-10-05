@@ -63,7 +63,8 @@ test per cabang, asumsi eksplisit).
 |---|---|---|---|
 | Polling/autoscan/claim | `AutoScanService/Worker/Activity`, `TxForegroundService`, `StealthClaimService`, `StealthTaskManager` | `polling/background_polling_service.dart`, `auto_scan_screen.dart`, stealth tasks screens | Belum diaudit |
 | History/token loading | `MainActivity` tokens, `TransactionsManagerActivity`, `HistoryDetailActivity` | `history_tab.dart`, `transactions_manager_screen.dart`, `history_detail_screen.dart` | Belum diaudit |
-| QR scan | `QrScanActivity` (CameraX+MLKit+zxing) | `qr_scan_screen.dart` | Belum diaudit |
+| QR scan | `QrScanActivity` (CameraX+MLKit+zxing) | `qr_scan_screen.dart` | Hasil mentah tervalidasi di send (Fase 1.3); parsing payment-URI = backlog |
+| Address book | `AddressBookStore` | `address_book_service.dart`, `address_entry.dart` | ✅ Fase 3.3 selesai (validasi + dedup + load toleran; bukti di bawah) |
 | Biometrik/session lock | `UnlockActivity` (BiometricPrompt) | `biometric_service.dart`, `session_lock_screen.dart`, `biometric_settings_screen.dart` | Belum diaudit |
 | Export/kunci terlihat | `ExportWalletsActivity`, `ViewKeysActivity`, `ConfirmDeleteWalletActivity` | `export/view_keys/wallets_screen.dart`, `confirm_action_screen.dart` | Belum diaudit |
 | Setup/onboarding | `SetupActivity`, `WalletFilePinActivity`, `WalletsMenuActivity` | `setup_screen.dart`, `startup_screen.dart` | Belum diaudit |
@@ -83,6 +84,16 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
    (`flutter test`); E2E bila menyentuh UI.
 3. CI hijau: `analyze` fatal-infos, `lintDebug` 0-error, Spotless,
    `testDebugUnitTest`, `flutter test`, debug build dua app.
+
+## Bukti Fase 3.3 — address book
+
+| # | Skenario | Android | Flutter | Test |
+|---|---|---|---|---|
+| 1 | label/address null-kosong | address wajib (throw); label boleh kosong (UI substitusi, selaras) | sama (address wajib; label opsional) | grup require/add |
+| 2 | duplikat address | kembalikan existing (existing) | kembalikan existing (baru; dulu: duplikat) | dedup implisit via id test |
+| 3 | update id asing | tulis ulang tanpa perubahan (existing) | `false` (baru) | update test |
+| 4 | baris korup di storage | dilewati per-item (existing `optString`) | `tryFromJson` skip (dulu: seluruh buku hilang!) | tryFromJson 6 kasus |
+| 5 | Entry null-field | konstruktor trim+"" (existing) | — (non-nullable, compile-time) | ctor test |
 
 ## Bukti Fase 3.2 — proxy + send guards
 

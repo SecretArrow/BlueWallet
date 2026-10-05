@@ -19,7 +19,8 @@ class AddressBookService extends ChangeNotifier {
     final raw = prefs.getString(_kAddressBookKey) ?? '[]';
     try {
       final list = (jsonDecode(raw) as List<dynamic>)
-          .map((e) => AddressEntry.fromJson(e as Map<String, dynamic>))
+          .map(AddressEntry.tryFromJson)
+          .whereType<AddressEntry>()
           .toList();
       _entries = list;
     } catch (_) {
@@ -28,19 +29,38 @@ class AddressBookService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> add(AddressEntry entry) async {
-    _entries.add(entry);
+  /// Adds an entry after validating; returns the existing entry when the
+  /// address is already saved (mirrors Android dedup). Throws
+  /// [ArgumentError] on blank address. Blank labels are allowed (UIs
+  /// substitute a shortened address, mirroring Android).
+  Future<AddressEntry> add(AddressEntry entry) async {
+    if (entry.address.trim().isEmpty) {
+      throw ArgumentError('Address must not be blank');
+    }
+    for (final e in _entries) {
+      if (e.address.toLowerCase() == entry.address.trim().toLowerCase()) {
+        return e;
+      }
+    }
+    final clean = AddressEntry(
+        id: entry.id, label: entry.label.trim(), address: entry.address.trim());
+    _entries.add(clean);
     await _save();
     notifyListeners();
+    return clean;
   }
 
-  Future<void> update(AddressEntry entry) async {
-    final idx = _entries.indexWhere((e) => e.id == entry.id);
-    if (idx >= 0) {
-      _entries[idx] = entry;
-      await _save();
-      notifyListeners();
+  /// Updates an entry; returns false when the id is unknown.
+  Future<bool> update(AddressEntry entry) async {
+    if (entry.address.trim().isEmpty) {
+      throw ArgumentError('Address must not be blank');
     }
+    final idx = _entries.indexWhere((e) => e.id == entry.id);
+    if (idx < 0) return false;
+    _entries[idx] = entry;
+    await _save();
+    notifyListeners();
+    return true;
   }
 
   Future<void> remove(String id) async {

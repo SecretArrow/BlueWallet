@@ -57,6 +57,17 @@ public final class AddressBookStore {
 
     // ── CRUD operations ────────────────────────────────────────────────────
 
+    /**
+     * Validate an address for storage. Pure and unit-tested.
+     *
+     * @throws IllegalArgumentException when blank
+     */
+    static void requireAddress(String address) {
+        if (address == null || address.trim().isEmpty()) {
+            throw new IllegalArgumentException("Address must not be blank");
+        }
+    }
+
     /** Returns all saved entries, ordered by time of insertion (newest first). */
     public static List<Entry> getEntries(Context context) {
         List<Entry> result = new ArrayList<>();
@@ -78,12 +89,14 @@ public final class AddressBookStore {
      * Returns the created entry along with its generated ID.
      */
     public static Entry addEntry(Context context, String label, String address) {
+        requireAddress(address);
         String id = String.valueOf(System.currentTimeMillis());
+        // Label may be blank (UI falls back to shortened address).
         Entry entry = new Entry(id, label, address);
         List<Entry> existing = getEntries(context);
         // Avoid exact duplicate addresses
         for (Entry e : existing) {
-            if (e.address.equalsIgnoreCase(address.trim())) {
+            if (e.address.equalsIgnoreCase(entry.address)) {
                 return e; // return the existing entry without duplicating
             }
         }
@@ -92,13 +105,14 @@ public final class AddressBookStore {
         return entry;
     }
 
-    /** Updates the label of an entry identified by ID. */
+    /** Updates the label of an entry identified by ID (blank labels allowed — UI substitutes). */
     public static void updateLabel(Context context, String id, String newLabel) {
         List<Entry> entries = getEntries(context);
         List<Entry> updated = new ArrayList<>();
+        String clean = newLabel == null ? "" : newLabel.trim();
         for (Entry e : entries) {
             if (e.id.equals(id)) {
-                updated.add(new Entry(e.id, newLabel, e.address));
+                updated.add(new Entry(e.id, clean, e.address));
             } else {
                 updated.add(e);
             }
