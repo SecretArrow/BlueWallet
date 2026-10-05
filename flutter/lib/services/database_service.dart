@@ -104,7 +104,7 @@ class DatabaseService {
         {
           'wallet_id': walletId,
           'hash': hash,
-          'timestamp': _parseTs(tx['timestamp']),
+          'timestamp': parseTimestamp(tx['timestamp']),
           'from_addr': tx['from']?.toString() ??
               tx['from_']?.toString() ??
               tx['sender']?.toString() ??
@@ -296,7 +296,9 @@ class DatabaseService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  static int _parseTs(dynamic ts) {
+  /// Normalises timestamps to millis (Unix seconds <-> ms heuristic,
+  /// garbage -> 0). Pure, unit-tested.
+  static int parseTimestamp(dynamic ts) {
     if (ts == null) return 0;
     if (ts is int) return ts;
     if (ts is double) {
