@@ -744,9 +744,13 @@ public class LocalWebServerService extends Service {
             }
         }
 
-        private String getMimeType(String uri) {
+        /** Static so JVM tests can assert MIME mapping without sockets. */
+        static String getMimeType(String uri) {
+            if (uri == null) return "application/octet-stream";
             if (uri.endsWith(".html") || uri.endsWith(".htm")) return "text/html";
             if (uri.endsWith(".css")) return "text/css";
+            // .mjs must be a script type or browsers refuse ES module imports.
+            if (uri.endsWith(".mjs")) return "application/javascript";
             if (uri.endsWith(".js")) return "application/javascript";
             if (uri.endsWith(".png")) return "image/png";
             if (uri.endsWith(".jpg") || uri.endsWith(".jpeg")) return "image/jpeg";

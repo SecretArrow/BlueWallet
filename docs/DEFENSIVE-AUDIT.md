@@ -271,3 +271,44 @@ Theme (10 vs 11 palet), About, dashboard/animasi (`BalanceAnimator`), widget gen
 | 15 | params tak-encodable | N/A (org.json ketat) | failure `Request encoding` (dulu: label `Connection` salah) | unencodable test |
 | 16 | timeout/socket | `IOException` via OkHttp+callTimeout 90s | failure `Connection failed` | Flutter: socket+timeout tests |
 | 17 | envelope tanpa result+error | failure `Unknown` | failure `Unknown` | unknown-shape tests |
+
+## Bukti Fase C1 — swap.js pindah ke OctraWalletAdapter
+
+Perilaku user-facing sengaja 100% sama; yang berubah hanya siapa yang
+mengeksekusi request. Embed Android + Flutter disinkronkan byte-identik
+(diterapkan `sdk/test/embed.test.mjs` sebagai gerbang anti-drift).
+
+| # | Skenario | Lokasi penanganan | Test |
+|---|---|---|---|
+| 1 | Halaman dimuat tanpa transport (injected & localhost mati) | `swap.js adapter()` → `throw 'no wallet transport available'`, view swap disembunyikan | `adapter.test.mjs initialize_is_falseWithNoUsableTransport` |
+| 2 | 401 pada panggilan ter-auth (balance / swap / grant) | `boot.mjs withAuthRetry` → modal token sekali, `saveToken` ke sessionStorage, retry sekali saja | `adapter.test.mjs retriesOnceAfterA401RePrompt` + `passesThroughNon401AndDeclinedPrompts` |
+| 3 | Pengguna batal pada prompt token | `cancelToken` → resolve `null` → error 401 asli diteruskan (bukan error baru) |idem baris 2 |
+| 4 | Prompt kedua saat modal masih terbuka | `_pendingTokenPrompt` di-chain, modal tidak ditumpuk | guard slot-tunggal di `swap.js` |
+| 5 | sessionStorage diblokir (private mode) | `loadToken`/`saveToken` try-catch → token hanya hidup di memori tab | guard `boot.mjs` |
+| 6 | `.mjs` diserve sebagai `application/octet-stream` | `LocalWebServerService.getMimeType` / `mimeTypeFor` (Java statis, Dart statis) | `LocalServerValidationTest.getMimeType_*`, `local_server_validation_test.dart mimeTypeFor` |
+| 7 | Salinan embed meleset dari `sdk/src` | `sdk/test/embed.test.mjs` membandingkan byte per modul, dua embed | 12 test drift |
+| 8 | Import relatif ke modul hilang | `embed.test.mjs` resolve graf modul swap.js di disk | 2 test graf |
+| 9 | `catch (e) {}` kosong menelan kegagalan | `waitReceipt` menyimpan `lastReceiptError`; balance/reserve menampilkan `adapterMsg(e)` | `embed.test.mjs swap.js has no empty catch blocks` |
+| 10 | Hash tx kosong dari dompet | `if (!buyHash) throw` (dulu `!r.tx_hash`) — gagal eksplisit, bukan sukses palsu | `adapter.test.mjs emptyHashIsAFailureNotSuccess` |
+| 11 | Fee `ou` hardcode (`SWAP_FEE_OU`, `GRANT_FEE_OU`) | konstanta dihapus; fee decided wallet (fee oracle) | konstanta absen (grep) |
+| 12 | `viewVal` menerima `{result}` / `{value}` / primitif | helper `viewVal` + normalisasi `undefined`/`null` → `''` | `adapter.test.mjs unwrapsEnvelopes*` |
+| 13 | Saldo OCTtak dilaporkan (hanya `public`) | fallback `parseUnits(bal.public)`; `undefined` dijaga | cabang di `loadBalances` |
+| 14 | `pubspec.yaml` tidak mem-bundle `assets/webcli/adapter/` | entri direktori ditambahkan | build Flutter di CI |
+
+### Asumsi eksplisit (C1)
+
+- A18 — Endpoint publik (`/api/wallet/status`, `/api/wallet/unlock`,
+  `/api/wallet`, `/api/contract/view`, `/api/contract/receipt`) tetap
+  `fetch` langsung: unlock butuh PIN pada dialog native dompet yang tidak
+  bisa direplikasi adapter, jadi memindahkannya tidak menambah nilai dan
+  berisiko mengubah UX.
+- A19 — Hanya halaman `swap` yang dimigrasikan pada C1; `bridge`/`circles`
+  menyusul sebagai C2/C3 (bridging EVM + program circles punya flows
+  multi-langkah yang perlu dipetakan terpisah).
+- A20 — `withAuthRetry` hanya mencoba satu kali setelah 401; 401 kedua
+ dilaporkan sebagai error biasa agar tidak ada loop prompt tak terbatas.
+- A21 — `sdk/` tetap MIT dan tetap belum dipublikasikan ke npm; embed
+  adalah salinan byte-identik, bukan symlink (asset Android tidak mendukung).
+- A22 — Divergensi swap.js hanya ada di embed (submodule `webcli/` upstream
+  tidak disentuh) supaya upstream tetap bisa dipakai sebagai referensi
+  vanilla dan sync submodule tidak Bentrok.

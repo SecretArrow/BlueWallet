@@ -25,14 +25,14 @@
               2025-2026 Julia L.
 */
 
+import { createAdapter } from './adapter/boot.mjs';
+
 var SWAP_ADDR = 'octBjnQBicZs6iMwcRxrdzLYAzyVTi91KEiA8RGkVjco2w6';
 var TOKEN_ADDR = 'oct6J37Wx7Rb1putvfwFrFbGUStE8hGzsb33fhLgUdpTx6d';
 var SCANNER_URL = 'https://devnet.octrascan.io';
 var TOKEN_SYMBOL = 'tUSD';
 var TOKEN_DECIMALS = 6;
 var OCT_DECIMALS = 6;
-var SWAP_FEE_OU = '100000';
-var GRANT_FEE_OU = '1000';
 
 var _dir = 'buy';
 var _walletAddr = '';
@@ -64,6 +64,69 @@ async function api(method, path, body) {
   try { j = JSON.parse(text); } catch (e) { throw new Error('bad response'); }
   if (!res.ok) throw new Error(j.error || j.message || 'request failed');
   return j;
+}
+
+// ---- OctraWalletAdapter wiring (Fase C1; embedded divergence from upstream) ----
+// Public endpoints (status/unlock/wallet/receipt/views) keep direct fetch.
+// Authed calls (balance, swaps) go through the adapter with 401 re-prompt.
+var _adapterBox = null;
+
+async function adapter() {
+  if (!_adapterBox) {
+    _adapterBox = createAdapter({ appName: 'Octra Swap', promptToken: promptTokenModal });
+    var ok = await _adapterBox.adapter.initialize();
+    if (!ok) throw new Error('no wallet transport available');
+  }
+  return _adapterBox;
+}
+
+// Single-slot pending prompt: at most one 401 prompt is ever open, because
+// withAuthRetry retries once and a second 401 surfaces as a normal error.
+var _pendingTokenPrompt = null;
+
+function closeTokenModal(value) {
+  $('token-modal').className = 'modal-bg';
+  $('token-input').value = '';
+  var resolve = _pendingTokenPrompt;
+  _pendingTokenPrompt = null;
+  if (resolve) resolve(value || null);
+}
+
+function saveToken() {
+  closeTokenModal($('token-input').value.trim());
+}
+
+function cancelToken() {
+  closeTokenModal(null);
+}
+
+function promptTokenModal(reason) {
+  // A second prompt while one is open reuses it rather than stacking modals.
+  if (_pendingTokenPrompt) return new Promise(function(r) {
+    var prev = _pendingTokenPrompt;
+    _pendingTokenPrompt = function(v) { prev(v); r(v); };
+  });
+  $('token-msg').textContent = reason || 'Paste the Bearer token from Local Web Server settings in the wallet app.';
+  $('token-input').value = '';
+  $('token-modal').className = 'modal-bg show';
+  return new Promise(function(resolve) { _pendingTokenPrompt = resolve; });
+}
+
+// Extract a view value from any shape the transports return
+// ({result}, {value}, raw primitive).
+// Adapter errors carry a numeric code; the page shows code + message so a
+// failing branch is diagnosable instead of a bare "undefined".
+function adapterMsg(e) {
+  if (e && typeof e.code === 'number') return '[' + e.code + '] ' + e.message;
+  return e && e.message ? e.message : String(e);
+}
+
+function viewVal(r) {
+  if (r && typeof r === 'object' && !Array.isArray(r)) {
+    if (r.result !== undefined) return r.result;
+    if (r.value !== undefined) return r.value;
+  }
+  return r;
 }
 
 function addCommas(s) {
@@ -189,8 +252,10 @@ async function loadAll() {
 
 async function loadReserves() {
   try {
-    var r = await api('GET', '/contract/view?address=' + SWAP_ADDR + '&method=get_reserves&params=[]');
-    var v = r.result || r.value || '';
+    var box = await adapter();
+    var r = await box.adapter.contractView({ contract: SWAP_ADDR, method: 'get_reserves', params: [] });
+    var v = viewVal(r);
+    if (v === undefined || v === null) v = '';
     var parts = String(v).split(':');
     if (parts.length === 2) {
       _reserveOct = parts[0];
@@ -203,16 +268,23 @@ async function loadReserves() {
 }
 
 async function loadBalances() {
+  var box = await adapter();
   try {
-    var bal = await api('GET', '/balance');
-    _balOctRaw = String(bal.public_balance || '0');
+    var bal = await box.withAuthRetry(function() { return box.adapter.getBalance(); });
+    var rawBal = bal && bal.raw !== undefined && bal.raw !== null ? bal.raw : parseUnits((bal && bal.public) || '0', OCT_DECIMALS);
+    _balOctRaw = String(rawBal);
     $('bal-oct').textContent = addCommas(formatUnits(_balOctRaw, OCT_DECIMALS));
-  } catch (e) {}
+  } catch (e) {
+    // A missing/unauthorized balance must not blank the form; show why.
+    $('bal-oct').textContent = adapterMsg(e);
+  }
   try {
-    var r = await api('GET', '/contract/view?address=' + TOKEN_ADDR + '&method=balance_of&params=["' + _walletAddr + '"]');
-    _balTokenRaw = String(r.result || '0');
+    var r = await box.adapter.contractView({ contract: TOKEN_ADDR, method: 'balance_of', params: [_walletAddr] });
+    _balTokenRaw = String(viewVal(r) || '0');
     $('bal-tusd').textContent = addCommas(formatUnits(_balTokenRaw, TOKEN_DECIMALS));
-  } catch (e) {}
+  } catch (e) {
+    $('bal-tusd').textContent = adapterMsg(e);
+  }
 }
 
 function updatePrice() {
@@ -348,14 +420,19 @@ function clearStatus() {
 }
 
 async function waitReceipt(txHash) {
+  var lastReceiptError = null;
   for (var i = 0; i < 60; i++) {
     try {
       var r = await api('GET', '/contract/receipt?hash=' + encodeURIComponent(txHash));
       if (r && r.success !== undefined) return r;
-    } catch (e) {}
+    } catch (e) {
+      // Not mined yet (or a transient server hiccup) — keep polling until
+      // the bounded attempt count is exhausted, then report the timeout.
+      lastReceiptError = e;
+    }
     await new Promise(function(ok) { setTimeout(ok, 1000); });
   }
-  throw new Error('timeout waiting for receipt');
+  throw new Error('timeout waiting for receipt' + (lastReceiptError ? ': ' + adapterMsg(lastReceiptError) : ''));
 }
 
 async function confirmSwap() {
@@ -384,18 +461,16 @@ async function confirmSwap() {
 async function doBuySwap(humanAmount) {
   var amountRaw = parseUnits(humanAmount, OCT_DECIMALS);
   showProgress([{ text: 'swapping OCT -> ' + TOKEN_SYMBOL + '...', cls: 'active' }]);
-  var r = await api('POST', '/contract/call', {
-    address: SWAP_ADDR,
-    method: 'swap_oct_to_token',
-    params: [],
-    amount: amountRaw,
-    ou: SWAP_FEE_OU
+  var box = await adapter();
+  var r = await box.withAuthRetry(function() {
+    return box.adapter.callContract({ contract: SWAP_ADDR, method: 'swap_oct_to_token', params: [], amount: amountRaw });
   });
-  if (!r.tx_hash) throw new Error('no tx_hash');
-  showProgress([{ text: 'swapping OCT -> ' + TOKEN_SYMBOL + '... tx: ' + r.tx_hash.slice(0, 10), cls: 'active' }]);
-  var receipt = await waitReceipt(r.tx_hash);
+  var buyHash = r.txHash;
+  if (!buyHash) throw new Error('no tx_hash');
+  showProgress([{ text: 'swapping OCT -> ' + TOKEN_SYMBOL + '... tx: ' + buyHash.slice(0, 10), cls: 'active' }]);
+  var receipt = await waitReceipt(buyHash);
   if (!receipt.success) throw new Error(receipt.error || 'swap reverted');
-  showProgress([{ text: 'swap complete', cls: 'done', link: txUrl(r.tx_hash), linkText: r.tx_hash.slice(0, 16) + '...' }]);
+  showProgress([{ text: 'swap complete', cls: 'done', link: txUrl(buyHash), linkText: buyHash.slice(0, 16) + '...' }]);
 }
 
 async function doSellSwap(humanAmount) {
@@ -404,35 +479,33 @@ async function doSellSwap(humanAmount) {
     { text: '1/2 granting ' + TOKEN_SYMBOL + ' access...', cls: 'active' },
     { text: '2/2 swap ' + TOKEN_SYMBOL + ' -> OCT', cls: '' }
   ]);
-  var g = await api('POST', '/contract/call', {
-    address: TOKEN_ADDR,
-    method: 'grant',
-    params: [SWAP_ADDR, parseInt(amountRaw)],
-    ou: GRANT_FEE_OU
+  var gbox = await adapter();
+  var g = await gbox.withAuthRetry(function() {
+    return gbox.adapter.callContract({ contract: TOKEN_ADDR, method: 'grant', params: [SWAP_ADDR, parseInt(amountRaw)] });
   });
-  if (!g.tx_hash) throw new Error('grant: no tx_hash');
-  var gr = await waitReceipt(g.tx_hash);
+  var grantHash = g.txHash;
+  if (!grantHash) throw new Error('grant: no tx_hash');
+  var gr = await waitReceipt(grantHash);
   if (!gr.success) throw new Error('grant failed: ' + (gr.error || 'reverted'));
   showProgress([
-    { text: '1/2 grant approved', cls: 'done', link: txUrl(g.tx_hash), linkText: g.tx_hash.slice(0, 16) + '...' },
+    { text: '1/2 grant approved', cls: 'done', link: txUrl(grantHash), linkText: grantHash.slice(0, 16) + '...' },
     { text: '2/2 swapping ' + TOKEN_SYMBOL + ' -> OCT...', cls: 'active' }
   ]);
-  var r = await api('POST', '/contract/call', {
-    address: SWAP_ADDR,
-    method: 'swap_token_to_oct',
-    params: [parseInt(amountRaw)],
-    ou: SWAP_FEE_OU
+  var sbox = await adapter();
+  var r = await sbox.withAuthRetry(function() {
+    return sbox.adapter.callContract({ contract: SWAP_ADDR, method: 'swap_token_to_oct', params: [parseInt(amountRaw)] });
   });
-  if (!r.tx_hash) throw new Error('swap: no tx_hash');
+  var sellHash = r.txHash;
+  if (!sellHash) throw new Error('swap: no tx_hash');
   showProgress([
-    { text: '1/2 grant approved', cls: 'done', link: txUrl(g.tx_hash), linkText: g.tx_hash.slice(0, 16) + '...' },
-    { text: '2/2 swapping... tx: ' + r.tx_hash.slice(0, 10), cls: 'active' }
+    { text: '1/2 grant approved', cls: 'done', link: txUrl(grantHash), linkText: grantHash.slice(0, 16) + '...' },
+    { text: '2/2 swapping... tx: ' + sellHash.slice(0, 10), cls: 'active' }
   ]);
-  var receipt = await waitReceipt(r.tx_hash);
+  var receipt = await waitReceipt(sellHash);
   if (!receipt.success) throw new Error('swap reverted: ' + (receipt.error || ''));
   showProgress([
-    { text: '1/2 grant approved', cls: 'done', link: txUrl(g.tx_hash), linkText: g.tx_hash.slice(0, 16) + '...' },
-    { text: '2/2 swap complete', cls: 'done', link: txUrl(r.tx_hash), linkText: r.tx_hash.slice(0, 16) + '...' }
+    { text: '1/2 grant approved', cls: 'done', link: txUrl(grantHash), linkText: grantHash.slice(0, 16) + '...' },
+    { text: '2/2 swap complete', cls: 'done', link: txUrl(sellHash), linkText: sellHash.slice(0, 16) + '...' }
   ]);
 }
 
@@ -440,10 +513,15 @@ $('pin-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') doUnlock();
 });
 
+$('token-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') saveToken();
+  if (e.key === 'Escape') cancelToken();
+});
+
 checkWallet();
 
 (function() {
-  var actions = { doUnlock, setDir, onInputChange, setMax, doSwap, cancelSwap, confirmSwap };
+  var actions = { doUnlock, setDir, onInputChange, setMax, doSwap, cancelSwap, confirmSwap, saveToken, cancelToken };
   function run(e, attr) {
     var el = e.target.closest('[' + attr + ']');
     if (!el) return;

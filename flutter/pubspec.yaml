@@ -53,3 +53,4 @@ flutter:
     - assets/webcli/
     - assets/webcli/icons/
     - assets/webcli/templates/
+    - assets/webcli/adapter/

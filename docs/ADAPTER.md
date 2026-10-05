@@ -22,6 +22,35 @@ learned from OrionWallet `src/sdk` + 0xio guide — no code copied).
 
 Amounts are exact decimal strings; `ou` is wallet-decided (fee oracle).
 
+## Status: Fase C1 — `swap` migrated to the adapter
+
+The embedded `swap` page (both app embeds) now routes its authenticated
+calls through the adapter. Public endpoints (`/api/wallet/status`,
+`/api/wallet/unlock`, `/api/wallet`, `/api/contract/receipt`) still use plain
+`fetch` — the unlock PIN lives in a native dialog the adapter cannot replicate.
+
+| Before (direct fetch) | After (adapter) |
+|---|---|
+| `GET /api/balance` | `adapter.getBalance()` via `withAuthRetry` |
+| `GET /api/contract/view?…get_reserves` | `adapter.contractView({ method: 'get_reserves' })` |
+| `GET /api/contract/view?…balance_of` | `adapter.contractView({ method: 'balance_of' })` |
+| `POST /api/contract/call` (swap/grant) | `adapter.callContract({ … })` via `withAuthRetry` |
+
+Consequences:
+
+- `ou: '100000'` / `'1000'` are gone — the wallet's fee oracle decides, so a
+  stale hardcoded OU can no longer underpay a swap.
+- A 401 prompts for the local-server Bearer token once, stores it in
+  `sessionStorage` (never `localStorage`), and retries exactly once.
+- Adapter errors are typed; the page shows `[code] message`.
+- The vendored copies under `*/assets/webcli/adapter/` must stay byte-identical
+  to `sdk/src` — `sdk/test/embed.test.mjs` fails the build otherwise.
+- `.mjs` is now served as `application/javascript` (both local servers), or
+  browsers refuse the module import.
+
+The `webcli/` submodule (upstream) is intentionally untouched — the divergence
+lives only in the two app embeds.
+
 ## Method surface
 
 | Legacy (existing) | RFC-O-1 alias | Notes |
