@@ -28,12 +28,14 @@ class AddressEntry {
   static AddressEntry? tryFromJson(dynamic e) {
     if (e is! Map) return null;
     final m = Map<String, dynamic>.from(e);
-    final address = m['address']?.toString().trim() ?? '';
-    if (address.isEmpty) return null;
+    // Address is an on-chain identifier: must genuinely be a string.
+    // (Coercing 123 → "123" would display a phantom contact.)
+    final addrRaw = m['address'];
+    if (addrRaw is! String || addrRaw.trim().isEmpty) return null;
     return AddressEntry(
       id: m['id']?.toString() ?? 'addr_unknown',
       label: m['label']?.toString() ?? '',
-      address: address,
+      address: addrRaw.trim(),
     );
   }
 }
