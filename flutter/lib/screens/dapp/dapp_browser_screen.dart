@@ -5,6 +5,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../services/wallet_service.dart';
 import '../../services/network_service.dart';
 import '../../services/local_web_server_service.dart';
+import '../../services/oct_url.dart';
 
 /// In-app DApp browser with an embedded WebView and a `window.octra` provider.
 ///
@@ -441,28 +442,15 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
   // through its /oct/ gateway with full subresource + /api support.
   // Otherwise content is fetched directly over JSON-RPC (read-only render).
 
-  static const _octScheme = 'oct://';
-
-  bool _isOctUrl(String url) => url.toLowerCase().startsWith(_octScheme);
+  bool _isOctUrl(String url) => OctUrl.isOctUrl(url);
 
   /// Split oct://circleId/path into [circleId, path], preserving base58 case.
   List<String> _parseOctUrl(String url) {
-    var rest = url.substring(_octScheme.length);
-    final cut = rest.indexOf(RegExp(r'[?#]'));
-    if (cut != -1) rest = rest.substring(0, cut);
-    final idx = rest.indexOf('/');
-    if (idx == -1) return [rest, '/index.html'];
-    var path = rest.substring(idx);
-    if (path.isEmpty || path == '/') path = '/index.html';
-    return [rest.substring(0, idx), path];
+    final ref = OctUrl.parse(url);
+    return [ref.circleId, ref.path];
   }
 
-  bool _isTextMime(String mime) =>
-      mime.startsWith('text/') ||
-      mime.contains('javascript') ||
-      mime.contains('json') ||
-      mime.endsWith('+xml') ||
-      mime == 'image/svg+xml';
+  bool _isTextMime(String mime) => OctUrl.isTextMime(mime);
 
   Future<void> _loadOctUrl(String octUrl) async {
     if (!mounted) return;
@@ -476,8 +464,9 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       final server = LocalWebServerService.instance;
       if (server.enabled && server.isRunning) {
         // Full gateway: subresources + interactive /api/* work.
-        await _controller.loadRequest(Uri.parse(
-            'http://127.0.0.1:${LocalWebServerService.port}/oct/${parts[0]}${parts[1]}'));
+        await _controller.loadRequest(Uri.parse(OctUrl.gatewayHttpUrl(
+            parts[0], parts[1],
+            port: LocalWebServerService.port)));
         return;
       }
       // Direct RPC fetch (read-only render, no server needed).
@@ -489,11 +478,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       if (map.containsKey('error')) {
         throw Exception(map['error'].toString());
       }
-      var mime =
-          (map['content_type']?.toString() ?? 'application/octet-stream');
-      final semi = mime.indexOf(';');
-      if (semi != -1) mime = mime.substring(0, semi).trim();
-      if (mime.isEmpty) mime = 'application/octet-stream';
+      final mime = OctUrl.cleanMime(map['content_type']?.toString());
       final raw = base64Decode(map['body_b64']?.toString() ?? '');
       if (!mounted) return;
       if (_isTextMime(mime)) {
