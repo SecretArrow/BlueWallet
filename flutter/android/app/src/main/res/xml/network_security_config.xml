@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Mirrors android-native/app/src/main/res/xml/network_security_config.xml.
+
+  The embedded dApp pages (swap, bridge, circles, and the oct:// gateway at
+  http://127.0.0.1:8420) are served over plain HTTP on loopback and loaded by
+  the in-app WebView. Without this config the WebView refuses them with
+  ERR_CLEARTEXT_NOT_PERMITTED, so every served page is unreachable inside the
+  app. Loopback only — everything else stays HTTPS-only.
+-->
+<network-security-config>
+    <!-- Cleartext permitted for the local web server on loopback. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+    <!-- HTTPS-only for everything else (nodes, explorers, dApps). -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

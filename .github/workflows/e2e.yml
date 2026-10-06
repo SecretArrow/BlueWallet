@@ -2,6 +2,18 @@ name: E2E
 
 on:
   workflow_dispatch:
+  # The adapter page tests are hermetic (loopback only, no devnet), so they can
+  # run on any change that could affect the served pages or their modules —
+  # nightly alone would hide a MIME/import regression for a week.
+  pull_request:
+    paths:
+      - 'flutter/integration_test/**'
+      - 'flutter/assets/webcli/**'
+      - 'flutter/lib/services/local_web_server_service.dart'
+      - 'android-native/app/src/main/assets/webcli/**'
+      - 'android-native/app/src/main/java/com/octopus/wallet/LocalWebServerService.java'
+      - 'sdk/src/**'
+      - '.github/workflows/e2e.yml'
   schedule:
     # Nightly — emulator E2E is slow, never run it per-push.
     - cron: '0 2 * * *'
