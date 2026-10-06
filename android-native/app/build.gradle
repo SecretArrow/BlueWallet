@@ -153,7 +153,10 @@ android {
         minSdk 28
         targetSdk 35
         versionCode effectiveVersionCode
-        versionName "0.14.${effectiveVersionCode}-alpha"
+        // From version.properties so the shipped versionName matches the git
+        // tag. It used to be a literal "0.14.<code>-alpha", which made every
+        // release since v0.15.0 report 0.14.x.
+        versionName configuredVersionName
 
         // APK size: strip locales bundled by AppCompat/Material/CameraX/Work.
         resConfigs "en"
