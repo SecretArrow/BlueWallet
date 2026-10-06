@@ -45,43 +45,45 @@ void main() {
     testWidgets('swap.js evaluates in Chromium and imports the adapter',
         (tester) async {
       final page = await WebPage.open(tester, base, '/swap.html');
-    await page.watchForScriptErrors();
+      await page.watchForScriptErrors();
 
-    // Re-attach the very script the HTML declares. A broken import graph or a
-    // MIME the browser refuses surfaces here as an error/unhandledrejection —
-    // which is exactly the regression class this test exists for.
-    await page.reattachPageScript(0, asModule: true);
-    await page.settle(const Duration(seconds: 3));
+      // Re-attach the very script the HTML declares. A broken import graph or a
+      // MIME the browser refuses surfaces here as an error/unhandledrejection —
+      // which is exactly the regression class this test exists for.
+      await page.reattachPageScript(0, asModule: true);
+      await page.settle(const Duration(seconds: 3));
 
-    expect(await page.pageScriptError(), isNull,
-        reason: 'the served module must load (MIME + path); '
-            'status="${await page.evalText(statusJs)}" '
-            'scripts=${await page.evalText(scriptsJs)}"');
-    expect(await page.scriptErrors(), isEmpty,
-        reason: 'swap.js must evaluate without throwing; '
-            'unlockErr="${await page.evalText(unlockErrJs)}"');
+      expect(await page.pageScriptError(), isNull,
+          reason: 'the served module must load (MIME + path); '
+              'status="${await page.evalText(statusJs)}" '
+              'scripts=${await page.evalText(scriptsJs)}"');
+      expect(await page.scriptErrors(), isEmpty,
+          reason: 'swap.js must evaluate without throwing; '
+              'unlockErr="${await page.evalText(unlockErrJs)}"');
 
-    // And the adapter module itself must import over HTTP.
-    await page.importModule('/adapter/index.mjs', 'window.__ok',
-        "typeof m.OctraWalletAdapter === 'function' && "
-            "typeof m.LocalhostTransport === 'function' && "
-            "typeof m.ERROR_CODES === 'object'");
-    await page.settle(const Duration(seconds: 2));
-    expect(await page.evalText('window.__okErr'), isNull,
-        reason: 'importing the served adapter must not throw');
-    if (await page.eval('window.__ok') == true) {
-      // Pure logic from the served bytes, executed in the browser engine.
-      expect(
-        await page.eval(
-          "import('/adapter/units.mjs').then(function(u){"
-          "return u.octToMicro('10.5');})"),
-        '10500000',
-      );
-    } else {
-      debugPrint('SKIP adapter logic check: dynamic import unavailable in this '
-          'harness (A44) — load + evaluation assertions above still apply');
-    }
-  });
+      // And the adapter module itself must import over HTTP.
+      await page.importModule(
+          '/adapter/index.mjs',
+          'window.__ok',
+          "typeof m.OctraWalletAdapter === 'function' && "
+              "typeof m.LocalhostTransport === 'function' && "
+              "typeof m.ERROR_CODES === 'object'");
+      await page.settle(const Duration(seconds: 2));
+      expect(await page.evalText('window.__okErr'), isNull,
+          reason: 'importing the served adapter must not throw');
+      if (await page.eval('window.__ok') == true) {
+        // Pure logic from the served bytes, executed in the browser engine.
+        expect(
+          await page.eval("import('/adapter/units.mjs').then(function(u){"
+              "return u.octToMicro('10.5');})"),
+          '10500000',
+        );
+      } else {
+        debugPrint(
+            'SKIP adapter logic check: dynamic import unavailable in this '
+            'harness (A44) — load + evaluation assertions above still apply');
+      }
+    });
 
     testWidgets('bridge.js evaluates in Chromium without throwing',
         (tester) async {
@@ -96,8 +98,7 @@ void main() {
       expect(await page.scriptErrors(), isEmpty,
           reason: 'bridge.js must evaluate without throwing; '
               'status="${await page.evalText(statusJs)}"');
-      expect(await page.evalText(scriptsJs),
-          contains('bridge.js'),
+      expect(await page.evalText(scriptsJs), contains('bridge.js'),
           reason: 'the page must declare its own script');
     });
 
@@ -120,10 +121,10 @@ void main() {
               'status="${await page.evalText(statusJs)}"');
       // The lazy adapter import is the riskiest statement in circles.js: a
       // module that fails to resolve rejects rather than throwing synchronously.
-      await page.eval(
-          "import('/adapter/boot.mjs').then(function(m){window.__boot="
-          "typeof m.createAdapter === 'function';}).catch(function(e){"
-          "window.__bootErr=e.message})");
+      await page
+          .eval("import('/adapter/boot.mjs').then(function(m){window.__boot="
+              "typeof m.createAdapter === 'function';}).catch(function(e){"
+              "window.__bootErr=e.message})");
       await page.settle(const Duration(seconds: 2));
       final bootErr = await page.evalText('window.__bootErr');
       if (bootErr == 'null') {
@@ -153,7 +154,8 @@ void main() {
         return;
       }
 
-      final page = await WebPage.open(tester, base, '/oct/$circleId/index.html');
+      final page =
+          await WebPage.open(tester, base, '/oct/$circleId/index.html');
       expect(page.resourceErrors, isEmpty,
           reason: 'the gateway must load without resource errors');
       // A served page has a DOM; the WebView must not be an error page.
@@ -161,6 +163,7 @@ void main() {
     });
   });
 }
+
 /// True when the node answers `circle_asset` for [circleId] (best effort,
 /// retries like oct_circle_test.dart because shared CI runners get 429s).
 Future<bool> _nodeAnswersCircle(String circleId) async {
@@ -190,4 +193,3 @@ Future<bool> _nodeAnswersCircle(String circleId) async {
   }
   return false;
 }
-

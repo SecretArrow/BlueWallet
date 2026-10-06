@@ -10,7 +10,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 // swap/bridge use #status-area, circles uses #status.
 const statusJs = "(function(){var a=document.getElementById('status-area')"
     "||document.getElementById('status');return a?String(a.textContent).trim():'';})()";
-const unlockErrJs = "(document.getElementById('unlock-err')||{textContent:''}).textContent.trim()";
+const unlockErrJs =
+    "(document.getElementById('unlock-err')||{textContent:''}).textContent.trim()";
 const scriptsJs = "Array.prototype.map.call(document.scripts,"
     "function(s){return s.src||'[inline]';}).join(',')";
 
@@ -70,7 +71,8 @@ class WebPage {
     return [await c.future];
   }
 
-  Future<Object?> eval(String js) => _controller.runJavaScriptReturningResult(js);
+  Future<Object?> eval(String js) =>
+      _controller.runJavaScriptReturningResult(js);
 
   /// Wait for the browser and the network for real. `tester.pump(duration)`
   /// only advances the test clock — a module import plus its fetch needs wall
