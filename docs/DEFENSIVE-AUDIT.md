@@ -402,3 +402,32 @@ fakta itu, jadi batasnya dibuat eksplisit — `docs/CIRCLES-GAP.md`.
   setiap entri benar-benar hilang (A-list bisa diperluas tanpa risiko drift).
 - A34 — Baseline "hanya boleh turun" dipilih untuk gap dan catch kosong
   alike: mencegah pengembalian diam-diam tanpa memaksa 68 route selesai.
+
+## Bukti — versi rilis selalu jujur dengan tag-nya
+
+Defect nyata yang ditemukan saat menyiapkan rilis v0.18.0-alpha:
+`versionName` di-hardcode `"0.14.${effectiveVersionCode}-alpha"` di
+`android-native/app/build.gradle`, sementara `configuredVersionName` dibaca
+dari `version.properties` tapi **tidak pernah dipakai**. Akibatnya v0.15.0
+sampai v0.17.1-alpha semuanya terbit sebagai "0.14.x". Sisi Flutter
+melaporkan `1.18.0` — skema versi ketiga yang tidak ada hubungannya dengan tag.
+
+| # | Skenario | Lokasi penanganan | Test |
+|---|---|---|---|
+| 1 | APK melaporkan versi yang bukan tag-nya | `versionName configuredVersionName` (bukan literal) | `shipped version` (4 test) |
+| 2 | Android & Flutter melaporkan versi berbeda | test menyamakan `VERSION_NAME` dengan `pubspec version` | `both apps declare the same version name` |
+| 3 | Literal versi kembali masuk ke build script | prohibited-pattern `"N.N.${"` di build.gradle | `versionName comes from version.properties…` |
+| 4 | Build number mundur (update tak terlihat oleh updater) | `VERSION_CODE` == build number Flutter | `build numbers stay monotonic…` |
+| 5 | Tag rilis tak cocok dengan versi aplikasi | job `verify-version` di `release.yml` sebelum build bertanda tangan | gate CI (tag push) |
+| 6 | Rilis lewat sunset v0.19.0 masih pakai legacy provider | test menolak versi ≥ 0.19 | `the version matches the documented sunset schedule` |
+
+### Asumsi eksplisit (versi)
+
+- A35 — Satu skema versi = tag git. Play/Android mengurutkan berdasarkan
+  `versionCode`/build number, jadi `versionName` boleh diganti tanpa
+  memblokir update; build number tetap dinaikkan monoton (18 → 312).
+- A36 — `VERSION_CODE` naik saat build lokal/signed di `assemble|bundle`,
+  jadi nilainya di runner boleh berbeda satu langkah dari yang di-commit;
+  test hanya memeriksa nilai yang ter-commit.
+- A37 — Sunset legacy tetap v0.19.0; test menolak versi ≥ 0.19 selama
+  provider dual-stack masih hidup.
