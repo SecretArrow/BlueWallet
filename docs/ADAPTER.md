@@ -89,6 +89,42 @@ Bugs found and fixed while migrating (not cosmetic):
 — it is a node lookup, not wallet state, so injected providers legitimately
 answer `UNSUPPORTED_METHOD`.
 
+## Status: Fase C3 — `circles` migrated (partially, deliberately)
+
+`circles.js` is the largest embedded page and the only one speaking a *bridge*
+protocol instead of a wallet protocol. Auditing it first produced the real
+finding: it calls **75 endpoints, and the app's local server serves 7**. The
+other 68 exist only in the desktop `webcli` server. A facade over 68 dead
+routes would have hidden that, so the boundary is made explicit instead —
+see `docs/CIRCLES-GAP.md` for the full inventory.
+
+What actually moved to the adapter:
+
+| Before | After |
+|---|---|
+| `fetchJson('/api/balance')` in the `wallet.balance` bridge method | `adapter.getBalance()` + `withAuthRetry`, returned as exact micro-OCT |
+
+Two structural constraints shaped the change:
+
+1. **`circles.js` stays a classic script.** `circle_bridge_policy.js` and
+   `circle_asset_chunks.js` declare top-level `const` bindings, which are not
+   visible from a module script — 13 `CircleBridgePolicy` references would
+   break under `type="module"`. The adapter is pulled in with dynamic
+   `import()` (legal in classic scripts) and only when a wallet call happens.
+2. **`wallet.info` stays direct `fetch`.** Circles needs `rpc_url`, which the
+   adapter deliberately does not expose; forcing it through the adapter would
+   widen the wallet surface for no gain (A29).
+
+User-visible changes: a non-blocking preflight probe on `/api/relay/health`
+tells the user which build they are on, every failure now names the endpoint
+and HTTP status (previously a bare `Not found`), a non-JSON body is labelled
+instead of surfacing as a `SyntaxError`, and a 401 on the balance read says
+exactly what to do (circles has no token modal — A30).
+
+`docs/CIRCLES-GAP.md` and `sdk/test/circles.test.mjs` keep the inventory
+honest: the test recomputes the gap from the sources, fails if the doc goes
+stale, and pins the count so it can only shrink.
+
 ## Method surface
 
 | Legacy (existing) | RFC-O-1 alias | Notes |
