@@ -439,7 +439,8 @@ lubang yang paling risiko: `.mjs` yang dilayani dengan MIME salah **ditolak
 Chromium**, dan graf modul yang rusak hanya muncul saat halaman benar-benar
 dimuat di mesin. Dua lapisan, karena cara gagalnya berbeda.
 
-**Lapis 1 — HTTP nyata terhadap `LocalWebServerService` di emulator**
+**Lapis 1 — HTTP nyata terhadap `LocalWebServerService`**
+(`integration_test/adapter_http_test.dart` — jalan di PR, detik-detik)
 
 | # | Skenario | Lokasi penanganan | Test |
 |---|---|---|---|
@@ -456,6 +457,7 @@ dimuat di mesin. Dua lapisan, karena cara gagalnya berbeda.
 | 11 | Token belum ter-mint saat service init (race) | poll `authToken` + guard di `setUpAll` | `setUpAll` |
 
 **Lapis 2 — WebView Chromium sungguhan, JS dievaluasi di dalamnya**
+(`integration_test/adapter_webview_test.dart` — nightly/dispatch)
 
 | # | Skenario | Yang diamati | Test |
 |---|---|---|---|
@@ -520,7 +522,10 @@ Run kedua gagal dengan `net::ERR_CLEARTEXT_NOT_PERMITTED` untuk
 
 - A38 — E2E halaman adapter dipicu `pull_request` (bukan hanya nightly)
   karena hermetik; mismatch MIME adalah kelas regresi yang cepat hilang
-  di changelog bila hanya diperiksa mingguan.
+  di changelog bila hanya diperiksa mingguan. Lapisan WebView (butuh emulator,
+  berjalan puluhan menit) dipisah ke file sendiri dan **hanya** jalan di
+  nightly/dispatch — satu runner emulator yang menggantung 2,5 jam di PR
+  membuat lapisan cepat ikut terkubur.
 - A39 — Polling dengan budget + laporan nilai terakhir, bukan `sleep` buta,
   supaya kegagalan di emulator terlihat sebagai penyebab nyata.
 - A43 — `tester.pump(duration)` hanya memajukan jam *test*; WebView dan

@@ -49,4 +49,4 @@ jobs:
           profile: pixel_7
           force-avd-creation: false
           disable-animations: true
-          script: cd flutter && flutter test integration_test
+          script: cd flutter && if [ "${{ github.event_name }}" = "pull_request" ]; then flutter test integration_test/smoke_test.dart integration_test/oct_circle_test.dart integration_test/oct_browser_test.dart integration_test/adapter_http_test.dart; else flutter test integration_test; fi
