@@ -1,3 +1,47 @@
+// ---- OctraWalletAdapter wiring (Fase C3) ----
+// circles.js stays a CLASSIC script: circle_bridge_policy.js and
+// circle_asset_chunks.js declare top-level `const` bindings, which are not
+// visible to a module script (13 CircleBridgePolicy references depend on it).
+// Dynamic import() is spec-legal in classic scripts, so the adapter is pulled
+// in lazily and only when the page actually needs a wallet call.
+let _adapterPromise = null
+
+const loadAdapter = () => {
+  if (!_adapterPromise) {
+    _adapterPromise = import('./adapter/boot.mjs').then((mod) => {
+      _adapterBox = mod.createAdapter({ appName: 'Octra Circles' })
+      return _adapterBox
+    }).catch((e) => {
+      // Never leave a rejected promise cached — a later attempt should retry.
+      _adapterPromise = null
+      throw new Error(`adapter unavailable: ${e && e.message ? e.message : e}`)
+    })
+  }
+  return _adapterPromise
+}
+
+let _adapterBox = null
+
+// Error text for adapter failures; keeps the numeric code visible.
+const adapterMsg = (e) => {
+  if (e && typeof e.code === 'number') return `[${e.code}] ${e.message}`
+  return e && e.message ? e.message : String(e)
+}
+
+// Exact micro-OCT from any wallet surface (public_raw / balance_raw /
+// balance / public_oct) so no path shows 0 for a funded wallet.
+const octRawFrom = (bal) => {
+  if (!bal || typeof bal !== 'object') return '0'
+  const raw = bal.raw != null ? bal.raw : bal.balance_raw
+  if (raw !== undefined && raw !== null && raw !== '') return String(raw).replace(/^0+(?=\d)/, '')
+  const oct = bal.public != null ? bal.public : bal.balance
+  if (oct === undefined || oct === null || oct === '') return '0'
+  const text = String(oct)
+  const [whole, frac = ''] = text.split('.')
+  if (!/^\d*$/.test(whole) || !/^\d*$/.test(frac)) return '0'
+  return (BigInt(whole || '0') * 1000000n + BigInt((frac + '000000').slice(0, 6))).toString()
+}
+
 const $ = (id) => document.getElementById(id)
 const bindIfPresent = (id, eventName, handler) => {
   const element = $(id)
@@ -350,12 +394,57 @@ const resetMeta = () => {
   $('meta').innerHTML = ''
 }
 
+// Routes the circles bridge needs that the app's local server does NOT
+// implement (the desktop webcli server does). Kept as data so the preflight
+// below can name them, and so sdk/test/embed.test.mjs can pin the list.
+const DESKTOP_ONLY_ENDPOINTS = [
+  '/api/circle/fhe/encrypt',
+  '/api/circle/fhe/decrypt',
+  '/api/circle/compute',
+  '/api/circle/object_list',
+  '/api/circle/outbox_intent',
+  '/api/circle/key_grant',
+  '/api/program/info',
+  '/api/program/call',
+  '/api/relay/request',
+  '/api/relay/response',
+  '/api/send'
+]
+
+// True when the endpoint list above is served (desktop webcli) and false when
+// we are talking to the app's local server. `/api/relay/health` is public in
+// both builds and never 401s, so it is a safe, side-effect-free probe.
+const probeRuntime = async () => {
+  try {
+    await fetchJson('/api/relay/health')
+    return { full: true, reason: '' }
+  } catch (e) {
+    return {
+      full: false,
+      reason: `this wallet build serves ${DESKTOP_ONLY_ENDPOINTS.length} of the bridge's endpoints; open the desktop webcli for the full circle feature set`
+    }
+  }
+}
+
 const fetchJson = async (url, options = {}) => {
   const response = await fetch(`${runtimeBase}${url}`, options)
   const text = await response.text()
-  const json = text ? JSON.parse(text) : {}
+  // A non-JSON body (proxy error page, HTML 404) must not surface as a
+  // SyntaxError that hides the actual status.
+  let json = {}
+  if (text) {
+    try {
+      json = JSON.parse(text)
+    } catch (e) {
+      if (response.ok) {
+        throw new Error(`${url} returned a non-JSON body (HTTP ${response.status})`)
+      }
+      throw new Error(`${url} failed: HTTP ${response.status} with a non-JSON body`)
+    }
+  }
   if (!response.ok) {
-    throw new Error(json.error || 'request failed')
+    const detail = typeof json.error === 'string' ? json.error : 'request failed'
+    throw new Error(`${url} failed: HTTP ${response.status} — ${detail}`)
   }
   return json
 }
@@ -1047,10 +1136,37 @@ const bridgeResultOf = async (method, payload = {}) => {
     return fetchJson('/api/wallet')
   }
   if (method === 'wallet.balance') {
-    return fetchJson('/api/balance')
+    // Authed read: the adapter retries once through the token prompt and
+    // normalizes both wallet surfaces into exact micro-OCT.
+    const box = await loadAdapter()
+    const ready = await box.adapter.initialize()
+    if (!ready) {
+      throw new Error('no wallet transport available for the balance read')
+    }
+    try {
+      const balance = await box.withAuthRetry(() => box.adapter.getBalance())
+      if (balance && balance.error) {
+        // A server-side failure body must not read as a 0 balance.
+        throw new Error(balance.error)
+      }
+      return { public_balance: octRawFrom(balance) }
+    } catch (e) {
+      if (e && (e.status === 401 || /401|unauthorized/i.test(e.message || ''))) {
+        // circles has no token modal (A30) — say exactly what to do instead
+        // of failing with a bare "Unauthorized".
+        throw new Error('local server requires a Bearer token: set one in Local Web Server settings, then retry')
+      }
+      throw new Error(`balance read failed: ${adapterMsg(e)}`)
+    }
   }
   if (method === 'wallet.keys') {
-    return fetchJson('/api/keys')
+    // /api/keys is only implemented by the desktop webcli server (the app
+    // exposes /api/keys/info). Fail with the route named, not "Not found".
+    try {
+      return await fetchJson('/api/keys')
+    } catch (e) {
+      throw new Error(`key list unavailable on this wallet build: ${e.message}`)
+    }
   }
   if (method === 'wallet.send') {
     const to = String(payload.to || '')
@@ -2238,6 +2354,20 @@ bindIfPresent('overlay-sealed-passphrase', 'keydown', (event) => {
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && expandedPreviewOpen) {
     closeExpandedPreview()
+  }
+})
+
+// Preflight is advisory: the mobile server implements a subset (circle/info,
+// deploy, asset upload), so a full-runtime probe must not block those.
+probeRuntime().then(({ full, reason }) => {
+  if (full) {
+    return
+  }
+  setStatus('status', `partial circle support: ${reason}`, true)
+  const note = $('runtime-note')
+  if (note) {
+    note.textContent = reason
+    note.style.display = ''
   }
 })
 

@@ -359,3 +359,46 @@ Embed Android + Flutter tetap sinkron byte-identik.
 - A28 — `octra_getTransaction` masuk `ADAPTER_ONLY_METHODS`, bukan
   `LEGACY_METHODS`: ia lookup node, bukan state dompet, jadi injected
   provider memang tidak wajib menyediakannya.
+
+## Bukti Fase C3 — circles.js: audit coverage lebih dulu, baru migrasi
+
+Audit menemukan fakta yang lebih penting daripada migrasinya: `circles.js`
+memakai **75 endpoint, hanya 7 yang dilayani server lokal aplikasi** (68 hanya
+ada di webcli desktop). Memasang adapter di atas 68 route mati akan menutupi
+fakta itu, jadi batasnya dibuat eksplisit — `docs/CIRCLES-GAP.md`.
+
+| # | Skenario | Lokasi penanganan | Test |
+|---|---|---|---|
+| 1 | Halaman memanggil 78 endpoint mati di app build | inventaris + preflight probe `/api/relay/health` | `circles bridge endpoint coverage` (8 test) |
+| 2 | Android & Flutter-serving endpoint berbeda | `same set (no platform drift)` | idem |
+| 3 | Dokumen inventaris basi | test membandingkan daftar di `CIRCLES-GAP.md` vs hasil hitung | `the documented gap matches the measured gap exactly` |
+| 4 | Gap membesar diam-diam | baseline 68 di-pin (hanya boleh turun) | `the gap only shrinks (pinned baseline)` |
+| 5 | Daftar `DESKTOP_ONLY_ENDPOINTS` basi | setiap entri harus benar-benar tidak dilayani app | `DESKTOP_ONLY_ENDPOINTS … genuinely missing` |
+| 6 | `circles.js` diubah jadi module script | `CircleBridgePolicy` (13 rujukan) jadi tak terlihat — test menolak `type="module"` | `the page tells the user which build they are on` |
+| 7 | Import adapter gagal | `loadAdapter()` cache ditolak di-reset agar percobaan berikutnya retry | cabang `.catch` di `loadAdapter` |
+| 8 | Tidak ada transport untuk baca saldo | `throw 'no wallet transport available…'` | cabang di `wallet.balance` |
+| 9 | Body server error (`{error}`) terBaca saldo 0 | `balance.error` dilempar, bukan jadi 0 | cabang di `wallet.balance` |
+| 10 | 401 pada baca saldo | pesan menyebut Local Web Server settings (A30) | idem |
+| 11 | `/api/keys` tidak ada di app build | error menyebut route + build, bukan "Not found" | `wallet.keys` catch |
+| 12 | 404 tanpa konteks | `url failed: HTTP <status> — <detail>` | `404s name the endpoint and status…` |
+| 13 | Body non-JSON (halaman proxy) | error khusus "non-JSON body", bukan `SyntaxError` | idem |
+| 14 | `octRawFrom` menerima `{error}` saja | `typeof bal !== 'object'` guard → `'0'` | helper `octRawFrom` |
+| 15 | `octRawFrom` menerima desimal non-numeric | regex `\d*` per bagian → `'0'`, tak pernah NaN | idem |
+| 16 | Embed circles.js berbeda antar platform | perbandingan byte kedua embed | `circles.js matches the upstream source…` |
+| 17 | Adapter tidak ada di folder embed | eksistensi `adapter/boot.mjs` diverifikasi | idem |
+
+### Asumsi eksplisit (C3)
+
+- A29 — `wallet.info` tetap `fetch` langsung: circles butuh `rpc_url`, yang
+  sengaja tidak diekspos adapter (permukaan dompet dijaga seminimal mungkin).
+- A30 — `circles` tidak punya modal token; 401 dijawab dengan instruksi, bukan
+  prompt. Menambah modal ke halaman 2268 baris di luar batas C3.
+- A31 — 68 route tidak diimplementasi. Masing-masing butuh keputusan backend
+  (RPC mana, level auth, perlu wallet unlock atau tidak); menebak 68 route
+  demi "halaman berfungsi" adalah tebakan, bukan implementasi.
+- A32 — Probe `/api/relay/health` bersifat advisory, tidak memblokir: endpoint
+  yang ada (`circle/info`, deploy, unggah aset) tetap harus berfungsi.
+- A33 — `DESKTOP_ONLY_ENDPOINTS` berisi 11 route; test hanya menuntut
+  setiap entri benar-benar hilang (A-list bisa diperluas tanpa risiko drift).
+- A34 — Baseline "hanya boleh turun" dipilih untuk gap dan catch kosong
+  alike: mencegah pengembalian diam-diam tanpa memaksa 68 route selesai.
