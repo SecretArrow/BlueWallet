@@ -141,3 +141,78 @@ describe('circles bridge endpoint coverage', () => {
     });
   }
 });
+
+describe('cleartext policy for the loopback dApp server', () => {
+  const FLUTTER_MANIFEST = join(REPO, 'flutter/android/app/src/main/AndroidManifest.xml');
+  const FLUTTER_NSC = join(
+    REPO,
+    'flutter/android/app/src/main/res/xml/network_security_config.xml',
+  );
+  const ANDROID_NSC = join(
+    REPO,
+    'android-native/app/src/main/res/xml/network_security_config.xml',
+  );
+
+  it('the Flutter app declares the network security config', () => {
+    const manifest = readFileSync(FLUTTER_MANIFEST, 'utf8');
+    assert.match(
+      manifest,
+      /android:networkSecurityConfig="@xml\/network_security_config"/,
+      'without this the WebView refuses http://127.0.0.1:8420 (ERR_CLEARTEXT_NOT_PERMITTED)',
+    );
+  });
+
+  it('loopback is allowed and everything else stays HTTPS-only', () => {
+    const nsc = readFileSync(FLUTTER_NSC, 'utf8');
+    const allowed = /<domain-config cleartextTrafficPermitted="true">([\s\S]*?)<\/domain-config>/.exec(nsc);
+    assert.ok(allowed, 'a cleartext domain-config must exist for loopback');
+    for (const host of ['127.0.0.1', 'localhost']) {
+      assert.ok(allowed[1].includes(`>${host}<`), `${host} must permit cleartext`);
+    }
+    const base = /<base-config cleartextTrafficPermitted="false">/.exec(nsc);
+    assert.ok(base, 'base-config must stay HTTPS-only (fail closed)');
+    // No wildcards: cleartext must never be opened up globally.
+    assert.doesNotMatch(allowed[1], /includeSubdomains="true"><\/\s*domain>|>\*</);
+  });
+
+  it('both platforms apply the same cleartext policy', () => {
+    const hostsOf = (file) => {
+      const nsc = readFileSync(file, 'utf8');
+      const allowed = /<domain-config cleartextTrafficPermitted="true">([\s\S]*?)<\/domain-config>/.exec(nsc);
+      assert.ok(allowed, `${file} has no cleartext domain-config`);
+      return [...allowed[1].matchAll(/<domain[^>]*>([^<]+)<\/domain>/g)]
+        .map((m) => m[1])
+        .sort();
+    };
+    const flutterHosts = hostsOf(FLUTTER_NSC);
+    const androidHosts = hostsOf(ANDROID_NSC);
+    // The Flutter list adds the emulator loopback alias; every host the
+    // Android build permits must also be permitted here, or the two builds
+    // serve the same pages under different transport rules.
+    for (const host of androidHosts) {
+      assert.ok(
+        flutterHosts.includes(host),
+        `android-native permits cleartext to ${host}; flutter must too`,
+      );
+    }
+    assert.ok(
+      /<base-config cleartextTrafficPermitted="false">/.test(readFileSync(ANDROID_NSC, 'utf8')),
+      'android-native base-config must stay HTTPS-only',
+    );
+  });
+
+  it('the dead legacy devnet IP is not cleartext-permitted', () => {
+    // 165.227.225.79:8080 no longer answers (probe: connection refused) and
+    // normalizeRpcUrl rewrites it to the live HTTPS default, so permitting
+    // cleartext to it only widens the attack surface.
+    for (const file of [FLUTTER_NSC, ANDROID_NSC]) {
+      const nsc = readFileSync(file, 'utf8');
+      const allowed = /<domain-config cleartextTrafficPermitted="true">([\s\S]*?)<\/domain-config>/.exec(nsc);
+      assert.ok(allowed, `${file} has no cleartext domain-config`);
+      assert.ok(
+        !allowed[1].includes('165.227.225.79'),
+        `${file} still permits cleartext to the dead devnet IP`,
+      );
+    }
+  });
+});

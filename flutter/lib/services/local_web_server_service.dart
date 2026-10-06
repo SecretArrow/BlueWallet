@@ -526,8 +526,22 @@ class LocalWebServerService extends ChangeNotifier {
 
   // ── Handlers ──
 
+  /// Whether a wallet is loaded, without ever throwing.
+  ///
+  /// `WalletService.instance` is a null-check on a lazily created singleton,
+  /// so it throws before the first `WalletService()` is constructed. `/api/status`
+  /// is the liveness probe every dApp (and the adapter transport) hits first —
+  /// it must report "no wallet", not a 500 that reads as "no server".
+  static bool isWalletLoadedSafely() {
+    try {
+      return WalletService.instance.activeWallet != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _handleStatus(HttpResponse response) async {
-    final hasWallet = WalletService.instance.activeWallet != null;
+    final hasWallet = isWalletLoadedSafely();
     await _sendJson(response, HttpStatus.ok, {
       'status': 'running',
       'port': port,

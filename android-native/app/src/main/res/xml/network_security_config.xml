@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Cleartext permitted for devnet node and local development -->
+    <!--
+      Cleartext for loopback only. The legacy devnet IP (165.227.225.79:8080)
+      used to be listed here; it is dead (probe: connection refused) and
+      UrlSecurityValidator.normalizeRpcUrl rewrites it to the live HTTPS
+      default, so the exemption only widened the cleartext surface.
+    -->
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">165.227.225.79</domain>
         <domain includeSubdomains="true">127.0.0.1</domain>
         <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
     </domain-config>
     <!-- HTTPS-only for mainnet and explorer endpoints -->
     <domain-config cleartextTrafficPermitted="false">
