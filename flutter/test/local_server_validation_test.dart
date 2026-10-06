@@ -143,6 +143,20 @@ void main() {
     });
   });
 
+  group('isWalletLoadedSafely', () {
+    test('never throws — a liveness probe must not report a 500', () {
+      // WalletService.instance is a null-check on a lazy singleton: reading it
+      // before the first WalletService() throws. /api/status is what the
+      // adapter transport probes to decide a wallet is reachable, so it has to
+      // answer "no wallet" instead of failing the request.
+      expect(LocalWebServerService.isWalletLoadedSafely(), isA<bool>());
+      expect(LocalWebServerService.isWalletLoadedSafely(), isFalse,
+          reason: 'no wallet is loaded in a unit test');
+      // Repeat: it must stay non-throwing across calls (no cached failure).
+      expect(LocalWebServerService.isWalletLoadedSafely(), isFalse);
+    });
+  });
+
   group('isUintString', () {
     test('accepts only digit strings', () {
       expect(LocalWebServerService.isUintString('0'), isTrue);

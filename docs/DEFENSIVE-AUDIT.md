@@ -431,3 +431,137 @@ melaporkan `1.18.0` — skema versi ketiga yang tidak ada hubungannya dengan tag
   test hanya memeriksa nilai yang ter-commit.
 - A37 — Sunset legacy tetap v0.19.0; test menolak versi ≥ 0.19 selama
   provider dual-stack masih hidup.
+
+## Bukti — E2E halaman adapter (swap/bridge/circles)
+
+Selama Fase A–C semua verifikasi bersifat unit/statis. Test ini menutup
+lubang yang paling risiko: `.mjs` yang dilayani dengan MIME salah **ditolak
+Chromium**, dan graf modul yang rusak hanya muncul saat halaman benar-benar
+dimuat di mesin. Dua lapisan, karena cara gagalnya berbeda.
+
+**Lapis 1 — HTTP nyata terhadap `LocalWebServerService`**
+(`integration_test/adapter_http_test.dart` — jalan di PR, detik-detik)
+
+| # | Skenario | Lokasi penanganan | Test |
+|---|---|---|---|
+| 1 | `.mjs` dilayani `application/octet-stream` | `mimeTypeFor` (Dart) + assert content-type | `modules are served with a script content type` |
+| 2 | Modul adapter hilang dari bundel | 7 file dicek per HTTP | idem |
+| 3 | `swap`/`bridge` kembali jadi script klasik | assert `type="module"` + import boot | `migrated pages are module scripts…` |
+| 4 | Modal token hilang (401 tanpa prompt) | assert `id="token-modal"` | idem |
+| 5 | `circles` diubah jadi module (fatal) | assert **tidak ada** `type="module"` + import statis | `circles stays a classic script…` |
+| 6 | Auth bocor (tanpa token) | fail-closed → 401 | `auth is fail-closed…` |
+| 7 | Token salah diterima | 401 | idem |
+| 8 | Token asli tak membuka route authed | assert bukan 401 | idem |
+| 9 | `/api/transaction` kembali hilang (404) | assert 200 + `found` | `the bridge epoch route answers instead of 404` |
+| 10 | `hash` kosong | assert 400 | idem |
+| 11 | Token belum ter-mint saat service init (race) | poll `authToken` + guard di `setUpAll` | `setUpAll` |
+
+**Lapis 2 — WebView Chromium sungguhan, JS dievaluasi di dalamnya**
+(`integration_test/adapter_webview_test.dart` — nightly/dispatch)
+
+| # | Skenario | Yang diamati | Test |
+|---|---|---|---|
+| 12 | Modul tak bisa dimuat (MIME/path rusak) | `pageError == null` untuk src yang sama persis | `swap.js evaluates in Chromium…`, `bridge.js evaluates…` |
+| 13 | Graf modul rusak (evaluate throws) | listener `error`/`unhandledrejection` → `scriptErrors()` harus kosong | ketiga kasus halaman |
+| 14 | Adapter gagal di-import browser | `import('/adapter/index.mjs')` tidak melempar + `ERROR_CODES`/`LocalhostTransport` ada | `swap.js evaluates…` |
+| 15 | Logika adapter salah di byte yang dilayani | `octToMicro('10.5') == '10500000'` **di dalam browser** | idem |
+| 16 | `boot.mjs` gagal di-import | `import('/adapter/boot.mjs')` resolve | `circles.js classic scripts evaluate…` |
+| 17 | `circles.js` + 2 dependensinya melempar saat evaluate | tiga skrip klasik di-attach, error harus kosong | idem |
+| 18 | Subresource gagal (404 modul) | error dikumpulkan & ikut dilaporkan di pesan gagal | `_Page.resourceErrors` |
+| 19 | Halaman lambat di emulator | budget 60×500 ms **waktu nyata** + `onPageFinished` 60 s | `_Page.settle` / `waitForTruthy` |
+| 20 | Resource error saat buka | `Future.any` gagal cepat, bukan menunggu 60 s | `_Page.open` |
+
+### Batasan eksplisit (E2E)
+
+- **Hermetik**: hanya loopback + aset ter-embed, tanpa devnet. Tidak
+  bergantung pada rate-limit node, tapi juga **tidak** membuktikan alur
+  transaksi nyata (butuh dompet ter-unlock, kontrak live, dan MetaMask).
+- `oct_circle_test.dart` tetap butuh devnet karena memang menguji node.
+- Alur `lock_to_eth` end-to-end (wallet nyata + MetaMask) belum ada; yang
+  ter-cover adalah jalur sampai adapter ter-import dan halaman dieksekusi.
+
+### Bug yang-found E2E pertama
+
+Run E2E pertama gagal di `setUpAll` dengan `GET /api/status → 500`. Penyebabnya
+bukan test: `WalletService.instance` adalah null-check pada singleton yang baru
+dibuat lazy, jadi **membacanya sebelum `WalletService()` pertama melempar**.
+`/api/status` adalah probe liveness yang dipakai `LocalhostTransport.available()`
+dan setiap halaman dApp — ia harus menjawab "tidak ada dompet", bukan 500 yang
+terbaca sebagai "tidak ada server".
+
+| # | Skenario | Lokasi penanganan | Test |
+|---|---|---|---|
+| 21 | Probe liveness 500 sebelum dompet ada | `isWalletLoadedSafely()` (statis, try/catch) di `_handleStatus` | `isWalletLoadedSafely` (unit) + `setUpAll` (E2E) |
+| 22 | E2E mengira server mati karena urutan boot | `setUpAll` membangun `WalletService`/`NetworkService` dulu | assertion `same(wallet)` |
+
+### Bug produk yang ditemukan E2E (bukan bug test)
+
+Run kedua gagal dengan `net::ERR_CLEARTEXT_NOT_PERMITTED` untuk
+`http://127.0.0.1:8420/swap.html`. Ini **bug produk**, bukan test:
+
+1. **Flutter tidak punya network security config sama sekali**, sedangkan
+   `android-native` punya (loopback cleartext diizinkan). Akibatnya WebView di
+   aplikasi Flutter **menolak** setiap halaman yang dilayani server lokal —
+   termasuk `OctUrl.gatewayHttpUrl` (`http://127.0.0.1:8420/oct/...`) yang
+   dipakai `DappBrowserScreen` untuk mode "full gateway" render `oct://`.
+   Jadi Fase A–C (swap/bridge/circles + modul adapter) praktis tak terjangkau
+   di build Flutter.
+2. **`oct_browser_test.dart` bisa lulus palsu**: load yang diblokir juga tidak
+   memunculkan "Cannot open", jadi asersinya tidak membedakan "halaman gagal"
+   dari "halaman sukses". Diperkuat: URL yang tampil harus ter-resolve.
+
+| # | Skenario | Lokasi penanganan | Test |
+|---|---|---|---|
+| 23 | WebView menolak halaman loopback di build Flutter | `network_security_config.xml` (Flutter) + `android:networkSecurityConfig` | `the Flutter app declares the network security config` |
+| 24 | Cleartext dibuka terlalu luas | hanya `127.0.0.1`, `localhost`, `10.0.2.2`; `base-config` tetap HTTPS-only | `loopback is allowed and everything else stays HTTPS-only` |
+| 25 | Kedua platform punya kebijakan cleartext berbeda | host cleartext android-native ⊆ host Flutter | `both platforms apply the same cleartext policy` |
+| 26 | IP devnet lama dapat cleartext padahal host mati | dihapus dari kedua config (probe: connection refused; `normalizeRpcUrl` menulis ulang ke default HTTPS) | `the dead legacy devnet IP is not cleartext-permitted` |
+| 27 | Load `oct://` gateway tak terverifikasi | kasus E2E ke-4 memuat `/oct/<circle>/index.html` di WebView | `the oct:// gateway path loads in a WebView` |
+
+### Asumsi eksplisit (E2E)
+
+- A38 — E2E halaman adapter dipicu `pull_request` (bukan hanya nightly)
+  karena hermetik; mismatch MIME adalah kelas regresi yang cepat hilang
+  di changelog bila hanya diperiksa mingguan. Lapisan WebView (butuh emulator,
+  berjalan puluhan menit) dipisah ke file sendiri dan **hanya** jalan di
+  nightly/dispatch — satu runner emulator yang menggantung 2,5 jam di PR
+  membuat lapisan cepat ikut terkubur.
+- A39 — Polling dengan budget + laporan nilai terakhir, bukan `sleep` buta,
+  supaya kegagalan di emulator terlihat sebagai penyebab nyata.
+- A43 — `tester.pump(duration)` hanya memajukan jam *test*; WebView dan
+  round-trip HTTP butuh waktu nyata. Run kedua gagal karena polling berjalan
+  dalam hitungan milidetik sebelum modul selesai fetch — `_Page.settle()`
+  kini memakai `Future.delayed` sungguhan. Predikat `bridge` juga diperketat:
+  teks tombol awal ("connect") bukan bukti apa pun.
+- A44 — **Skrip yang disisipkan parser tidak berjalan di harness E2E ini**, dan
+  `fetch()` dari dalam halaman juga tidak resolve (Bukti: `pageError == null`
+  artinya skrip termuat dan dievaluasi bersih, tapi efek DOM dari
+  `checkWallet()`/preflight tidak pernah muncul dalam 30 detik, sementara
+  `runJavaScriptReturningResult` normal):
+  tag ada di `document.scripts`, DOM ter-parse, `runJavaScriptReturningResult`
+  berfungsi, tapi baik script modul (`swap.js`) maupun script klasik
+  (`circles.js` + 2 dependency) tidak dieksekusi. UI webcli milik aplikasi
+  sendiri membuktikan skrip halaman berjalan di produksi, jadi ini keterbatasan
+  harness, bukan bug produk. Test karena itu **menempelkan ulang src yang sama**
+  dari `document.scripts` (`_Page.reattachPageScript`) — URL, keputusan MIME,
+  dan graf modul yang sama persis, yang memang risiko yang diuji. Keterbatasan
+  ini dicatat terbuka, bukan disembunyikan.
+- A45 — `_Page.reattachPageScript` membaca src dari `document.scripts` (bukan
+  URL hardcode) supaya test mengikuti HTML dan tidak menyimpang saat `?v=`
+  dinaikkan.
+- A46 — Karena `fetch()` halaman tak resolve di harness, kasus WebView
+  **membuktikan** apa yang memang bisa dibuktikan di sini: skrip yang
+  dilayani termuat (MIME + path benar), graf modul resolve, dan evaluasinya
+  tidak melempar. **Bukan** dibuktikan: efek DOM setelah fetch (status view,
+  preflight circles). UI webcli aplikasi sendiri tetap membuktikan yang
+  terakhir itu di produksi — jadi ini batas cakupan test, bukan klaim bahwa
+  semuanya lulus.
+- A40 — Test Circles membuktikan **preflight**, bukan kelengkapan bridge:
+  68 endpoint yang belum ada sengaja tidak diimplementasi (A31).
+- A41 — Kasus `oct://` gateway butuh devnet; kalau node tak terjangkau ia
+  mencetak marker `SKIP oct:// gateway E2E` yang greppable, **bukan** lulus
+  senyap. Kebijakan transport loopback tetap ter-cover tiga kasus lain yang
+  hermetik.
+- A42 — `10.0.2.2` (alias loopback emulator) ikut diizinkan agar WebView di
+  emulator bisa menjangkau `127.0.0.1`; di perangkat nyata hanya loopback yang
+  dipakai.

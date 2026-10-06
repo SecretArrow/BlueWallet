@@ -53,5 +53,19 @@ void main() {
     expect(find.textContaining('Cannot open'), findsNothing,
         reason: 'the circle page must render without errors');
     expect(find.byType(DappBrowserScreen), findsOneWidget);
+
+    // "Cannot open" is also what a blocked load produces, so this test could
+    // pass on a page that never rendered (it did, before the Flutter app
+    // declared a loopback cleartext policy). Pin the resolved URL so a
+    // transport failure is attributable; adapter_pages_test.dart is the test
+    // that actually asserts the page executed in Chromium.
+    final urlField = tester.widget<TextField>(find.byType(TextField).first);
+    final shown = (urlField.controller?.text ?? '').trim();
+    expect(
+      shown.startsWith('oct://') || shown.contains('127.0.0.1:8420'),
+      isTrue,
+      reason: 'the browser must have resolved the circle to a renderable URL, '
+          'got "$shown"',
+    );
   }, timeout: const Timeout(Duration(minutes: 5)));
 }
