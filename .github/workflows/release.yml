@@ -215,6 +215,10 @@ jobs:
   ios-ipa:
     needs: verify-version
     runs-on: macos-latest
+    # Approved pattern: secrets cannot appear in `if:` (step or job level),
+    # so one check step exports the decision and everything gates on it.
+    outputs:
+      signed: ${{ steps.signing.outputs.enabled }}
     defaults:
       run:
         working-directory: flutter
@@ -227,10 +231,18 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      - name: Check iOS signing secrets
+        id: signing
+        run: |
+          if [ -n "${{ secrets.IOS_DIST_CERT_P12_B64 }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
       # Signed path: only runs when iOS signing secrets are configured.
       # Secrets are referenced here, never printed.
       - name: Restore iOS signing (signed path only)
-        if: ${{ secrets.IOS_DIST_CERT_P12_B64 != '' }}
+        if: steps.signing.outputs.enabled == 'true'
         run: |
           set -euo pipefail
           mkdir -p ~/Library/MobileDevice/"Provisioning Profiles"
@@ -249,15 +261,15 @@ jobs:
           echo "${{ secrets.IOS_EXPORT_OPTIONS_B64 }}" | base64 -d > ios/ExportOptions.plist
       # Signed path: honest comment — requires valid cert + profile + ExportOptions.
       - name: Build signed IPA (requires signing secrets)
-        if: ${{ secrets.IOS_DIST_CERT_P12_B64 != '' }}
+        if: steps.signing.outputs.enabled == 'true'
         run: flutter build ipa --export-options-plist=ios/ExportOptions.plist --obfuscate --split-debug-info=build/debug-info --tree-shake-icons
       - name: Rename signed IPA
-        if: ${{ secrets.IOS_DIST_CERT_P12_B64 != '' }}
+        if: steps.signing.outputs.enabled == 'true'
         run: |
           mv build/ios/ipa/*.ipa build/ios/ipa/octra-wallet-flutter-ios-release.ipa
           ls build/ios/ipa/*.ipa
       - uses: actions/upload-artifact@v4
-        if: ${{ secrets.IOS_DIST_CERT_P12_B64 != '' }}
+        if: steps.signing.outputs.enabled == 'true'
         with:
           name: ios-release
           path: flutter/build/ios/ipa/*.ipa
@@ -265,12 +277,12 @@ jobs:
       # empty (not yet configured by the user). Output cannot be installed on a
       # device; it only proves compilation succeeded.
       - name: Build unsigned iOS (fallback without signing secrets)
-        if: ${{ secrets.IOS_DIST_CERT_P12_B64 == '' }}
+        if: steps.signing.outputs.enabled == 'false'
         run: flutter build ios --release --no-codesign
       # Unsigned fallback: honest comment — package the unsigned .app as a
       # clearly-named unsigned .ipa (cannot be installed, compile proof only).
       - name: Package unsigned IPA (compile proof only)
-        if: ${{ secrets.IOS_DIST_CERT_P12_B64 == '' }}
+        if: steps.signing.outputs.enabled == 'false'
         run: |
           APP=$(ls -d build/ios/iphoneos/Runner.app | head -1)
           mkdir -p build/ios/unsigned/Payload
@@ -278,7 +290,7 @@ jobs:
           (cd build/ios/unsigned && zip -r octra-wallet-flutter-ios-unsigned.ipa Payload)
           ls build/ios/unsigned/*.ipa
       - uses: actions/upload-artifact@v4
-        if: ${{ secrets.IOS_DIST_CERT_P12_B64 == '' }}
+        if: steps.signing.outputs.enabled == 'false'
         with:
           name: ios-unsigned
           path: flutter/build/ios/unsigned/*.ipa
@@ -300,6 +312,9 @@ jobs:
           name: flutter-release
           path: dist
       - uses: actions/download-artifact@v4
+        # Unsigned fallback produces no ios-release artifact; skip instead of
+        # failing (needs context is allowed in step `if:`).
+        if: needs.ios-ipa.outputs.signed == 'true'
         with:
           name: ios-release
           path: dist
