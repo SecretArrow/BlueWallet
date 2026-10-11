@@ -99,8 +99,12 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
         }
       }
 
-      // Check if we got a valid result
-      if (phrase == null || kp == null) {
+      // Check if we got a valid result. Copy to fresh locals first: `phrase`
+      // and `kp` are reassigned inside the loop above, so they do not
+      // promote after it — assert once here instead of `!` everywhere.
+      final readyPhrase = phrase;
+      final readyKp = kp;
+      if (readyPhrase == null || readyKp == null) {
         if (!mounted) return;
         setState(() {
           _error =
@@ -111,7 +115,7 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
       }
 
       // We have a valid wallet at this point
-      final address = kp['address']?.toString() ?? '';
+      final address = readyKp['address']?.toString() ?? '';
       if (address.isEmpty) {
         if (!mounted) return;
         setState(() {
@@ -122,7 +126,7 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
       }
       if (!mounted) return;
       setState(() {
-        _mnemonic = phrase;
+        _mnemonic = readyPhrase;
         _previewAddress = address;
         _loading = false;
       });

@@ -62,9 +62,9 @@ class HistoryDetailScreen extends StatelessWidget {
         ),
       );
     }
-    // Promote to a local so the compiler (and readers) know it is non-null
-    // below without repeated `!` operators.
-    final t = tx;
+    // Promote to a non-null local: `tx` is a public widget field, which Dart
+    // does not promote, so assert once right after the explicit null guard.
+    final TxRecord t = tx!;
 
     final isSent = t.type == 'sent' || t.type == 'send';
 
