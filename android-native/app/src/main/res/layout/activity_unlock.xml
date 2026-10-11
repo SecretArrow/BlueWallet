@@ -19,7 +19,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Enter your 6-digit PIN to unlock"
+        android:text="Enter your PIN (minimal 6 digit) to unlock"
         android:textColor="@color/text_secondary"
         android:textSize="16sp"
         android:layout_marginTop="24dp" />
@@ -37,7 +37,7 @@
         android:letterSpacing="0.5"
         android:textSize="24sp"
         android:inputType="numberPassword"
-        android:maxLength="6"
+        android:maxLength="64"
         android:layout_marginTop="16dp" />
 
     <com.google.android.material.button.MaterialButton

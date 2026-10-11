@@ -428,7 +428,7 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean tryAutoUnlockWithDefaultPin() {
         String pin = PinStore.getDefaultPin(this);
-        if (!pin.matches("\\d{6}")) {
+        if (!pin.matches("\\d{6,64}")) {
             return false;
         }
         try {

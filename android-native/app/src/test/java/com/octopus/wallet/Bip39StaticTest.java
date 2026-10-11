@@ -53,13 +53,15 @@ public class Bip39StaticTest {
 
     @Test
     public void isValidPin_matchesVerifierPolicy() {
-        // Mirrors WalletPinVerifier: exactly 6 digits, nothing else.
+        // Kebijakan baru: minimal 6 digit, maksimal 64 digit, digit saja.
+        // SET menolak <6; VERIFY tetap menerima PIN 6-digit lama.
         assertEquals(true, PinStore.isValidPin("123456"));
+        assertEquals(true, PinStore.isValidPin("123456789012"));
         assertEquals(false, PinStore.isValidPin(null));
         assertEquals(false, PinStore.isValidPin(""));
         assertEquals(false, PinStore.isValidPin("12345"));
-        assertEquals(false, PinStore.isValidPin("1234567"));
         assertEquals(false, PinStore.isValidPin("12345a"));
+        assertEquals(false, PinStore.isValidPin("12345678901234567890123456789012345678901234567890123456789012345"));
         assertEquals(true, PinStore.isValidPin(" 123456 "));
     }
 }

@@ -197,7 +197,7 @@ public class CreateMnemonicActivity extends BaseTxActivity {
      */
     private String testDeriveAddress(String base64Key) throws Exception {
         String defaultPin = PinStore.getDefaultPin(this);
-        if (!defaultPin.matches("\\d{6}")) {
+        if (!defaultPin.matches("\\d{6,64}")) {
             defaultPin = "000000"; // Fallback to a temporary PIN for the validation step
         }
 
@@ -227,7 +227,7 @@ public class CreateMnemonicActivity extends BaseTxActivity {
                     File prevDir = WalletProfileStore.getWalletDir(this, previousId);
                     OctraNative.getInstance().init(prevDir.getAbsolutePath());
                     String pin = PinStore.getDefaultPin(this);
-                    if (pin.matches("\\d{6}")) {
+                    if (pin.matches("\\d{6,64}")) {
                         try { OctraNative.getInstance().unlockWallet(pin); } catch (Exception ignored) {}
                     }
                 } catch (Exception ignored) {}
@@ -248,7 +248,7 @@ public class CreateMnemonicActivity extends BaseTxActivity {
     private void showPinSetupDialog(final Runnable onPinSet) {
         android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
         builder.setTitle("Set 6-Digit PIN");
-        builder.setMessage("Please set a 6-digit PIN to secure your wallet.");
+        builder.setMessage("Please set a PIN (minimal 6 digit) to secure your wallet.");
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -286,11 +286,11 @@ public class CreateMnemonicActivity extends BaseTxActivity {
             String pin = pinField.getText().toString();
             String pinConfirm = pinConfirmField.getText().toString();
 
-            if (pin.length() != 6) {
-                Toast.makeText(CreateMnemonicActivity.this, "PIN must be exactly 6 digits", Toast.LENGTH_SHORT).show();
+            if (pin.length() < 6 || pin.length() > 64) {
+                Toast.makeText(CreateMnemonicActivity.this, "PIN minimal 6 digit (max 64)", Toast.LENGTH_SHORT).show();
                 return;
             }
-            if (!pin.matches("\\d{6}")) {
+            if (!pin.matches("\\d+")) {
                 Toast.makeText(CreateMnemonicActivity.this, "PIN must contain only digits", Toast.LENGTH_SHORT).show();
                 return;
             }
@@ -324,7 +324,7 @@ public class CreateMnemonicActivity extends BaseTxActivity {
         }
 
         String pin = PinStore.getDefaultPin(this);
-        if (!pin.matches("\\d{6}")) {
+        if (!pin.matches("\\d{6,64}")) {
             showPinSetupDialog(this::doCreate);
             return;
         }

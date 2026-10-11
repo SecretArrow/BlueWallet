@@ -137,9 +137,9 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:gravity="center"
-                            android:hint="6-digit PIN"
+                            android:hint="PIN (minimal 6 digit)"
                             android:inputType="numberPassword"
-                            android:maxLength="6"
+                            android:maxLength="64"
                             android:textSize="18sp" />
 
                     </com.google.android.material.textfield.TextInputLayout>

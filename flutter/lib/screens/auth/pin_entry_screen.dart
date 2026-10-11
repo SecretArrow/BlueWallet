@@ -79,8 +79,9 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
 
   Future<void> _submitUnlock() async {
     final pin = _pinCtrl.text.trim();
-    if (pin.length != 6) {
-      setState(() => _error = 'Enter a 6-digit PIN');
+    // VERIFY: PIN 6-digit lama tetap lolos; batas bawah 6 agar pesan jelas.
+    if (pin.length < 6) {
+      setState(() => _error = 'Enter PIN (minimal 6 digit)');
       return;
     }
     setState(() {
@@ -108,8 +109,13 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
   Future<void> _submitCreate() async {
     final pin1 = _pinCtrl.text.trim();
     final pin2 = _pin2Ctrl.text.trim();
-    if (pin1.length != 6) {
-      setState(() => _error = 'PIN must be exactly 6 digits');
+    if (pin1.length < 6) {
+      setState(() => _error = 'PIN minimal 6 digit (at least 6 digits)');
+      return;
+    }
+    if (pin1.length > 64) {
+      setState(
+          () => _error = 'PIN minimal 6 digit (at least 6 digits, max 64)');
       return;
     }
     if (pin1 != pin2) {
@@ -163,10 +169,10 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
                     const SizedBox(height: 8),
                     Text(
                       _isCreate
-                          ? 'Set a 6-digit PIN to secure your wallet.'
+                          ? 'Set a PIN (minimal 6 digit) to secure your wallet.'
                           : showBiometric
-                              ? 'Use biometric or enter your 6-digit PIN.'
-                              : 'Enter your 6-digit wallet PIN to continue.',
+                              ? 'Use biometric or enter your PIN (minimal 6 digit).'
+                              : 'Enter your wallet PIN (minimal 6 digit) to continue.',
                       style: TextStyle(
                         fontSize: 13,
                         color: cs.onSurfaceVariant,
@@ -231,7 +237,7 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
                         controller: _pinCtrl,
                         textAlign: TextAlign.center,
                         keyboardType: TextInputType.number,
-                        maxLength: 6,
+                        maxLength: 64,
                         obscureText: true,
                         autofocus: !showBiometric,
                         inputFormatters: [
@@ -259,7 +265,7 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
                           controller: _pin2Ctrl,
                           textAlign: TextAlign.center,
                           keyboardType: TextInputType.number,
-                          maxLength: 6,
+                          maxLength: 64,
                           obscureText: true,
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,

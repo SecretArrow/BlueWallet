@@ -29,8 +29,8 @@ public class PinEntryActivity extends BaseTxActivity {
 
         findViewById(R.id.pin_entry_submit).setOnClickListener(v -> {
             String pin = pinInput.getText() == null ? "" : pinInput.getText().toString().trim();
-            if (!pin.matches("\\d{6}")) {
-                Toast.makeText(this, "PIN must be 6 digits", Toast.LENGTH_SHORT).show();
+            if (!pin.matches("\\d{6,64}")) {
+                Toast.makeText(this, "PIN minimal 6 digit", Toast.LENGTH_SHORT).show();
                 return;
             }
             if (!WalletPinVerifier.verify(this, finalWalletId, pin)) {

@@ -87,8 +87,13 @@ class _SetupScreenState extends State<SetupScreen> {
   Future<void> _doSetPin() async {
     final pin1 = _pin1Ctrl.text.trim();
     final pin2 = _pin2Ctrl.text.trim();
-    if (pin1.length != 6) {
-      setState(() => _error = 'PIN must be exactly 6 digits');
+    if (pin1.length < 6) {
+      setState(() => _error = 'PIN minimal 6 digit (at least 6 digits)');
+      return;
+    }
+    if (pin1.length > 64) {
+      setState(
+          () => _error = 'PIN minimal 6 digit (at least 6 digits, max 64)');
       return;
     }
     if (pin1 != pin2) {
@@ -244,13 +249,13 @@ class _SetupScreenState extends State<SetupScreen> {
             _ErrorBanner(_error!),
             const SizedBox(height: 12)
           ],
-          Text('Enter a 6-digit PIN', style: tt.labelLarge),
+          Text('Enter PIN (minimal 6 digit)', style: tt.labelLarge),
           const SizedBox(height: 6),
           TextField(
             controller: _pin1Ctrl,
             textAlign: TextAlign.center,
             keyboardType: TextInputType.number,
-            maxLength: 6,
+            maxLength: 64,
             obscureText: true,
             style: const TextStyle(fontSize: 24, letterSpacing: 8),
             decoration:
@@ -264,7 +269,7 @@ class _SetupScreenState extends State<SetupScreen> {
             controller: _pin2Ctrl,
             textAlign: TextAlign.center,
             keyboardType: TextInputType.number,
-            maxLength: 6,
+            maxLength: 64,
             obscureText: true,
             style: const TextStyle(fontSize: 24, letterSpacing: 8),
             decoration:

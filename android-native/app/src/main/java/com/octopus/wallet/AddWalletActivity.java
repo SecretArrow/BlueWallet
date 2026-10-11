@@ -61,7 +61,7 @@ public class AddWalletActivity extends BaseTxActivity {
         generateButton = findViewById(R.id.add_wallet_generate_button);
         generateButton.setOnClickListener(v -> {
             String pin = PinStore.getDefaultPin(this);
-            if (!pin.matches("\\d{6}")) {
+            if (!pin.matches("\\d{6,64}")) {
                 showError("Default PIN not available. Please unlock your wallet first.");
                 return;
             }
@@ -244,7 +244,7 @@ public class AddWalletActivity extends BaseTxActivity {
         }
 
         if (looksLikeMnemonic(privateKey)) {
-            if (!pin.matches("\\d{6}")) {
+            if (!pin.matches("\\d{6,64}")) {
                 showError("Default PIN not available. Please unlock your wallet first.");
                 return;
             }
@@ -257,7 +257,7 @@ public class AddWalletActivity extends BaseTxActivity {
             showError("Private key format is invalid");
             return;
         }
-        if (!pin.matches("\\d{6}")) {
+        if (!pin.matches("\\d{6,64}")) {
             showError("Default PIN not available. Please unlock your wallet first.");
             return;
         }
@@ -462,7 +462,7 @@ public class AddWalletActivity extends BaseTxActivity {
     /** Import a wallet.oct file: prompt for file PIN via activity, then re-import with default PIN */
     private void importWalletFile(Uri fileUri) {
         String defaultPin = PinStore.getDefaultPin(this);
-        if (!defaultPin.matches("\\d{6}")) {
+        if (!defaultPin.matches("\\d{6,64}")) {
             showError("Default PIN not available. Please unlock your wallet first.");
             return;
         }
@@ -593,7 +593,7 @@ public class AddWalletActivity extends BaseTxActivity {
         File previousDir = WalletProfileStore.getWalletDir(this, previousWalletId);
         OctraNative.getInstance().init(previousDir.getAbsolutePath());
         String defaultPin = PinStore.getDefaultPin(this);
-        if (defaultPin.matches("\\d{6}")) {
+        if (defaultPin.matches("\\d{6,64}")) {
             try {
                 OctraNative.getInstance().unlockWallet(defaultPin);
             } catch (Exception ignored) {
@@ -649,7 +649,7 @@ public class AddWalletActivity extends BaseTxActivity {
             if (filePin == null || filePin.isEmpty()) return;
             if (pendingImportFileUri == null) return;
             String defaultPin = PinStore.getDefaultPin(this);
-            if (!defaultPin.matches("\\d{6}")) {
+            if (!defaultPin.matches("\\d{6,64}")) {
                 showError("Default PIN not available. Please unlock your wallet first.");
                 return;
             }

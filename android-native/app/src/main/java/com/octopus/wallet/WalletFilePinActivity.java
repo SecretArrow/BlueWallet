@@ -22,8 +22,8 @@ public class WalletFilePinActivity extends BaseTxActivity {
 
         continueButton.setOnClickListener(v -> {
             String pin = pinInput.getText() == null ? "" : pinInput.getText().toString().trim();
-            if (!pin.matches("\\d{6}")) {
-                showError("PIN must be 6 digits");
+            if (!pin.matches("\\d{6,64}")) {
+                showError("PIN minimal 6 digit");
                 return;
             }
             Intent result = new Intent();
