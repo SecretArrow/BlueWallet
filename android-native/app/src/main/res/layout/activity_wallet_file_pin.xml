@@ -59,7 +59,7 @@
                     android:gravity="center"
                     android:hint="••••••"
                     android:inputType="numberPassword"
-                    android:maxLength="64"
+                    android:maxLength="16"
                     android:padding="16dp"
                     android:textColor="?attr/colorOnSurface"
                     android:textColorHint="@color/text_secondary"

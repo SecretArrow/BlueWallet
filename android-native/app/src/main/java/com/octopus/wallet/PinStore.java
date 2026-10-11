@@ -17,18 +17,18 @@ public final class PinStore {
     }
 
     /**
-     * Wallet PIN policy: minimal 6 digit, maksimal 64 digit setelah trim
+     * Wallet PIN policy: minimal 6 digit, maksimal 16 digit setelah trim
      * (mirrors {@link WalletPinVerifier} and both apps' PIN screens).
      * VERIFY tetap menerima PIN 6-digit lama (back-compat).
      */
     public static boolean isValidPin(String pin) {
-        return pin != null && pin.trim().matches("\\d{6,64}");
+        return pin != null && pin.trim().matches("\\d{6,16}");
     }
 
     public static void setDefaultPin(Context context, String pin) {
         if (!isValidPin(pin)) {
             throw new IllegalArgumentException(
-                    "PIN minimal 6 digit (at least 6 digits, max 64)");
+                    "PIN minimal 6 digit (at least 6 digits, max 16)");
         }
         String normalized = pin.trim();
         cachedDefaultPin = normalized;

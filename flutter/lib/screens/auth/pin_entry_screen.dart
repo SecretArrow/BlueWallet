@@ -113,9 +113,9 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
       setState(() => _error = 'PIN minimal 6 digit (at least 6 digits)');
       return;
     }
-    if (pin1.length > 64) {
+    if (pin1.length > 16) {
       setState(
-          () => _error = 'PIN minimal 6 digit (at least 6 digits, max 64)');
+          () => _error = 'PIN minimal 6 digit (at least 6 digits, max 16)');
       return;
     }
     if (pin1 != pin2) {
@@ -237,7 +237,7 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
                         controller: _pinCtrl,
                         textAlign: TextAlign.center,
                         keyboardType: TextInputType.number,
-                        maxLength: 64,
+                        maxLength: 16,
                         obscureText: true,
                         autofocus: !showBiometric,
                         inputFormatters: [
@@ -265,7 +265,7 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
                           controller: _pin2Ctrl,
                           textAlign: TextAlign.center,
                           keyboardType: TextInputType.number,
-                          maxLength: 64,
+                          maxLength: 16,
                           obscureText: true,
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,

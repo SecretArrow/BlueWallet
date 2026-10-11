@@ -111,8 +111,8 @@ public class UnlockActivity extends AppCompatActivity {
             showError("PIN minimal 6 digit (at least 6 digits)");
             return;
         }
-        if (pin.length() > 64) {
-            showError("PIN minimal 6 digit (at least 6 digits, max 64)");
+        if (pin.length() > 16) {
+            showError("PIN minimal 6 digit (at least 6 digits, max 16)");
             return;
         }
         if (!pin.matches("\\d+")) {
@@ -166,7 +166,7 @@ public class UnlockActivity extends AppCompatActivity {
                         super.onAuthenticationSucceeded(result);
                         // Re-use stored PIN silently to unlock native wallet
                         String pin = PinStore.getDefaultPin(UnlockActivity.this);
-                        if (pin.matches("\\d{6,64}")) {
+                        if (pin.matches("\\d{6,16}")) {
                             if (unlockWithPin(pin)) {
                                 proceedToMain();
                             }

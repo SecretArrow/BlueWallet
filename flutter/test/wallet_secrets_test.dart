@@ -6,7 +6,7 @@ import 'package:octopus_wallet/services/pin_service.dart';
 /// secure storage, so they run without plugins. Success paths need the
 /// platform channel (integration-covered).
 void main() {
-  group('isValidPin (baru: minimal 6 digit, maksimal 64 digit)', () {
+  group('isValidPin (baru: minimal 6 digit, maksimal 16 digit)', () {
     test('accepts 6 digits (legacy) and 12 digits', () {
       expect(PinService.isValidPin('123456'), isTrue);
       expect(PinService.isValidPin('000000'), isTrue);
@@ -25,7 +25,7 @@ void main() {
         'abcdef',
         ' 123456 ',
         '12 456',
-        '12345678901234567890123456789012345678901234567890123456789012345',
+        '11111111111111111',
       ]) {
         expect(PinService.isValidPin(bad), isFalse, reason: 'for "$bad"');
       }

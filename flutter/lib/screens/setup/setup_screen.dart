@@ -91,9 +91,9 @@ class _SetupScreenState extends State<SetupScreen> {
       setState(() => _error = 'PIN minimal 6 digit (at least 6 digits)');
       return;
     }
-    if (pin1.length > 64) {
+    if (pin1.length > 16) {
       setState(
-          () => _error = 'PIN minimal 6 digit (at least 6 digits, max 64)');
+          () => _error = 'PIN minimal 6 digit (at least 6 digits, max 16)');
       return;
     }
     if (pin1 != pin2) {
@@ -255,7 +255,7 @@ class _SetupScreenState extends State<SetupScreen> {
             controller: _pin1Ctrl,
             textAlign: TextAlign.center,
             keyboardType: TextInputType.number,
-            maxLength: 64,
+            maxLength: 16,
             obscureText: true,
             style: const TextStyle(fontSize: 24, letterSpacing: 8),
             decoration:
@@ -269,7 +269,7 @@ class _SetupScreenState extends State<SetupScreen> {
             controller: _pin2Ctrl,
             textAlign: TextAlign.center,
             keyboardType: TextInputType.number,
-            maxLength: 64,
+            maxLength: 16,
             obscureText: true,
             style: const TextStyle(fontSize: 24, letterSpacing: 8),
             decoration:

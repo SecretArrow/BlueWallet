@@ -96,7 +96,7 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
                   controller: ctrl,
                   textAlign: TextAlign.center,
                   keyboardType: TextInputType.number,
-                  maxLength: 64,
+                  maxLength: 16,
                   obscureText: true,
                   autofocus: true,
                   inputFormatters: [

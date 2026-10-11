@@ -43,7 +43,7 @@
                         android:layout_height="wrap_content"
                         android:hint="Current PIN"
                         android:inputType="numberPassword"
-                        android:maxLength="64"
+                        android:maxLength="16"
                         android:padding="12dp"
                         android:textColor="?attr/colorOnSurface"
                         android:textColorHint="@color/text_secondary" />
@@ -55,7 +55,7 @@
                         android:layout_marginTop="10dp"
                         android:hint="New PIN"
                         android:inputType="numberPassword"
-                        android:maxLength="64"
+                        android:maxLength="16"
                         android:padding="12dp"
                         android:textColor="?attr/colorOnSurface"
                         android:textColorHint="@color/text_secondary" />
@@ -67,7 +67,7 @@
                         android:layout_marginTop="10dp"
                         android:hint="Confirm New PIN"
                         android:inputType="numberPassword"
-                        android:maxLength="64"
+                        android:maxLength="16"
                         android:padding="12dp"
                         android:textColor="?attr/colorOnSurface"
                         android:textColorHint="@color/text_secondary" />

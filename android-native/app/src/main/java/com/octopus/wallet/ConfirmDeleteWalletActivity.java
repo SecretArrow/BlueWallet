@@ -38,7 +38,7 @@ public class ConfirmDeleteWalletActivity extends BaseTxActivity {
 
         removeButton.setOnClickListener(v -> {
             String pin = pinInput.getText() == null ? "" : pinInput.getText().toString().trim();
-            if (!pin.matches("\\d{6,64}")) {
+            if (!pin.matches("\\d{6,16}")) {
                 showError("PIN minimal 6 digit");
                 return;
             }

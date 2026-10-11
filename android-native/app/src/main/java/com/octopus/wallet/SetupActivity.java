@@ -114,8 +114,8 @@ public class SetupActivity extends AppCompatActivity {
             return;
         }
 
-        if (pin.length() > 64) {
-            showError("PIN minimal 6 digit (at least 6 digits, max 64)");
+        if (pin.length() > 16) {
+            showError("PIN minimal 6 digit (at least 6 digits, max 16)");
             return;
         }
 
