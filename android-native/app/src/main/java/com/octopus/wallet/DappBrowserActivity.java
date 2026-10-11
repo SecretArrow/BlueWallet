@@ -323,6 +323,121 @@ public class DappBrowserActivity extends AppCompatActivity {
             "    off(event, cb) { if (_listeners[event]) _listeners[event]=_listeners[event].filter(c=>c!==cb); return this; },\n" +
             "  };\n" +
             "\n" +
+            "  // window.wallet: Orion-style high-level facade over the same bridge.\n" +
+            "  // Only reads + session calls are served; every sign method throws\n" +
+            "  // METHOD_FORBIDDEN locally (approvals submit here — payloads are\n" +
+            "  // never handed out). Deliberately writable+configurable so a dApp\n" +
+            "  // bundling its own injector neither crashes nor silently loses.\n" +
+            "  const _walletListeners = {};\n" +
+            "  function _wemit(event, data) {\n" +
+            "    for (const cb of _walletListeners[event] || []) { try { cb(data); } catch {} }\n" +
+            "  }\n" +
+            "  function _wforbidden(method) {\n" +
+            "    const err = new Error(method + ' is sign-only and not served by this wallet');\n" +
+            "    err.code = 'METHOD_FORBIDDEN';\n" +
+            "    throw err;\n" +
+            "  }\n" +
+            "  async function _walletConnectResult(address) {\n" +
+            "    let publicKey = '';\n" +
+            "    try {\n" +
+            "      const pk = await octraProvider.request({method:'getPublicKey'});\n" +
+            "      publicKey = (pk && pk.publicKey) || '';\n" +
+            "    } catch (e) { publicKey = ''; }\n" +
+            "    const networkInfo = await octraProvider.request({method:'octra_networkInfo'});\n" +
+            "    const chainId = await octraProvider.request({method:'octra_chainId'});\n" +
+            "    const permissions = await octraProvider.request({method:'octra_permissions'});\n" +
+            "    return { address, publicKey, accounts: [{address}],\n" +
+            "      network: networkInfo.id, networkInfo, chainId,\n" +
+            "      capabilities: ['ping','events'] };\n" +
+            "  }\n" +
+            "  const walletProvider = {\n" +
+            "    async connect() {\n" +
+            "      const accounts = await octraProvider.request({method:'octra_requestAccounts', params:[]});\n" +
+            "      const address = accounts[0];\n" +
+            "      if (!address) throw new Error('Connect did not yield an address');\n" +
+            "      const result = await _walletConnectResult(address);\n" +
+            "      _wemit('connect', result);\n" +
+            "      _wemit('accountChanged', {address});\n" +
+            "      return result;\n" +
+            "    },\n" +
+            "    async disconnect() {\n" +
+            "      await octraProvider.request({method:'disconnect'});\n" +
+            "      _wemit('disconnect', {reason:'user disconnect'});\n" +
+            "      return undefined;\n" +
+            "    },\n" +
+            "    isConnected() { return octraProvider.isConnected; },\n" +
+            "    async getAccounts() {\n" +
+            "      const a = await octraProvider.request({method:'octra_accounts'});\n" +
+            "      return a.filter(x => !!x).map(address => ({address}));\n" +
+            "    },\n" +
+            "    async getAddress() {\n" +
+            "      const a = await octraProvider.request({method:'octra_accounts'});\n" +
+            "      return a[0] || '';\n" +
+            "    },\n" +
+            "    async getPublicKey() {\n" +
+            "      const r = await octraProvider.request({method:'getPublicKey'});\n" +
+            "      return r.publicKey;\n" +
+            "    },\n" +
+            "    async getBalance() {\n" +
+            "      const r = await octraProvider.request({method:'octra_getBalance'});\n" +
+            "      const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };\n" +
+            "      return { balance: String(r.balance ?? r.public ?? ''),\n" +
+            "        balanceRaw: String(r.balance_raw ?? r.raw ?? ''),\n" +
+            "        nonce: num(r.nonce ?? r.pending_nonce) };\n" +
+            "    },\n" +
+            "    async getNetwork() {\n" +
+            "      const n = await octraProvider.request({method:'octra_networkInfo'});\n" +
+            "      return n.id;\n" +
+            "    },\n" +
+            "    async getNetworkInfo() {\n" +
+            "      return octraProvider.request({method:'octra_networkInfo'});\n" +
+            "    },\n" +
+            "    async getNetworks() {\n" +
+            "      const n = await octraProvider.request({method:'octra_networkInfo'});\n" +
+            "      return [n];\n" +
+            "    },\n" +
+            "    async getChainId() {\n" +
+            "      return octraProvider.request({method:'octra_chainId'});\n" +
+            "    },\n" +
+            "    async getPermissions() {\n" +
+            "      return octraProvider.request({method:'octra_permissions'});\n" +
+            "    },\n" +
+            "    async signMessage() { _wforbidden('wallet_signMessage'); },\n" +
+            "    async signTypedData() { _wforbidden('wallet_signTypedData'); },\n" +
+            "    async approveContract() { _wforbidden('wallet_approveContract'); },\n" +
+            "    async signContract() { _wforbidden('wallet_signContract'); },\n" +
+            "    async signTransfer() { _wforbidden('wallet_signTransfer'); },\n" +
+            "    async ping() {\n" +
+            "      return { pong: true, v: 1, connected: octraProvider.isConnected,\n" +
+            "        locked: !octraProvider.isConnected, capabilities: ['ping','events'],\n" +
+            "        origin: window.location.origin, ts: Date.now() };\n" +
+            "    },\n" +
+            "    async isAlive() { return octraProvider.isConnected; },\n" +
+            "    async request(method, params) {\n" +
+            "      const m = String(method == null ? '' : method);\n" +
+            "      const low = m.trim().toLowerCase();\n" +
+            "      const canon = low.startsWith('orion_wallet_') ? 'wallet_' + low.slice(13) : low;\n" +
+            "      if (/^(wallet_)?(signmessage|signtypeddata|approvecontract|signcontract|signtransfer|signtransaction|submittransaction|sendtransaction|broadcasttransaction|transfer|swap|bridge)$/.test(canon)\n" +
+            "          || /(sendtransaction|broadcast|(^|_)transfer$|(^|_)swap$|(^|_)bridge$)/.test(canon)) {\n" +
+            "        const err = new Error(canon + ' is prohibited: this wallet never broadcasts through the SDK');\n" +
+            "        err.code = 'METHOD_FORBIDDEN';\n" +
+            "        throw err;\n" +
+            "      }\n" +
+            "      return octraProvider.request({method: m, params});\n" +
+            "    },\n" +
+            "    on(event, cb) { if (!_walletListeners[event]) _walletListeners[event]=[]; _walletListeners[event].push(cb); return this; },\n" +
+            "    off(event, cb) { if (_walletListeners[event]) _walletListeners[event]=_walletListeners[event].filter(c=>c!==cb); return this; },\n" +
+            "    once(event, cb) { const self = this; const wrap = d => { self.off(event, wrap); cb(d); }; return this.on(event, wrap); },\n" +
+            "  };\n" +
+            "  try {\n" +
+            "    if (!window.wallet) {\n" +
+            "      Object.defineProperty(window, 'wallet', {\n" +
+            "        value: Object.freeze(walletProvider), writable: true, configurable: true });\n" +
+            "    }\n" +
+            "  } catch (e) { /* another provider won the race; window.octra above still serves */ }\n" +
+            "  window.dispatchEvent(new CustomEvent('octra:wallet#initialized',\n" +
+            "    {detail: {provider: window.wallet || walletProvider}}));\n" +
+            "\n" +
             "  Object.defineProperty(window, 'octra', {\n" +
             "    value: Object.freeze(octraProvider),\n" +
             "    writable: false, configurable: false,\n" +
@@ -667,17 +782,48 @@ public class DappBrowserActivity extends AppCompatActivity {
                     sendResult(requestId, new JSONArray(connectedPermissions).toString());
                     break;
                 case "disconnect":
-                    isConnected = false;
-                    connectedAddress = null;
-                    connectedPermissions = new ArrayList<>(
-                            Collections.singletonList("accounts"));
-                    sendResult(requestId, "{\"success\":true}");
+                    doDisconnect(requestId);
                     break;
                 case "getPublicKey":
                     sendPublicKey(requestId);
                     break;
                 case "octra_switchNetwork":
                     answerSwitchNetwork(requestId, paramsJson);
+                    break;
+                // ── window.wallet facade (Orion-style high-level reads) ──
+                case "wallet_connect":
+                    handleRequestAccounts(requestId, paramsJson);
+                    break;
+                case "wallet_disconnect":
+                    doDisconnect(requestId);
+                    break;
+                case "wallet_getAccounts":
+                    sendAccounts(requestId);
+                    break;
+                case "wallet_getAddress":
+                    sendResult(requestId, "\""
+                            + (connectedAddress != null ? connectedAddress : "") + "\"");
+                    break;
+                case "wallet_getBalance":
+                    fetchBalance(requestId);
+                    break;
+                case "wallet_getNetwork":
+                    sendResult(requestId, "\"" + networkId() + "\"");
+                    break;
+                case "wallet_getNetworkInfo":
+                    sendResult(requestId, networkInfoJson().toString());
+                    break;
+                case "wallet_getNetworks":
+                    sendResult(requestId, "[" + networkInfoJson().toString() + "]");
+                    break;
+                case "wallet_getChainId":
+                    sendResult(requestId, "\"" + getActiveChainId() + "\"");
+                    break;
+                case "wallet_getPermissions":
+                    sendResult(requestId, new JSONArray(connectedPermissions).toString());
+                    break;
+                case "wallet_ping":
+                    answerPing(requestId);
                     break;
                 default:
                     if (DappBridgeProtocol.isKnownUnsupported(normalized)) {
@@ -1020,6 +1166,43 @@ public class DappBrowserActivity extends AppCompatActivity {
      * Network switch: this wallet follows its own configured node, so a page
      * can never move it. Answer honestly — switched:true only when already there.
      */
+    /** Stable network id for this wallet ("mainnet" or "devnet"). */
+    String networkId() {
+        return DappBridgeProtocol.networkIdForChain(getActiveChainId());
+    }
+
+    /** Session teardown shared by {@code disconnect} + {@code wallet_disconnect}. */
+    private void doDisconnect(int requestId) {
+        isConnected = false;
+        connectedAddress = null;
+        connectedPermissions = new ArrayList<>(Collections.singletonList("accounts"));
+        sendResult(requestId, "{\"success\":true}");
+    }
+
+    /** Currently connected account as a JSON array (empty string when none). */
+    private void sendAccounts(int requestId) {
+        String addr = connectedAddress != null ? connectedAddress : "";
+        sendResult(requestId, "[\"" + addr + "\"]");
+    }
+
+    /**
+     * Liveness probe: answers without touching wallet state or the session.
+     * {@code locked} is true when no wallet address is available at all.
+     */
+    private void answerPing(int requestId) {
+        String address = connectedAddress;
+        if (address == null || address.isEmpty()) address = getWalletAddress();
+        String origin = (webView != null && webView.getUrl() != null)
+                ? webView.getUrl() : "";
+        try {
+            sendResult(requestId, DappBridgeProtocol.buildPing(
+                    isConnected, address == null || address.isEmpty(),
+                    origin, System.currentTimeMillis()).toString());
+        } catch (JSONException e) {
+            sendError(requestId, e.getMessage());
+        }
+    }
+
     private void answerSwitchNetwork(int requestId, String paramsJson) {
         String wanted = "";
         try {
@@ -1043,11 +1226,6 @@ public class DappBrowserActivity extends AppCompatActivity {
         } catch (JSONException e) {
             sendError(requestId, e.getMessage());
         }
-    }
-
-    /** Stable network id for this wallet ("mainnet" or "devnet"). */
-    String networkId() {
-        return getActiveChainId().contains("mainnet") ? "mainnet" : "devnet";
     }
 
     private void handleCallView(int requestId, String paramsJson) {

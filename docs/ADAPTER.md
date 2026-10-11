@@ -149,6 +149,17 @@ auto-detects this wallet (`isOctra` + `octra#initialized`). Full mapping in
 Orion-built dApps are next (D3): a `window.wallet` surface backed by the same
 approval flow; sign-only stays rejected by design.
 
+## Status: Fase D3 — `window.wallet` facade (Orion-style dApps)
+
+The in-app browsers now also expose `window.wallet` with Orion's high-level
+surface (`connect`, reads, `ping`, `request`, `on/off/once`), backed by the
+same bridge and the same approval UX — plus the `octra:wallet#initialized`
+announcement Orion-style detectors listen for. Sign methods throw
+`METHOD_FORBIDDEN` locally (never reach the bridge): approvals submit here,
+payloads are never handed out. The native dispatch answers `wallet_*`
+directly with `orion_wallet_*` folded to the same handlers; `wallet_ping`
+answers without touching wallet state. See `docs/THIRD-PARTY.md`.
+
 ## Method surface
 
 | Legacy (existing) | RFC-O-1 alias | Notes |

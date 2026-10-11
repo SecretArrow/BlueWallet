@@ -109,24 +109,92 @@ public final class DappBridgeProtocol {
             "octra_makeRangeProof",
             "octra_registerPrivateViewKey",
             "octra_sendContractTransactionSequence",
-            "octra_submitBatch"
+            "octra_submitBatch",
+            "wallet_signMessage",
+            "wallet_signTypedData",
+            "wallet_approveContract",
+            "wallet_signContract",
+            "wallet_signTransfer"
     ));
 
-    /** Trim + null-guard a raw method name from JS. */
+    // ── window.wallet surface (Orion-style high-level provider) ────────────
+    //
+    // Clean-room name mapping (no third-party code vendored or copied): the
+    // injected `window.wallet` facade speaks these `wallet_*` names and the
+    // bridge answers the read/session subset. Like the rest of this wallet,
+    // signing stays approval-gated submit — the sign-only methods below are
+    // recognised and refused, never silently dropped.
+
+    /** Reads + session calls answered for the window.wallet facade. */
+    public static final Set<String> WALLET_SERVED_METHODS = new HashSet<>(Arrays.asList(
+            "wallet_connect",
+            "wallet_disconnect",
+            "wallet_getAccounts",
+            "wallet_getAddress",
+            "wallet_getBalance",
+            "wallet_getNetwork",
+            "wallet_getNetworkInfo",
+            "wallet_getNetworks",
+            "wallet_getChainId",
+            "wallet_getPermissions",
+            "wallet_ping"
+    ));
+
+    /** Orion-brand prefix; an alias for the matching wallet_* method. */
+    public static final String ORION_PREFIX = "orion_wallet_";
+
+    /**
+     * Reduce a method name to its canonical form: trims, then folds the
+     * {@code orion_wallet_} alias onto {@code wallet_*}. Unknown names pass
+     * through unchanged and are rejected downstream.
+     */
     public static String canonicalize(String method) {
-        return method == null ? "" : method.trim();
+        if (method == null) return "";
+        String trimmed = method.trim();
+        if (trimmed.startsWith(ORION_PREFIX)) {
+            return "wallet_" + trimmed.substring(ORION_PREFIX.length());
+        }
+        return trimmed;
     }
 
-    /** True when the bridge dispatches this method (either dialect). */
+    /** True when the bridge dispatches this method (any dialect). */
     public static boolean isSupported(String method) {
         String m = canonicalize(method);
         return LEGACY_METHODS.contains(m) || RFC_METHODS.contains(m)
-                || XIO_SERVED_METHODS.contains(m);
+                || XIO_SERVED_METHODS.contains(m) || WALLET_SERVED_METHODS.contains(m);
     }
 
     /** True for a recognised-but-unserved method (explicit reject, never silent). */
     public static boolean isKnownUnsupported(String method) {
         return KNOWN_UNSUPPORTED_METHODS.contains(canonicalize(method));
+    }
+
+    /**
+     * Stable network id ("mainnet" or "devnet") for a chain id. Static so
+     * JVM tests cover the mapping without Android.
+     */
+    public static String networkIdForChain(String chainId) {
+        return chainId != null && chainId.contains("mainnet") ? "mainnet" : "devnet";
+    }
+
+    /**
+     * Liveness record for {@code wallet_ping}: answers without touching
+     * wallet state, opening a popup, or mutating the session it observes.
+     */
+    public static JSONObject buildPing(boolean connected, boolean locked,
+                                       String origin, long tsMs) throws JSONException {
+        JSONObject o = new JSONObject();
+        o.put("pong", true);
+        o.put("v", 1);
+        o.put("connected", connected);
+        o.put("locked", locked);
+        JSONArray caps = new JSONArray();
+        caps.put("ping");
+        caps.put("events");
+        o.put("capabilities", caps);
+        o.put("origin", origin != null ? origin : "");
+        o.put("ts", tsMs);
+        return o;
     }
 
     // ── Pure param helpers (third-party object forms) ─────────────────────

@@ -162,6 +162,75 @@ void main() {
           throwsA(isA<FormatException>()));
     });
 
+    test('window.wallet facade dispatches reads', () {
+      for (final m in [
+        'wallet_connect',
+        'wallet_disconnect',
+        'wallet_getAccounts',
+        'wallet_getAddress',
+        'wallet_getBalance',
+        'wallet_getNetwork',
+        'wallet_getNetworkInfo',
+        'wallet_getNetworks',
+        'wallet_getChainId',
+        'wallet_getPermissions',
+        'wallet_ping',
+      ]) {
+        expect(DappBridgeProtocol.isSupported(m), isTrue, reason: m);
+        // orion_wallet_* is the same operation under the brand prefix.
+        expect(DappBridgeProtocol.isSupported('orion_$m'), isTrue,
+            reason: 'orion_$m');
+      }
+      for (final m in [
+        'wallet_signMessage',
+        'wallet_signTypedData',
+        'wallet_approveContract',
+        'wallet_signContract',
+        'wallet_signTransfer',
+      ]) {
+        expect(DappBridgeProtocol.isKnownUnsupported(m), isTrue, reason: m);
+        expect(DappBridgeProtocol.isSupported(m), isFalse, reason: m);
+      }
+    });
+
+    test('canonicalize folds the orion_ alias', () {
+      expect(DappBridgeProtocol.canonicalize('orion_wallet_getAccounts'),
+          'wallet_getAccounts');
+      expect(DappBridgeProtocol.canonicalize('  orion_wallet_ping  '),
+          'wallet_ping');
+      expect(DappBridgeProtocol.canonicalize('octra_broadcast'),
+          'octra_broadcast');
+    });
+
+    test('networkIdForChain maps both networks', () {
+      expect(
+          DappBridgeProtocol.networkIdForChain('octra-mainnet-1'), 'mainnet');
+      expect(DappBridgeProtocol.networkIdForChain('octra-devnet-1'), 'devnet');
+      expect(DappBridgeProtocol.networkIdForChain(''), 'devnet');
+      expect(DappBridgeProtocol.networkIdForChain(null), 'devnet');
+    });
+
+    test('buildPing answers without side effects', () {
+      final ping = DappBridgeProtocol.buildPing(
+        connected: true,
+        locked: false,
+        origin: 'https://dapp.example',
+        tsMs: 123,
+      );
+      expect(ping['pong'], isTrue);
+      expect(ping['v'], 1);
+      expect(ping['connected'], isTrue);
+      expect(ping['locked'], isFalse);
+      expect(ping['origin'], 'https://dapp.example');
+      expect(ping['ts'], 123);
+      expect((ping['capabilities'] as List).first, 'ping');
+      expect(
+        DappBridgeProtocol.buildPing(
+            connected: false, locked: true, origin: '', tsMs: 0)['origin'],
+        '',
+      );
+    });
+
     test('isViewCall splits by attached value', () {
       expect(
           DappBridgeProtocol.isViewCall(
