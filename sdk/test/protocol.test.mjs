@@ -22,6 +22,30 @@ describe('protocol', () => {
     );
   });
 
+  it('keeps the legacy dialect intact (dual-stack, no removal)', () => {
+    assert.deepEqual([...LEGACY_METHODS], [
+      'octra_accounts',
+      'octra_chainId',
+      'octra_getBalance',
+      'octra_sendTransaction',
+      'octra_callContract',
+      'octra_callView',
+    ]);
+  });
+
+  it('registers the canonical new names as RFC aliases', () => {
+    // Canonical NEW: wallet_sendTransaction (submit, approval-gated),
+    // wallet_callView (read-only).
+    assert.ok(RFC_METHODS.includes('wallet_sendTransaction'));
+    assert.ok(RFC_METHODS.includes('wallet_callView'));
+    assert.ok(SUPPORTED_METHODS.includes('wallet_sendTransaction'));
+    assert.ok(SUPPORTED_METHODS.includes('wallet_callView'));
+    // No overlap: new names are additions, not replacements.
+    for (const m of ['wallet_sendTransaction', 'wallet_callView']) {
+      assert.equal(LEGACY_METHODS.includes(m), false);
+    }
+  });
+
   it('canonicalize trims and null-guards', () => {
     assert.equal(canonicalizeMethod('  octra_requestAccounts  '), 'octra_requestAccounts');
     assert.equal(canonicalizeMethod(null), '');

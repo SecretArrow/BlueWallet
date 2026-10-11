@@ -26,6 +26,9 @@ class JsBridge {
   static const Duration approvalTimeout = Duration(minutes: 5);
 
   /// Methods that open an approval dialog (long timeout).
+  /// `wallet_sendTransaction` mirrors `octra_sendTransaction`
+  /// (approval-gated submit); `wallet_callView` mirrors `octra_callView`
+  /// (read-only, no approval) so it stays out of this set, like its twin.
   static const Set<String> approvalMethods = {
     'octra_requestAccounts',
     'octra_sendTransaction',
@@ -33,9 +36,12 @@ class JsBridge {
     'octra_callContract',
     'octra_switchNetwork',
     'wallet_connect',
+    'wallet_sendTransaction',
   };
 
   /// Methods callable without a granted session.
+  /// `wallet_sendTransaction` / `wallet_callView` stay session-gated like
+  /// their `octra_*` twins, so neither is listed here.
   static const Set<String> preConnectMethods = {
     'octra_accounts',
     'octra_chainId',
@@ -522,7 +528,7 @@ class JsBridge {
       publicKey = (pk && pk.publicKey) || '';
     } catch (e) { publicKey = ''; }
     const networkInfo = await octraProvider.request({method:'octra_networkInfo'});
-    const chainId = await octraProvider.request({method:'octra_chainId'});
+    const chainId = networkInfo.chainId;
     const permissions = await octraProvider.request({method:'octra_permissions'});
     return { address, publicKey, accounts: [{address}],
       network: networkInfo.id, networkInfo, chainId,
@@ -545,11 +551,11 @@ class JsBridge {
     },
     isConnected() { return octraProvider.isConnected; },
     async getAccounts() {
-      const a = await octraProvider.request({method:'octra_accounts'});
+      const a = await octraProvider.request({method:'wallet_getAccounts'});
       return a.filter(x => !!x).map(address => ({address}));
     },
     async getAddress() {
-      const a = await octraProvider.request({method:'octra_accounts'});
+      const a = await octraProvider.request({method:'wallet_getAccounts'});
       return a[0] || '';
     },
     async getPublicKey() {
@@ -557,7 +563,7 @@ class JsBridge {
       return r.publicKey;
     },
     async getBalance() {
-      const r = await octraProvider.request({method:'octra_getBalance'});
+      const r = await octraProvider.request({method:'wallet_getBalance'});
       const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
       return { balance: String(r.balance ?? r.public ?? ''),
         balanceRaw: String(r.balance_raw ?? r.raw ?? ''),
@@ -575,7 +581,8 @@ class JsBridge {
       return [n];
     },
     async getChainId() {
-      return octraProvider.request({method:'octra_chainId'});
+      const n = await octraProvider.request({method:'octra_networkInfo'});
+      return n.chainId;
     },
     async getPermissions() {
       return octraProvider.request({method:'octra_permissions'});
@@ -595,8 +602,14 @@ class JsBridge {
       const m = String(method == null ? '' : method);
       const low = m.trim().toLowerCase();
       const canon = low.startsWith('orion_wallet_') ? 'wallet_' + low.slice(13) : low;
-      if (/^(wallet_)?(signmessage|signtypeddata|approvecontract|signcontract|signtransfer|signtransaction|submittransaction|sendtransaction|broadcasttransaction|transfer|swap|bridge)$/.test(canon)
-          || /(sendtransaction|broadcast|(^|_)transfer$|(^|_)swap$|(^|_)bridge$)/.test(canon)) {
+      // Dual-stack aliases: wallet_sendTransaction (approval-gated submit,
+      // twin of octra_sendTransaction) and wallet_callView (read-only view,
+      // twin of octra_callView) forward like their twins, never forbidden.
+      const walletAliasPassthrough =
+        canon === 'wallet_sendtransaction' || canon === 'wallet_callview';
+      if (!walletAliasPassthrough
+          && (/^(wallet_)?(signmessage|signtypeddata|approvecontract|signcontract|signtransfer|signtransaction|submittransaction|sendtransaction|broadcasttransaction|transfer|swap|bridge)$/.test(canon)
+          || /(sendtransaction|broadcast|(^|_)transfer$|(^|_)swap$|(^|_)bridge$)/.test(canon))) {
         const err = new Error(canon + ' is prohibited: this wallet never broadcasts through the SDK');
         err.code = 'METHOD_FORBIDDEN';
         throw err;

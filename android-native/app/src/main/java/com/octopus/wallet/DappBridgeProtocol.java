@@ -137,7 +137,9 @@ public final class DappBridgeProtocol {
             "wallet_getNetworks",
             "wallet_getChainId",
             "wallet_getPermissions",
-            "wallet_ping"
+            "wallet_ping",
+            "wallet_sendTransaction",
+            "wallet_callView"
     ));
 
     /** Orion-brand prefix; an alias for the matching wallet_* method. */

@@ -33,7 +33,14 @@ export class InjectedTransport {
   }
 
   available() {
-    return !!this.provider && typeof this.provider.request === 'function';
+    // Dual-stack connect: a modern provider exposes request(), a legacy
+    // one may expose only connect(). Either one makes the transport usable;
+    // request() itself still requires provider.request.
+    return (
+      !!this.provider &&
+      (typeof this.provider.request === 'function' ||
+        typeof this.provider.connect === 'function')
+    );
   }
 
   _require() {
@@ -46,8 +53,19 @@ export class InjectedTransport {
     return this.provider;
   }
 
-  async request(wireMethod, params = []) {
+  _requireRequest() {
     const provider = this._require();
+    if (typeof provider.request !== 'function') {
+      throw new OctraWalletError(
+        ERROR_CODES.DISCONNECTED,
+        'No injected octra provider found',
+      );
+    }
+    return provider;
+  }
+
+  async request(wireMethod, params = []) {
+    const provider = this._requireRequest();
     try {
       return await provider.request({ method: wireMethod, params });
     } catch (e) {
@@ -55,9 +73,20 @@ export class InjectedTransport {
     }
   }
 
-  /** Raw connect passthrough (approval UI lives in the wallet). */
+  /**
+   * Raw connect passthrough (approval UI lives in the wallet). Dual-stack:
+   * try `request({method:'octra_requestAccounts'})` first; fall back to
+   * legacy `provider.connect()` only when the provider has no request().
+   */
   async connectRaw() {
     const provider = this._require();
+    if (typeof provider.request === 'function') {
+      try {
+        return await provider.request({ method: 'octra_requestAccounts', params: [] });
+      } catch (e) {
+        throw asError(e, ERROR_CODES.USER_REJECTED);
+      }
+    }
     if (typeof provider.connect !== 'function') {
       throw new OctraWalletError(
         ERROR_CODES.UNSUPPORTED_METHOD,
@@ -212,12 +241,17 @@ export class LocalhostTransport {
   /**
    * Localhost has no single generic RPC: map the small supported set.
    * Anything else throws unsupported (explicit, never silent).
+   * Dual-stack: legacy names keep working (compat); canonical new names
+   * (`getBalance`, `wallet_callView`, `wallet_sendTransaction`,
+   * `octra_sendContractTransaction`) route to the same /api endpoints.
    */
   async request(wireMethod, params = []) {
     switch (wireMethod) {
       case 'octra_getBalance':
+      case 'getBalance':
         return this._fetch('/api/balance');
-      case 'octra_callView': {
+      case 'octra_callView':
+      case 'wallet_callView': {
         const [address, method, args = [], caller] = params;
         if (!address || !method) {
           throw new OctraWalletError(
@@ -260,7 +294,9 @@ export class LocalhostTransport {
         }
       }
       case 'octra_callContract':
+      case 'octra_sendContractTransaction':
       case 'octra_sendTransaction':
+      case 'wallet_sendTransaction':
         throw new OctraWalletError(
           ERROR_CODES.UNSUPPORTED_METHOD,
           `${wireMethod} over plain HTTP would auto-sign: use the approval-gated /api/contract/call explicitly via callContract()`,

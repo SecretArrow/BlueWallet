@@ -837,6 +837,14 @@ public class DappBrowserActivity extends AppCompatActivity implements DappJsBrid
             "    async callView(address, method, params=[]) {\n" +
             "      return this.request({method:'octra_callView', params:[address,method,params]});\n" +
             "    },\n" +
+            "    // wallet_* twins of the legacy submit/view calls (RFC alias dual-stack):\n" +
+            "    // same session gate + approval (send) via request(); never allowed pre-connect.\n" +
+            "    async sendTransactionWallet(to, amount) {\n" +
+            "      return this.request({method:'wallet_sendTransaction', params:[{to,amount}]});\n" +
+            "    },\n" +
+            "    async callViewWallet(address, method, params=[]) {\n" +
+            "      return this.request({method:'wallet_callView', params:[address,method,params]});\n" +
+            "    },\n" +
             "    async getBalance() { return this.request({method:'octra_getBalance'}); },\n" +
             "    async requestAccounts() {\n" +
             "      const accounts = await this.request({method:'octra_requestAccounts'});\n" +
@@ -872,7 +880,7 @@ public class DappBrowserActivity extends AppCompatActivity implements DappJsBrid
             "      publicKey = (pk && pk.publicKey) || '';\n" +
             "    } catch (e) { publicKey = ''; }\n" +
             "    const networkInfo = await octraProvider.request({method:'octra_networkInfo'});\n" +
-            "    const chainId = await octraProvider.request({method:'octra_chainId'});\n" +
+            "    const chainId = (networkInfo && networkInfo.chainId) || networkInfo.id;\n" +
             "    const permissions = await octraProvider.request({method:'octra_permissions'});\n" +
             "    return { address, publicKey, accounts: [{address}],\n" +
             "      network: networkInfo.id, networkInfo, chainId,\n" +
@@ -895,11 +903,11 @@ public class DappBrowserActivity extends AppCompatActivity implements DappJsBrid
             "    },\n" +
             "    isConnected() { return octraProvider.isConnected; },\n" +
             "    async getAccounts() {\n" +
-            "      const a = await octraProvider.request({method:'octra_accounts'});\n" +
+            "      const a = await octraProvider.request({method:'wallet_getAccounts'});\n" +
             "      return a.filter(x => !!x).map(address => ({address}));\n" +
             "    },\n" +
             "    async getAddress() {\n" +
-            "      const a = await octraProvider.request({method:'octra_accounts'});\n" +
+            "      const a = await octraProvider.request({method:'wallet_getAccounts'});\n" +
             "      return a[0] || '';\n" +
             "    },\n" +
             "    async getPublicKey() {\n" +
@@ -907,7 +915,7 @@ public class DappBrowserActivity extends AppCompatActivity implements DappJsBrid
             "      return r.publicKey;\n" +
             "    },\n" +
             "    async getBalance() {\n" +
-            "      const r = await octraProvider.request({method:'octra_getBalance'});\n" +
+            "      const r = await octraProvider.request({method:'wallet_getBalance'});\n" +
             "      const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };\n" +
             "      return { balance: String(r.balance ?? r.public ?? ''),\n" +
             "        balanceRaw: String(r.balance_raw ?? r.raw ?? ''),\n" +
@@ -925,7 +933,8 @@ public class DappBrowserActivity extends AppCompatActivity implements DappJsBrid
             "      return [n];\n" +
             "    },\n" +
             "    async getChainId() {\n" +
-            "      return octraProvider.request({method:'octra_chainId'});\n" +
+            "      const n = await octraProvider.request({method:'octra_networkInfo'});\n" +
+            "      return (n && typeof n === 'object' && (n.chainId || n.id)) || n;\n" +
             "    },\n" +
             "    async getPermissions() {\n" +
             "      return octraProvider.request({method:'octra_permissions'});\n" +

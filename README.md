@@ -107,7 +107,7 @@ setup.bat && octra_wallet.exe   # Windows
 1. Open `chrome://extensions/` → Enable "Developer mode"
 2. Click "Load unpacked" → Select `extensions/` folder
 
-**DApp Integration:**
+**DApp Integration (legacy — still works, dual-stack):**
 ```javascript
 if (window.octra) {
   const { address } = await window.octra.connect();
@@ -117,13 +117,27 @@ if (window.octra) {
 }
 ```
 
+**DApp Integration (recommended — adapter/RFC, canonical names):**
+```javascript
+import { OctraWalletAdapter, InjectedTransport } from './sdk/src/index.mjs';
+
+const adapter = new OctraWalletAdapter({ transports: [new InjectedTransport()] });
+await adapter.initialize();
+const { address } = await adapter.connect(['accounts']);
+await adapter.getBalance(); // wire: `getBalance`
+await adapter.sendTransaction({ to: 'oct...', amount: '1000000' }); // wire: `wallet_sendTransaction` (approval-gated)
+await adapter.contractView({ contract: 'oct_contract', method: 'balance_of', params: [] }); // wire: `wallet_callView` (read-only)
+await adapter.callContract({ contract: 'oct_contract', method: 'transfer', params: ['oct_recipient', '1000000'] }); // wire: `octra_sendContractTransaction`
+```
+
 **Features:**
 - AES-256-GCM encryption with PBKDF2 (600k iterations)
 - `window.octra` provider injection
 - DApp permission management
 - Custom RPC endpoint support
 
-[Full Extension Docs →](dapps/extensions/README.md)
+[Full Extension Docs →](docs/ADAPTER.md) · [Third-party mapping →](docs/THIRD-PARTY.md)
+<!-- NOTE: `dapps/extensions/` is not in this repo; the links above point at the relevant docs instead. -->
 
 ---
 
@@ -165,7 +179,8 @@ NEXT_PUBLIC_AMM_CONTRACT_ADDRESS=oct...
 NEXT_PUBLIC_TOKEN_FACTORY_ADDRESS=oct...
 ```
 
-[Full DEX Docs →](dapps/simple-dex/README.md)
+[Full DEX Docs →](docs/THIRD-PARTY.md)
+<!-- NOTE: `dapps/simple-dex/` is not in this repo; see docs/ for the wallet/dApp integration surface. -->
 
 ---
 
@@ -175,7 +190,7 @@ NEXT_PUBLIC_TOKEN_FACTORY_ADDRESS=oct...
 ```bash
 npm install @octra/sdk
 # or for local development
-npm install ../dapps/sdk
+npm install ./sdk
 ```
 
 **Usage:**
@@ -197,7 +212,8 @@ const supply = await token.totalSupply();
 - Protocol wrappers: OCS01 tokens, swap pools, Fuji bridge
 - Contract deployment and interaction helpers
 
-[Full SDK Docs →](dapps/sdk/README.md)
+[Full SDK Docs →](sdk/README.md)
+<!-- NOTE: the SDK lives at `sdk/`, not `dapps/sdk/`. -->
 
 ---
 

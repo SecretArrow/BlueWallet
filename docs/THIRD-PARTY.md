@@ -27,8 +27,10 @@ Reads and writes:
 | `getBalance` | `getBalance` `{forceRefresh}` | raw balance read (`balance` decimal OCT; missing `privateBalance` → SDK-side 0) |
 | `getPublicKey` | `getPublicKey` | `{publicKey}` when the wallet stored one, else an honest error |
 | `sendTransaction` | `octra_sendTransaction` `{to, amount, amountOct?, message?, ...}` | **approval dialog → submit** → `{tx_hash, hash, accepted: true, success: true}` |
+| `sendTransaction` (canonical NEW) | `wallet_sendTransaction` (same shape) | **approval dialog → submit** → same answer; native provider answers `wallet_*` directly |
 | `callContract` | `octra_sendContractTransaction` `{contract, method, params, amount?, ou?}` | **approval dialog → submit** (fee oracle stays authoritative; attached `ou` is read, not applied) |
 | `contractCallView` | `octra_callContract` `{contract, method, params, caller?}` | read-only view, no dialog |
+| `contractCallView` (canonical NEW) | `wallet_callView` (same shape) | read-only view, no dialog; native provider answers `wallet_*` directly |
 | `switchNetwork` | `octra_switchNetwork` `{networkId}` | `{network: current, switched}` — `true` only when already there (below) |
 | `disconnect` | `disconnect` | session cleared → `{success: true}` |
 | `ping`, `register_dapp` | — | answered inside the adapter, never reach the provider |

@@ -236,4 +236,21 @@ public class DappBridgeProtocolTest {
         assertFalse(DappBridgeProtocol.isSupported(null));
         assertFalse(DappBridgeProtocol.isSupported("eth_sendTransaction"));
     }
+
+    @Test
+    public void isSupported_coversWalletSendAndCallViewAliases() {
+        // Canonical wallet_* twins: submit (approval-gated) + read-only view.
+        for (String m : new String[]{"wallet_sendTransaction", "wallet_callView"}) {
+            assertTrue("expected supported: " + m, DappBridgeProtocol.isSupported(m));
+            // orion_wallet_* folds onto the same wallet_* operation.
+            assertTrue("expected alias supported: orion_" + m,
+                    DappBridgeProtocol.isSupported("orion_" + m));
+        }
+        // Twins stay served alongside legacy (dual-stack, nothing removed).
+        assertTrue(DappBridgeProtocol.isSupported("octra_sendTransaction"));
+        assertTrue(DappBridgeProtocol.isSupported("octra_callView"));
+        // Served set carries both names.
+        assertTrue(DappBridgeProtocol.WALLET_SERVED_METHODS.contains("wallet_sendTransaction"));
+        assertTrue(DappBridgeProtocol.WALLET_SERVED_METHODS.contains("wallet_callView"));
+    }
 }
