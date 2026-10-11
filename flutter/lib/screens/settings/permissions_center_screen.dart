@@ -131,8 +131,7 @@ class _PermissionsCenterScreenState extends State<PermissionsCenterScreen> {
             const SizedBox(height: 8),
             if (sessions.isEmpty)
               Text('No dApp has access to your wallet.',
-                  style:
-                      TextStyle(color: cs.onSurfaceVariant, fontSize: 13))
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13))
             else
               ...sessions.map((s) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -211,8 +210,7 @@ class _PermissionTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon,
-                size: 20,
-                color: value ? cs.primary : cs.onSurfaceVariant),
+                size: 20, color: value ? cs.primary : cs.onSurfaceVariant),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -222,8 +220,7 @@ class _PermissionTile extends StatelessWidget {
                 Text(title,
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 Text(subtitle,
-                    style:
-                        TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
               ],
             ),
           ),

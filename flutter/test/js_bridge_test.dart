@@ -50,10 +50,10 @@ class _Resp {
 void main() {
   AdapterContext ctx() => AdapterContext(
         requestApproval: (
-            {required String title,
-            required String body,
-            required String confirmLabel,
-            String? origin}) async =>
+                {required String title,
+                required String body,
+                required String confirmLabel,
+                String? origin}) async =>
             true,
         requestTxApproval: (
                 {required String title,

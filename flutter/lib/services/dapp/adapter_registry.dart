@@ -25,13 +25,11 @@ class AdapterRegistry {
   bool isKnownUnsupported(String? method) =>
       DappBridgeProtocol.isKnownUnsupported(method);
 
-  Future<AdapterResult> dispatch(
-      DappRequest request, AdapterContext ctx) {
+  Future<AdapterResult> dispatch(DappRequest request, AdapterContext ctx) {
     final adapter = adapterFor(request.method);
     if (adapter == null) {
       if (isKnownUnsupported(request.method)) {
-        throw DappError(
-            '${request.method} is not supported by this wallet',
+        throw DappError('${request.method} is not supported by this wallet',
             DappBridgeProtocol.unsupportedMethod);
       }
       throw DappError('Unsupported method: ${request.method}',

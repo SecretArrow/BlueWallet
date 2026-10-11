@@ -106,8 +106,8 @@ class RecentSitesService extends ChangeNotifier {
   Future<void> _persist() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(storeKey,
-          jsonEncode(_pages.map((p) => p.toJson()).toList()));
+      await prefs.setString(
+          storeKey, jsonEncode(_pages.map((p) => p.toJson()).toList()));
     } catch (_) {
       debugPrint('[RecentSites] persist failed (storage unavailable?)');
     }

@@ -23,8 +23,8 @@ class DappSessionStore extends ChangeNotifier {
   final Map<String, DappSession> _sessions = {};
   bool _loaded = false;
 
-  List<DappSession> get sessions =>
-      _sessions.values.toList()..sort((a, b) => b.connectedAtMs.compareTo(a.connectedAtMs));
+  List<DappSession> get sessions => _sessions.values.toList()
+    ..sort((a, b) => b.connectedAtMs.compareTo(a.connectedAtMs));
 
   bool get isLoaded => _loaded;
 
@@ -74,7 +74,8 @@ class DappSessionStore extends ChangeNotifier {
       sessionFor(origin)?.scopes ?? const ['accounts'];
 
   Future<void> grant(String origin,
-      {required String address, List<String> scopes = const ['accounts']}) async {
+      {required String address,
+      List<String> scopes = const ['accounts']}) async {
     if (!AdapterValidation.isPersistableOrigin(origin)) return;
     if (address.isEmpty) return;
     final normalized = AdapterValidation.normalizeOrigin(origin);

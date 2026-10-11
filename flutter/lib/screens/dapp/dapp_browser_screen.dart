@@ -139,8 +139,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
           // Record successful navigations for the Startpage (skips filtered
           // URLs internally; private mode skips entirely).
           if (url != 'about:blank') {
-            unawaited(_recent.record(url,
-                title: title ?? '', private: _privateMode));
+            unawaited(
+                _recent.record(url, title: title ?? '', private: _privateMode));
           }
         },
         onUrlChange: (change) {
@@ -237,15 +237,18 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _dispatch(DappRequest request,
-      Completer<AdapterResult> completer, WalletService ws, NetworkService ns) async {
+  Future<void> _dispatch(
+      DappRequest request,
+      Completer<AdapterResult> completer,
+      WalletService ws,
+      NetworkService ns) async {
     if (_disposed) return;
     final ctx = AdapterContext(
       requestApproval: (
-          {required String title,
-          required String body,
-          required String confirmLabel,
-          String? origin}) =>
+              {required String title,
+              required String body,
+              required String confirmLabel,
+              String? origin}) =>
           _showApprovalDialog(
               title: title, body: body, confirmLabel: confirmLabel),
       requestTxApproval: (
@@ -264,14 +267,12 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       // Grant / clear per-origin sessions for session methods.
       if (request.method == 'octra_requestAccounts' ||
           request.method == 'wallet_connect') {
-        final addr = result is List && result.isNotEmpty
-            ? result.first.toString()
-            : '';
+        final addr =
+            result is List && result.isNotEmpty ? result.first.toString() : '';
         if (addr.isNotEmpty) {
           await _sessions.grant(request.origin,
               address: addr,
-              scopes:
-                  DappBridgeProtocol.requestedPermissions(request.params));
+              scopes: DappBridgeProtocol.requestedPermissions(request.params));
         }
       } else if (request.method == 'disconnect' ||
           request.method == 'wallet_disconnect') {
@@ -579,8 +580,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final connected =
-        _sessions.isConnected(_originOf(_currentUrl)) &&
-            !_showingStartpage;
+        _sessions.isConnected(_originOf(_currentUrl)) && !_showingStartpage;
 
     return Scaffold(
       appBar: AppBar(
@@ -722,9 +722,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
                       isLoading: !_recent.isLoaded,
                       error: null,
                       pages: _recent.pages,
-                      bookmarks: _bookmarks.isEmpty
-                          ? _defaultShortcuts
-                          : _bookmarks,
+                      bookmarks:
+                          _bookmarks.isEmpty ? _defaultShortcuts : _bookmarks,
                       onOpen: (url, target) async {
                         // "New tab" is approximated by opening in place: the
                         // in-app browser is single-view. Documented in README.
@@ -752,8 +751,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
 
   void _showShortcuts() {
     final cs = Theme.of(context).colorScheme;
-    final shortcuts =
-        _bookmarks.isEmpty ? _defaultShortcuts : _bookmarks;
+    final shortcuts = _bookmarks.isEmpty ? _defaultShortcuts : _bookmarks;
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -829,8 +827,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
         await _sessions.revoke(_originOf(_currentUrl));
         if (mounted) {
           setState(() {});
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Site disconnected')));
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Site disconnected')));
         }
         try {
           await _controller.runJavaScript(
@@ -869,14 +867,17 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
     final exists = _bookmarks.any((b) => b['url'] == _currentUrl);
     if (exists) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Already bookmarked')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Already bookmarked')));
       }
       return;
     }
     final updated = [
       ..._bookmarks,
-      {'name': _pageTitle.isEmpty ? _currentUrl : _pageTitle, 'url': _currentUrl}
+      {
+        'name': _pageTitle.isEmpty ? _currentUrl : _pageTitle,
+        'url': _currentUrl
+      }
     ];
     try {
       final prefs = await SharedPreferences.getInstance();

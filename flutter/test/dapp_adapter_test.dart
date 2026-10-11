@@ -22,10 +22,10 @@ class _StubAdapter implements WalletAdapter {
 
 AdapterContext _ctx() => AdapterContext(
       requestApproval: (
-          {required String title,
-          required String body,
-          required String confirmLabel,
-          String? origin}) async =>
+              {required String title,
+              required String body,
+              required String confirmLabel,
+              String? origin}) async =>
           false,
       requestTxApproval: (
               {required String title,
@@ -40,8 +40,8 @@ AdapterContext _ctx() => AdapterContext(
 void main() {
   group('AdapterValidation origins', () {
     test('accepts https/http/oct/about:blank, rejects exotic schemes', () {
-      expect(AdapterValidation.isValidOrigin('https://app.example.com'),
-          isTrue);
+      expect(
+          AdapterValidation.isValidOrigin('https://app.example.com'), isTrue);
       expect(AdapterValidation.isValidOrigin('http://localhost:3000'), isTrue);
       expect(AdapterValidation.isValidOrigin('oct://abc/index.html'), isTrue);
       expect(AdapterValidation.isValidOrigin('about:blank'), isTrue);
@@ -53,16 +53,14 @@ void main() {
 
     test('about:blank is valid but not persistable', () {
       expect(AdapterValidation.isPersistableOrigin('about:blank'), isFalse);
-      expect(
-          AdapterValidation.isPersistableOrigin('https://app.example.com'),
+      expect(AdapterValidation.isPersistableOrigin('https://app.example.com'),
           isTrue);
     });
 
     test('normalizeOrigin lowercases + strips paths', () {
       expect(AdapterValidation.normalizeOrigin('https://APP.example.com/a?x=1'),
           'https://app.example.com');
-      expect(AdapterValidation.normalizeOrigin('oct://AbC/page'),
-          'oct://abc');
+      expect(AdapterValidation.normalizeOrigin('oct://AbC/page'), 'oct://abc');
     });
   });
 
@@ -129,8 +127,8 @@ void main() {
       expect(RecentSitesService.isRecordableUrl('oct://abc/page'), isTrue);
       expect(RecentSitesService.isRecordableUrl('about:blank'), isFalse);
       expect(RecentSitesService.isRecordableUrl('chrome-error://x'), isFalse);
-      expect(RecentSitesService.isRecordableUrl('javascript:alert(1)'),
-          isFalse);
+      expect(
+          RecentSitesService.isRecordableUrl('javascript:alert(1)'), isFalse);
       expect(RecentSitesService.isRecordableUrl('data:text/html,hi'), isFalse);
       expect(RecentSitesService.isRecordableUrl(''), isFalse);
       expect(
@@ -138,14 +136,12 @@ void main() {
               'https://x.test/?mnemonic=word+list'),
           isFalse);
       expect(
-          RecentSitesService.isRecordableUrl(
-              'https://x.test/?privatekey=abc'),
+          RecentSitesService.isRecordableUrl('https://x.test/?privatekey=abc'),
           isFalse);
     });
 
     test('VisitedPage.domainOf strips www + handles oct', () {
-      expect(VisitedPage.domainOf('https://www.example.com/a'),
-          'example.com');
+      expect(VisitedPage.domainOf('https://www.example.com/a'), 'example.com');
       expect(VisitedPage.domainOf('oct://MyCircle/page'), 'mycircle');
     });
   });

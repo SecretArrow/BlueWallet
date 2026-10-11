@@ -71,8 +71,8 @@ class StartpageView extends StatelessWidget {
           Row(
             children: [
               Text('Bookmarks',
-                  style: text.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+                  style:
+                      text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
               const Spacer(),
               if (onBookmarksTap != null)
                 TextButton(
@@ -86,8 +86,8 @@ class StartpageView extends StatelessWidget {
               decoration: BoxDecoration(
                 color: cs.surface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: cs.outlineVariant.withValues(alpha: 0.4)),
+                border:
+                    Border.all(color: cs.outlineVariant.withValues(alpha: 0.4)),
               ),
               child: Row(
                 children: [
@@ -124,12 +124,11 @@ class StartpageView extends StatelessWidget {
           Row(
             children: [
               Text('Recent',
-                  style: text.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+                  style:
+                      text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(width: 8),
               Text('${pages.length}/${RecentSitesService.maxEntries}',
-                  style:
-                      TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
               const Spacer(),
               if (pages.isNotEmpty)
                 TextButton.icon(
@@ -162,8 +161,8 @@ class StartpageView extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Clear history?'),
-        content: const Text(
-            'Delete all recently visited sites from this device?'),
+        content:
+            const Text('Delete all recently visited sites from this device?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -196,7 +195,8 @@ class _SearchBarState extends State<_SearchBar> {
     super.dispose();
   }
 
-  static String resolveQuery(String input) => StartpageView.resolveSearchUrl(input);
+  static String resolveQuery(String input) =>
+      StartpageView.resolveSearchUrl(input);
 
   Future<void> _go() async {
     final fn = widget.onSearch;
@@ -265,8 +265,7 @@ class _BookmarkChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surface,
           borderRadius: BorderRadius.circular(12),
-          border:
-              Border.all(color: cs.outlineVariant.withValues(alpha: 0.4)),
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.4)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -276,8 +275,8 @@ class _BookmarkChip extends StatelessWidget {
             Text(name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w600)),
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             Text(VisitedPage.domainOf(url),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

@@ -9,14 +9,13 @@ void main() {
 
   group('StartpageView.resolveSearchUrl', () {
     test('bare domains gain https, queries become search URLs', () {
-      expect(StartpageView.resolveSearchUrl('example.com'),
-          'https://example.com');
+      expect(
+          StartpageView.resolveSearchUrl('example.com'), 'https://example.com');
       expect(StartpageView.resolveSearchUrl('https://example.com/a'),
           'https://example.com/a');
-      expect(StartpageView.resolveSearchUrl('oct://abc/page'),
-          'oct://abc/page');
       expect(
-          StartpageView.resolveSearchUrl('octra wallet'),
+          StartpageView.resolveSearchUrl('oct://abc/page'), 'oct://abc/page');
+      expect(StartpageView.resolveSearchUrl('octra wallet'),
           startsWith('https://duckduckgo.com/?q='));
       expect(StartpageView.resolveSearchUrl('  '), '');
     });
@@ -42,9 +41,7 @@ void main() {
       expect(svc.pages.first.url, 'https://site5.example/page');
       expect(svc.pages.first.title, 'S5-new');
       expect(
-          svc.pages
-              .where((p) => p.url == 'https://site5.example/page')
-              .length,
+          svc.pages.where((p) => p.url == 'https://site5.example/page').length,
           1);
     });
 

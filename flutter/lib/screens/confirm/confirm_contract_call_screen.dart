@@ -23,7 +23,8 @@ import '../../widgets/tonal_button.dart';
 class ConfirmContractCallScreen extends StatefulWidget {
   final String requestId;
   final Map<String, dynamic>? details;
-  const ConfirmContractCallScreen({super.key, required this.requestId, this.details});
+  const ConfirmContractCallScreen(
+      {super.key, required this.requestId, this.details});
 
   @override
   State<ConfirmContractCallScreen> createState() =>
@@ -213,11 +214,12 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.error_outline_rounded, size: 48, color: cs.error),
+                    Icon(Icons.error_outline_rounded,
+                        size: 48, color: cs.error),
                     const SizedBox(height: 16),
                     const Text('Request Expired',
-                        style:
-                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     const Text(
                       'This transaction request has expired, was already resolved, or does not exist.',
@@ -408,8 +410,7 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.warning_rounded,
-                            color: cs.onErrorContainer),
+                        Icon(Icons.warning_rounded, color: cs.onErrorContainer),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(_error!,

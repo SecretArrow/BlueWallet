@@ -51,8 +51,7 @@ class _DappOriginsScreenState extends State<DappOriginsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Disconnect all sites?'),
-        content: const Text(
-            'Every dApp will need to request access again.'),
+        content: const Text('Every dApp will need to request access again.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -103,8 +102,8 @@ class _DappOriginsScreenState extends State<DappOriginsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Sites you approve in the dApp browser appear here.',
-                      style: TextStyle(
-                          color: cs.onSurfaceVariant, fontSize: 12),
+                      style:
+                          TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
                     ),
                   ],
                 ),
@@ -155,19 +154,16 @@ class _DappOriginsScreenState extends State<DappOriginsScreen> {
                           icon: const Icon(Icons.copy_rounded, size: 16),
                           tooltip: 'Copy origin',
                           onPressed: () {
-                            Clipboard.setData(
-                                ClipboardData(text: s.origin));
+                            Clipboard.setData(ClipboardData(text: s.origin));
                             ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('Origin copied')));
+                                const SnackBar(content: Text('Origin copied')));
                           },
                         ),
                         IconButton(
                           icon: Icon(Icons.delete_outline_rounded,
                               size: 18, color: cs.error),
                           tooltip: 'Revoke access',
-                          onPressed:
-                              _busy ? null : () => _revoke(s.origin),
+                          onPressed: _busy ? null : () => _revoke(s.origin),
                         ),
                       ],
                     ),

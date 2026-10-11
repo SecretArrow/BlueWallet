@@ -28,9 +28,8 @@ class VisitedPage {
         url: url,
         title: v['title']?.toString() ?? '',
         domain: v['domain']?.toString() ?? '',
-        visitedAtMs: v['visitedAtMs'] is num
-            ? (v['visitedAtMs'] as num).toInt()
-            : 0,
+        visitedAtMs:
+            v['visitedAtMs'] is num ? (v['visitedAtMs'] as num).toInt() : 0,
       );
     } catch (_) {
       return null;

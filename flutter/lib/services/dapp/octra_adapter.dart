@@ -198,9 +198,8 @@ class OctraAdapter implements WalletAdapter {
     } catch (_) {
       wanted = '';
     }
-    final current = networks.activeChainId.contains('mainnet')
-        ? 'mainnet'
-        : 'devnet';
+    final current =
+        networks.activeChainId.contains('mainnet') ? 'mainnet' : 'devnet';
     final same = wanted.isNotEmpty &&
         (wanted.toLowerCase() == current ||
             wanted.toLowerCase() == networks.activeChainId.toLowerCase());
@@ -235,9 +234,7 @@ class OctraAdapter implements WalletAdapter {
     final args = params.length > 2 && params[2] is List
         ? (params[2] as List)
         : <dynamic>[];
-    final caller = params.length > 3
-        ? params[3].toString()
-        : _activeAddress;
+    final caller = params.length > 3 ? params[3].toString() : _activeAddress;
     try {
       return await wallets.rpcCall(
           networks.activeNodeUrl, 'contract_call', [addr, fn, args, caller]);
@@ -286,7 +283,8 @@ class OctraAdapter implements WalletAdapter {
       title: 'Send Transaction',
       to: to,
       amount: amount,
-      extra: '${memo != null ? 'Message: $memo\n' : ''}Origin: ${request.origin}',
+      extra:
+          '${memo != null ? 'Message: $memo\n' : ''}Origin: ${request.origin}',
       origin: request.origin,
     );
     if (!approved) {
@@ -335,8 +333,7 @@ class OctraAdapter implements WalletAdapter {
     } catch (e) {
       throw DappError('Invalid params: $e');
     }
-    return _submitContract(
-        request, ctx, contract, fn, args, amount);
+    return _submitContract(request, ctx, contract, fn, args, amount);
   }
 
   Future<AdapterResult> _handleCallContract(
@@ -353,11 +350,10 @@ class OctraAdapter implements WalletAdapter {
         throw DappError('Invalid params: view needs contract + method');
       }
       final args = view['params'] is List ? (view['params'] as List) : [];
-      final caller =
-          (view['caller'] ?? _activeAddress).toString();
+      final caller = (view['caller'] ?? _activeAddress).toString();
       try {
-        return await wallets.rpcCall(networks.activeNodeUrl,
-            'contract_call', [contract, fn, args, caller]);
+        return await wallets.rpcCall(networks.activeNodeUrl, 'contract_call',
+            [contract, fn, args, caller]);
       } catch (e) {
         throw DappError('Network unavailable: ${_shortErr(e)}',
             DappBridgeProtocol.networkUnavailable);
@@ -373,8 +369,7 @@ class OctraAdapter implements WalletAdapter {
     }
     final callArgs =
         params.length > 2 && params[2] is List ? (params[2] as List) : [];
-    final callAmount =
-        (params.length > 3 ? params[3] : '0').toString();
+    final callAmount = (params.length > 3 ? params[3] : '0').toString();
     return _submitContract(
         request, ctx, contractAddr, fn, callArgs, callAmount);
   }

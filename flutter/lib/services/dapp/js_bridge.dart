@@ -138,8 +138,8 @@ class JsBridge {
 
     final origin = currentOrigin();
     if (!AdapterValidation.isValidOrigin(origin)) {
-      _fail(jsId, 'Rejected: untrusted origin',
-          DappBridgeProtocol.unauthorized);
+      _fail(
+          jsId, 'Rejected: untrusted origin', DappBridgeProtocol.unauthorized);
       return;
     }
 
@@ -241,12 +241,15 @@ class JsBridge {
             DappBridgeProtocol.networkUnavailable));
       }
     });
-    _pending[jsId] =
-        _Pending(completer: completer, timer: timer, origin: currentOrigin(), method: 'connect');
+    _pending[jsId] = _Pending(
+        completer: completer,
+        timer: timer,
+        origin: currentOrigin(),
+        method: 'connect');
     completer.future.then((address) {
       if (address == null || address.isEmpty) {
-        _fail(jsId, 'User rejected connection',
-            DappBridgeProtocol.userRejected);
+        _fail(
+            jsId, 'User rejected connection', DappBridgeProtocol.userRejected);
       } else {
         _succeed(jsId, {'address': address, 'ok': true});
       }
@@ -291,8 +294,8 @@ class JsBridge {
       final p = _pending.remove(id);
       p?.timer.cancel();
       if (p != null && !p.completer.isCompleted) {
-        p.completer.completeError(DappError(reason,
-            DappBridgeProtocol.userRejected));
+        p.completer
+            .completeError(DappError(reason, DappBridgeProtocol.userRejected));
       }
     }
   }
@@ -302,8 +305,8 @@ class JsBridge {
     final p = _pending.remove(jsId);
     p?.timer.cancel();
     if (p != null && !p.completer.isCompleted) {
-      p.completer.completeError(
-          DappError(reason, DappBridgeProtocol.userRejected));
+      p.completer
+          .completeError(DappError(reason, DappBridgeProtocol.userRejected));
     }
   }
 
@@ -314,8 +317,8 @@ class JsBridge {
       final p = _pending.remove(id);
       p?.timer.cancel();
       if (p != null && !p.completer.isCompleted) {
-        p.completer.completeError(DappError(reason,
-            DappBridgeProtocol.userRejected));
+        p.completer
+            .completeError(DappError(reason, DappBridgeProtocol.userRejected));
       }
     }
   }

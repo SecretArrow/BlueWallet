@@ -119,13 +119,10 @@ class AdapterValidation {
     if (lower == 'about:blank') return true;
     final uri = Uri.tryParse(origin);
     if (uri == null) return false;
-    if (uri.scheme != 'http' &&
-        uri.scheme != 'https' &&
-        uri.scheme != 'oct') {
+    if (uri.scheme != 'http' && uri.scheme != 'https' && uri.scheme != 'oct') {
       return false;
     }
-    if ((uri.scheme == 'http' || uri.scheme == 'https') &&
-        uri.host.isEmpty) {
+    if ((uri.scheme == 'http' || uri.scheme == 'https') && uri.host.isEmpty) {
       return false;
     }
     return true;
