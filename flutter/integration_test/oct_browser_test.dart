@@ -49,6 +49,30 @@ void main() {
       }
     }
 
+    // Tolerate external-RPC outages (CI sandbox often blocks octra.network)
+    // without hiding real renderer errors: only skip when the "Cannot open"
+    // text carries a network marker; otherwise fail as before.
+    final cannotOpen = find.textContaining('Cannot open');
+    if (cannotOpen.evaluate().isNotEmpty) {
+      final details = cannotOpen.evaluate().map((e) {
+        final w = e.widget;
+        if (w is Text) return w.data ?? '';
+        if (w is RichText) return w.text.toPlainText();
+        return w.toString();
+      }).join('\n');
+      final lowered = details.toLowerCase();
+      final isNetworkFailure = details.contains('ClientException') ||
+          details.contains('Socket') ||
+          lowered.contains('timeout') ||
+          lowered.contains('timed out') ||
+          lowered.contains('network is unreachable');
+      if (isNetworkFailure) {
+        markTestSkipped(
+            'skipped: external RPC unreachable from CI emulator ($details)');
+        return;
+      }
+    }
+
     expect(find.textContaining('Cannot open'), findsNothing,
         reason: 'the circle page must render without errors');
     expect(find.byType(DappBrowserScreen), findsOneWidget);
