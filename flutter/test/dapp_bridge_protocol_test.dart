@@ -93,8 +93,8 @@ void main() {
       }
       expect(DappBridgeProtocol.isKnownUnsupported('octra_broadcast'), isFalse);
       expect(DappBridgeProtocol.isKnownUnsupported(null), isFalse);
-      expect(
-          DappBridgeProtocol.isKnownUnsupported('  octra_signMessage  '), isTrue);
+      expect(DappBridgeProtocol.isKnownUnsupported('  octra_signMessage  '),
+          isTrue);
     });
 
     test('requestedPermissions defaults safely', () {
@@ -118,12 +118,18 @@ void main() {
             {'to': 'octX', 'amount': '1'}
           ])['to'],
           'octX');
-      expect(
-          DappBridgeProtocol.txObject({'to': 'octY', 'amount': '2'})['to'],
+      expect(DappBridgeProtocol.txObject({'to': 'octY', 'amount': '2'})['to'],
           'octY');
-      for (final bad in [null, [], [42], 42, 's']) {
+      for (final bad in [
+        null,
+        [],
+        [42],
+        42,
+        's'
+      ]) {
         expect(() => DappBridgeProtocol.txObject(bad),
-            throwsA(isA<FormatException>()), reason: '$bad');
+            throwsA(isA<FormatException>()),
+            reason: '$bad');
       }
     });
 
@@ -143,7 +149,8 @@ void main() {
         {'amountOct': '1.2345678'},
       ]) {
         expect(() => DappBridgeProtocol.resolveTxAmount(bad),
-            throwsA(isA<FormatException>()), reason: '$bad');
+            throwsA(isA<FormatException>()),
+            reason: '$bad');
       }
     });
 
@@ -161,12 +168,8 @@ void main() {
               {'contract': 'c', 'method': 'm', 'params': []}),
           isTrue);
       expect(
-          DappBridgeProtocol.isViewCall({
-            'contract': 'c',
-            'method': 'm',
-            'params': [],
-            'caller': 'x'
-          }),
+          DappBridgeProtocol.isViewCall(
+              {'contract': 'c', 'method': 'm', 'params': [], 'caller': 'x'}),
           isTrue);
       expect(
           DappBridgeProtocol.isViewCall(

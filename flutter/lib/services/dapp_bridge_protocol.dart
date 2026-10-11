@@ -101,9 +101,8 @@ class DappBridgeProtocol {
   static List<String> requestedPermissions(dynamic params) {
     const fallback = ['accounts'];
     try {
-      final first = params is List
-          ? (params.isEmpty ? null : params.first)
-          : params;
+      final first =
+          params is List ? (params.isEmpty ? null : params.first) : params;
       final list = first is Map ? first['permissions'] : null;
       if (list is! List || list.isEmpty) return List.of(fallback);
       final out = <String>[];
@@ -121,9 +120,8 @@ class DappBridgeProtocol {
   /// `[{...}]` array or a bare `{...}` object (third-party adapters).
   /// Throws [FormatException] naming the problem (never returns null).
   static Map<String, dynamic> txObject(dynamic params) {
-    final first = params is List
-        ? (params.isEmpty ? null : params.first)
-        : params;
+    final first =
+        params is List ? (params.isEmpty ? null : params.first) : params;
     if (first is Map) return Map<String, dynamic>.from(first);
     throw FormatException(
         'params must be an object or a single-element array, got ${params == null ? 'null' : params.runtimeType}');
@@ -169,9 +167,8 @@ class DappBridgeProtocol {
     while (frac.length < 6) {
       frac += '0';
     }
-    final micro =
-        (whole.replaceFirst(RegExp(r'^0+(?=\d)'), '') + frac)
-            .replaceFirst(RegExp(r'^0+(?=\d)'), '');
+    final micro = (whole.replaceFirst(RegExp(r'^0+(?=\d)'), '') + frac)
+        .replaceFirst(RegExp(r'^0+(?=\d)'), '');
     return micro.isEmpty ? '0' : micro;
   }
 

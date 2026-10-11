@@ -430,8 +430,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
     final same = wanted.isNotEmpty &&
         (wanted.toLowerCase() == current ||
             wanted.toLowerCase() == ns.activeChainId.toLowerCase());
-    _bridgeResult(
-        id, jsonEncode({'network': current, 'switched': same}));
+    _bridgeResult(id, jsonEncode({'network': current, 'switched': same}));
   }
 
   /// Approval-gated native transfer. Accepts the legacy `[{to, amount, memo?}]`
@@ -497,8 +496,13 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
     // `hash` + `accepted` for third-party adapters; raw `tx_hash` preserved.
     _bridgeResult(
         id,
-        jsonEncode(
-            {'tx_hash': hash, 'hash': hash, 'accepted': true, 'success': true, 'ok': true}));
+        jsonEncode({
+          'tx_hash': hash,
+          'hash': hash,
+          'accepted': true,
+          'success': true,
+          'ok': true
+        }));
   }
 
   /// Approval-gated contract submit from the object form
@@ -541,7 +545,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       return;
     }
     final args = view['params'] is List ? (view['params'] as List) : [];
-    final caller = (view['caller'] ?? ws.activeWallet?.address ?? '').toString();
+    final caller =
+        (view['caller'] ?? ws.activeWallet?.address ?? '').toString();
     final result = await ws.rpcCall(
         ns.activeNodeUrl, 'contract_call', [contract, fn, args, caller]);
     _bridgeResult(id, jsonEncode(result));
