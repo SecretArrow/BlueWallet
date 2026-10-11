@@ -324,9 +324,23 @@ public class MainActivity extends AppCompatActivity {
         ViewCompat.requestApplyInsets(bottomBar);
     }
 
+    /**
+     * Section the bottom-nav highlight currently sits on. The Browser tab
+     * opens its own activity (the WebView + provider bridge live there), so
+     * tapping it must not move the highlight — it is restored here on return.
+     */
+    private int currentSectionId = R.id.nav_dashboard;
+
     private void setupBottomNavigation() {
         bottomNavigation.setOnItemSelectedListener(item -> {
             if (isBottomNavBinding) {
+                return true;
+            }
+            if (item.getItemId() == R.id.nav_browser) {
+                startActivity(new Intent(this, DappBrowserActivity.class));
+                isBottomNavBinding = true;
+                bottomNavigation.setSelectedItemId(currentSectionId);
+                isBottomNavBinding = false;
                 return true;
             }
             showMainSection(item.getItemId());
@@ -335,6 +349,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showMainSection(int navId) {
+        currentSectionId = navId;
         dashboardRefresh.setEnabled(false);
         dashboardRefresh.setVisibility(View.GONE);
         historyView.setVisibility(View.GONE);
