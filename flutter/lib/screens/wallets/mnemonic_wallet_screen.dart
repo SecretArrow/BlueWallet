@@ -44,6 +44,7 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   Future<void> _generate() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -98,8 +99,13 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
         }
       }
 
-      // Check if we got a valid result
-      if (phrase == null || kp == null) {
+      // Check if we got a valid result. Copy to fresh locals first: `phrase`
+      // and `kp` are reassigned inside the loop above, so they do not
+      // promote after it — assert once here instead of `!` everywhere.
+      final readyPhrase = phrase;
+      final readyKp = kp;
+      if (readyPhrase == null || readyKp == null) {
+        if (!mounted) return;
         setState(() {
           _error =
               'Failed to generate valid wallet after multiple attempts. Please try again.';
@@ -109,13 +115,24 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
       }
 
       // We have a valid wallet at this point
+      final address = readyKp['address']?.toString() ?? '';
+      if (address.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _error = 'Generation produced an empty address. Please try again.';
+          _loading = false;
+        });
+        return;
+      }
+      if (!mounted) return;
       setState(() {
-        _mnemonic = phrase!;
-        _previewAddress = kp!['address']!;
+        _mnemonic = readyPhrase;
+        _previewAddress = address;
         _loading = false;
       });
     } catch (e) {
       // This should never happen, but just in case
+      if (!mounted) return;
       setState(() {
         _error = 'Generation failed: $e';
         _loading = false;
@@ -153,6 +170,7 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
         context.pop();
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString().replaceFirst('Exception: ', '');
         _creating = false;
@@ -192,157 +210,161 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Create with Mnemonic')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Info banner ─────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: cs.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline_rounded,
-                      color: cs.onPrimaryContainer, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Store your seed phrase safely — it cannot be recovered if lost.',
-                      style:
-                          TextStyle(color: cs.onPrimaryContainer, fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // ── Name input ──────────────────────────────────────────────
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Wallet Name (optional)',
-                hintText: 'e.g. My HD Wallet',
-                border: OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.words,
-            ),
-            const SizedBox(height: 14),
-
-            // ── Derivation path ─────────────────────────────────────────
-            TextField(
-              controller: _pathCtrl,
-              decoration: InputDecoration(
-                labelText: 'HD Derivation Path',
-                hintText: "m/44'/540'/0'/0'/0'",
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.restore_rounded),
-                  tooltip: 'Reset to default',
-                  onPressed: () => _pathCtrl.text = _kDefaultPath,
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Info banner ─────────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "Tip: all components must be hardened (').  "
-              "Common paths: m/44'/540'/0'/0'/0'  or  m/0'/0'",
-              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-            ),
-            const SizedBox(height: 20),
-
-            // ── Generate button ─────────────────────────────────────────
-            TonalButton(
-              label: 'Generate',
-              icon: Icons.shuffle_rounded,
-              loading: _loading,
-              onPressed: (_loading || _creating) ? null : _generate,
-            ),
-            const SizedBox(height: 20),
-
-            // ── Mnemonic phrase display ─────────────────────────────────
-            if (hasMnemonic) ...[
-              OctopusCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.lock_outline_rounded,
-                            color: cs.primary, size: 18),
-                        const SizedBox(width: 8),
-                        Text('Seed Phrase (12 words)',
-                            style: tt.titleSmall?.copyWith(
-                                color: cs.primary,
-                                fontWeight: FontWeight.bold)),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(Icons.copy_rounded, size: 18),
-                          tooltip: 'Copy seed phrase',
-                          onPressed: _copyPhrase,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _MnemonicGrid(words: _mnemonic.split(' ')),
-                    const SizedBox(height: 14),
-                    const Divider(),
-                    const SizedBox(height: 10),
-                    Text('Derived Address',
-                        style: tt.labelSmall
-                            ?.copyWith(color: cs.onSurfaceVariant)),
-                    const SizedBox(height: 4),
-                    SelectableText(
-                      _previewAddress,
-                      style: const TextStyle(
-                          fontFamily: 'monospace', fontSize: 12),
+                    Icon(Icons.info_outline_rounded,
+                        color: cs.onPrimaryContainer, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Store your seed phrase safely — it cannot be recovered if lost.',
+                        style: TextStyle(
+                            color: cs.onPrimaryContainer, fontSize: 13),
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 20),
 
-              // ── Error ───────────────────────────────────────────────
-              if (_error != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cs.errorContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(_error!,
-                      style: TextStyle(color: cs.onErrorContainer)),
+              // ── Name input ──────────────────────────────────────────────
+              TextField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Wallet Name (optional)',
+                  hintText: 'e.g. My HD Wallet',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(height: 12),
-              ],
-
-              // ── Create Now button ───────────────────────────────────
-              TonalButton(
-                label: 'Create Now',
-                icon: Icons.check_circle_rounded,
-                loading: _creating,
-                onPressed: (_loading || _creating) ? null : _createNow,
+                textCapitalization: TextCapitalization.words,
               ),
-            ] else ...[
-              if (_error != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cs.errorContainer,
-                    borderRadius: BorderRadius.circular(10),
+              const SizedBox(height: 14),
+
+              // ── Derivation path ─────────────────────────────────────────
+              TextField(
+                controller: _pathCtrl,
+                decoration: InputDecoration(
+                  labelText: 'HD Derivation Path',
+                  hintText: "m/44'/540'/0'/0'/0'",
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.restore_rounded),
+                    tooltip: 'Reset to default',
+                    onPressed: () => _pathCtrl.text = _kDefaultPath,
                   ),
-                  child: Text(_error!,
-                      style: TextStyle(color: cs.onErrorContainer)),
                 ),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Tip: all components must be hardened (').  "
+                "Common paths: m/44'/540'/0'/0'/0'  or  m/0'/0'",
+                style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 20),
+
+              // ── Generate button ─────────────────────────────────────────
+              TonalButton(
+                label: 'Generate',
+                icon: Icons.shuffle_rounded,
+                loading: _loading,
+                onPressed: (_loading || _creating) ? null : _generate,
+              ),
+              const SizedBox(height: 20),
+
+              // ── Mnemonic phrase display ─────────────────────────────────
+              if (hasMnemonic) ...[
+                OctopusCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.lock_outline_rounded,
+                              color: cs.primary, size: 18),
+                          const SizedBox(width: 8),
+                          Text('Seed Phrase (12 words)',
+                              style: tt.titleSmall?.copyWith(
+                                  color: cs.primary,
+                                  fontWeight: FontWeight.bold)),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.copy_rounded, size: 18),
+                            tooltip: 'Copy seed phrase',
+                            onPressed: _copyPhrase,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _MnemonicGrid(words: _mnemonic.split(' ')),
+                      const SizedBox(height: 14),
+                      const Divider(),
+                      const SizedBox(height: 10),
+                      Text('Derived Address',
+                          style: tt.labelSmall
+                              ?.copyWith(color: cs.onSurfaceVariant)),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        _previewAddress,
+                        style: const TextStyle(
+                            fontFamily: 'monospace', fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // ── Error ───────────────────────────────────────────────
+                if (_error != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cs.errorContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(_error!,
+                        style: TextStyle(color: cs.onErrorContainer)),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // ── Create Now button ───────────────────────────────────
+                TonalButton(
+                  label: 'Create Now',
+                  icon: Icons.check_circle_rounded,
+                  loading: _creating,
+                  onPressed: (_loading || _creating) ? null : _createNow,
+                ),
+              ] else ...[
+                if (_error != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cs.errorContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(_error!,
+                        style: TextStyle(color: cs.onErrorContainer)),
+                  ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

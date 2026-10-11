@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/tx_record.dart';
 import '../../services/wallet_service.dart';
 import '../../services/data_usage_service.dart';
 import '../../widgets/tonal_button.dart';
@@ -30,14 +31,17 @@ class _StealthTaskDetailScreenState extends State<StealthTaskDetailScreen> {
   }
 
   Future<void> _loadDataUsage() async {
+    if (!mounted) return;
     setState(() => _isLoadingDataUsage = true);
     try {
       final sessionUsage = await _dataUsageService.getSessionUsage();
+      if (!mounted) return;
       setState(() {
         _sessionUsage = sessionUsage;
         _isLoadingDataUsage = false;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() => _isLoadingDataUsage = false);
     }
   }
@@ -46,11 +50,32 @@ class _StealthTaskDetailScreenState extends State<StealthTaskDetailScreen> {
   Widget build(BuildContext context) {
     final ws = context.watch<WalletService>();
 
-    // Find the transaction in history
-    final tx = ws.history.firstWhere(
-      (t) => t.hash == widget.taskId,
-      orElse: () => throw Exception('Transaction not found'),
-    );
+    // Find the transaction in history. A missing entry (e.g. deep link with
+    // a stale id, or history cleared) must show a fallback, never throw
+    // inside build.
+    TxRecord? tx;
+    try {
+      tx = ws.history.firstWhere((t) => t.hash == widget.taskId);
+    } catch (_) {
+      tx = null;
+    }
+    if (tx == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Stealth Task'),
+          leading: IconButton(
+            icon: const Icon(Icons.chevron_left_rounded),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: const SafeArea(
+          child: Center(child: Text('Transaction not found')),
+        ),
+      );
+    }
+    final t = tx;
+    final memo = t.memo ?? '';
+    final blockHash = t.blockHash ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -74,27 +99,27 @@ class _StealthTaskDetailScreenState extends State<StealthTaskDetailScreen> {
                     _buildDetailRow(
                       context,
                       'Task ID',
-                      tx.hash,
+                      t.hash,
                       monospace: true,
                     ),
                     _buildDivider(context),
                     _buildDetailRow(
                       context,
                       'Recipient',
-                      tx.toAddress.isEmpty ? '-' : tx.toAddress,
+                      t.toAddress.isEmpty ? '-' : t.toAddress,
                       monospace: true,
                     ),
                     _buildDivider(context),
                     _buildDetailRow(
                       context,
                       'Amount',
-                      '${tx.amount} OCT',
+                      '${t.amount} OCT',
                     ),
                     _buildDivider(context),
                     _buildDetailRow(
                       context,
                       'Status',
-                      tx.status,
+                      t.status,
                       bold: true,
                     ),
                     _buildDivider(context),
@@ -104,14 +129,14 @@ class _StealthTaskDetailScreenState extends State<StealthTaskDetailScreen> {
                     _buildDetailRow(
                       context,
                       'Message',
-                      tx.memo == null || tx.memo!.isEmpty ? '-' : tx.memo!,
+                      memo.isEmpty ? '-' : memo,
                     ),
-                    if (tx.blockHash != null && tx.blockHash!.isNotEmpty) ...[
+                    if (blockHash.isNotEmpty) ...[
                       _buildDivider(context),
                       _buildDetailRow(
                         context,
                         'Block Hash',
-                        tx.blockHash!,
+                        blockHash,
                         monospace: true,
                       ),
                     ],
@@ -119,7 +144,7 @@ class _StealthTaskDetailScreenState extends State<StealthTaskDetailScreen> {
                     _buildDetailRow(
                       context,
                       'Created',
-                      _formatTimestamp(tx.timestamp),
+                      _formatTimestamp(t.timestamp),
                     ),
                   ],
                 ),

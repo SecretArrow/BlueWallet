@@ -41,7 +41,12 @@ class _DevComputeAddrScreenState extends State<DevComputeAddrScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final nonce = int.tryParse(_nonceCtrl.text.trim());
+    if (nonce == null) {
+      if (mounted) setState(() => _error = 'Enter a valid nonce');
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -53,7 +58,7 @@ class _DevComputeAddrScreenState extends State<DevComputeAddrScreen> {
       final addr = await ws.computeContractAddress(
         ns.activeNodeUrl,
         _deployerCtrl.text.trim(),
-        int.parse(_nonceCtrl.text.trim()),
+        nonce,
       );
       if (mounted) setState(() => _address = addr);
     } catch (e) {

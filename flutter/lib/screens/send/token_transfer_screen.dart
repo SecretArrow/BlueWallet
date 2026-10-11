@@ -35,10 +35,10 @@ class _TokenTransferScreenState extends State<TokenTransferScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.initialTokenAddress != null &&
-        widget.initialTokenAddress!.isNotEmpty) {
-      _tokenAddrCtrl.text = widget.initialTokenAddress!;
-      _selectedDropdownToken = widget.initialTokenAddress;
+    final initial = widget.initialTokenAddress?.trim() ?? '';
+    if (initial.isNotEmpty) {
+      _tokenAddrCtrl.text = initial;
+      _selectedDropdownToken = initial;
     }
   }
 
@@ -51,7 +51,7 @@ class _TokenTransferScreenState extends State<TokenTransferScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() {
       _loading = true;
       _error = null;

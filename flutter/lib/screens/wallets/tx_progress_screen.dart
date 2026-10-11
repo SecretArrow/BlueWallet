@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../services/wallet_service.dart';
 import '../../services/network_service.dart';
 import '../../services/polling_service.dart';
+import '../../utils/safe_cast.dart';
 import '../../widgets/tonal_button.dart';
 
 /// Live transaction progress screen.
@@ -37,11 +38,13 @@ class _TxProgressScreenState extends State<TxProgressScreen>
     final ps = context.read<PollingService>();
     final type = widget.txData?['opType']?.toString().toLowerCase() ?? 'send';
     final intervalMs = ps.intervalMs;
+    if (intervalMs <= 0) return 30; // defensive: avoid divide-by-zero
     // Calculate max polls based on total timeout threshold / poll interval
     final thresholdMs = (type == 'send' || type == 'token_send')
         ? ps.thresholdSendMs
         : ps.thresholdAdvancedMs;
-    return (thresholdMs / intervalMs).ceil();
+    if (thresholdMs <= 0) return 30;
+    return (thresholdMs / intervalMs).ceil().clamp(1, 3600);
   }
 
   Duration get _pollInterval {
@@ -93,15 +96,13 @@ class _TxProgressScreenState extends State<TxProgressScreen>
       final result = await ws.lookupTransaction(ns.activeNodeUrl, txHash);
 
       // Android's queryFinalStatus: handle nested {transaction: {...}} wrapper
-      final Map<String, dynamic> txObj = (result.containsKey('transaction') &&
-              result['transaction'] is Map<String, dynamic>)
-          ? result['transaction'] as Map<String, dynamic>
-          : result;
+      // without throwing on Map<dynamic, dynamic> shapes from jsonDecode.
+      final Map<String, dynamic> txObj = unwrapTransactionEnvelope(result);
 
       // Aggregate all possible status fields (mirrors Android extractStatusText)
-      final status = _extractStatusText(txObj);
+      final status = extractStatusText(txObj);
 
-      if (_containsAny(status, [
+      if (containsAny(status, [
         'success',
         'confirmed',
         'final',
@@ -117,7 +118,7 @@ class _TxProgressScreenState extends State<TxProgressScreen>
             _statusMessage = 'Transaction confirmed!';
           });
         }
-      } else if (_containsAny(status, ['reject', 'fail', 'error', 'invalid'])) {
+      } else if (containsAny(status, ['reject', 'fail', 'error', 'invalid'])) {
         _pollTimer?.cancel();
         _spinCtrl.stop();
         String reason = txObj['error']?.toString() ??
@@ -147,22 +148,6 @@ class _TxProgressScreenState extends State<TxProgressScreen>
     }
   }
 
-  /// Aggregates multiple status fields (mirrors Android's extractStatusText).
-  static String _extractStatusText(Map<String, dynamic> tx) {
-    final parts = <String>[
-      tx['status']?.toString() ?? '',
-      tx['tx_status']?.toString() ?? '',
-      tx['state']?.toString() ?? '',
-      tx['final_status']?.toString() ?? '',
-      if (tx['confirmed'] == true) 'confirmed',
-      if (tx['rejected'] == true) 'rejected',
-    ];
-    return parts.where((s) => s.isNotEmpty).join(' | ').toLowerCase();
-  }
-
-  static bool _containsAny(String value, List<String> needles) =>
-      needles.any((n) => value.contains(n));
-
   @override
   void dispose() {
     _pollTimer?.cancel();
@@ -185,135 +170,138 @@ class _TxProgressScreenState extends State<TxProgressScreen>
         title: const Text('Transaction Status'),
         automaticallyImplyLeading: _status != _TxStatus.pending,
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Status icon
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 400),
-                child: _status == _TxStatus.pending
-                    ? RotationTransition(
-                        turns: _spinCtrl,
-                        child: Icon(Icons.sync_rounded,
-                            size: 72, color: cs.primary),
-                      )
-                    : Icon(
-                        _status == _TxStatus.confirmed
-                            ? Icons.check_circle_rounded
-                            : Icons.error_rounded,
-                        size: 72,
-                        color: _status == _TxStatus.confirmed
-                            ? Colors.green
-                            : cs.error,
-                      ),
-              ),
-              const SizedBox(height: 24),
-
-              // Status message
-              Text(
-                _statusMessage,
-                style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-
-              // Details card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Status icon
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  child: _status == _TxStatus.pending
+                      ? RotationTransition(
+                          turns: _spinCtrl,
+                          child: Icon(Icons.sync_rounded,
+                              size: 72, color: cs.primary),
+                        )
+                      : Icon(
+                          _status == _TxStatus.confirmed
+                              ? Icons.check_circle_rounded
+                              : Icons.error_rounded,
+                          size: 72,
+                          color: _status == _TxStatus.confirmed
+                              ? Colors.green
+                              : cs.error,
+                        ),
                 ),
-                child: Column(
-                  children: [
-                    _Row('Type', _opType.toUpperCase()),
-                    const Divider(height: 16),
-                    _Row('Amount', '$_amount OCT'),
-                    if (_toAddress.isNotEmpty) ...[
+                const SizedBox(height: 24),
+
+                // Status message
+                Text(
+                  _statusMessage,
+                  style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+
+                // Details card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      _Row('Type', _opType.toUpperCase()),
                       const Divider(height: 16),
-                      _Row(
-                        'To',
-                        _toAddress.length > 20
-                            ? '${_toAddress.substring(0, 10)}...${_toAddress.substring(_toAddress.length - 10)}'
-                            : _toAddress,
-                      ),
-                    ],
-                    if (_txHash.isNotEmpty) ...[
-                      const Divider(height: 16),
-                      Row(
-                        children: [
-                          Text('TX Hash',
-                              style: TextStyle(color: cs.onSurfaceVariant)),
-                          const Spacer(),
-                          Flexible(
-                            child: GestureDetector(
-                              onTap: () {
-                                Clipboard.setData(ClipboardData(text: _txHash));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text('Hash copied'),
-                                      duration: Duration(seconds: 2)),
-                                );
-                              },
-                              child: Text(
-                                _txHash.length > 16
-                                    ? '${_txHash.substring(0, 8)}...${_txHash.substring(_txHash.length - 8)}'
-                                    : _txHash,
-                                style: const TextStyle(
-                                    fontFamily: 'monospace', fontSize: 11),
-                                overflow: TextOverflow.ellipsis,
+                      _Row('Amount', '$_amount OCT'),
+                      if (_toAddress.isNotEmpty) ...[
+                        const Divider(height: 16),
+                        _Row(
+                          'To',
+                          _toAddress.length > 20
+                              ? '${_toAddress.substring(0, 10)}...${_toAddress.substring(_toAddress.length - 10)}'
+                              : _toAddress,
+                        ),
+                      ],
+                      if (_txHash.isNotEmpty) ...[
+                        const Divider(height: 16),
+                        Row(
+                          children: [
+                            Text('TX Hash',
+                                style: TextStyle(color: cs.onSurfaceVariant)),
+                            const Spacer(),
+                            Flexible(
+                              child: GestureDetector(
+                                onTap: () {
+                                  Clipboard.setData(
+                                      ClipboardData(text: _txHash));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text('Hash copied'),
+                                        duration: Duration(seconds: 2)),
+                                  );
+                                },
+                                child: Text(
+                                  _txHash.length > 16
+                                      ? '${_txHash.substring(0, 8)}...${_txHash.substring(_txHash.length - 8)}'
+                                      : _txHash,
+                                  style: const TextStyle(
+                                      fontFamily: 'monospace', fontSize: 11),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                if (_showTimeoutPrompt && _status == _TxStatus.pending) ...[
+                  Text(
+                    'This transaction is taking longer than usual. Would you like to keep waiting or return to home?',
+                    textAlign: TextAlign.center,
+                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => context.pop(),
+                          child: const Text('Return Home'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            setState(() {
+                              _showTimeoutPrompt = false;
+                              _pollCount = 0;
+                            });
+                            _startPolling();
+                          },
+                          child: const Text('Keep Waiting'),
+                        ),
                       ),
                     ],
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              if (_showTimeoutPrompt && _status == _TxStatus.pending) ...[
-                Text(
-                  'This transaction is taking longer than usual. Would you like to keep waiting or return to home?',
-                  textAlign: TextAlign.center,
-                  style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => context.pop(),
-                        child: const Text('Return Home'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          setState(() {
-                            _showTimeoutPrompt = false;
-                            _pollCount = 0;
-                          });
-                          _startPolling();
-                        },
-                        child: const Text('Keep Waiting'),
-                      ),
-                    ),
-                  ],
-                ),
-              ] else if (_status != _TxStatus.pending)
-                TonalButton(
-                  label: 'Go to Home',
-                  icon: Icons.home_rounded,
-                  onPressed: () => context.pop(),
-                ),
-            ],
+                  ),
+                ] else if (_status != _TxStatus.pending)
+                  TonalButton(
+                    label: 'Go to Home',
+                    icon: Icons.home_rounded,
+                    onPressed: () => context.pop(),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

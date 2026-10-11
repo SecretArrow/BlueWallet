@@ -113,6 +113,9 @@ public class QrScanActivity extends BaseTxActivity {
         if (barcodes == null || barcodes.isEmpty() || handled) {
             return;
         }
+        // The ML Kit callback can arrive after the activity is gone
+        // (analyzer thread vs. lifecycle race) — never touch UI then.
+        if (isFinishing() || isDestroyed()) return;
         for (Barcode barcode : barcodes) {
             String value = barcode.getRawValue();
             if (value == null || value.trim().isEmpty()) {

@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import '../utils/safe_cast.dart';
 import '../screens/setup/setup_screen.dart';
 import '../screens/auth/startup_screen.dart';
 import '../screens/auth/pin_entry_screen.dart';
@@ -80,8 +81,9 @@ class AppRouter {
       GoRoute(
         path: '/derive-child-wallet',
         builder: (_, state) => DeriveChildWalletScreen(
-          parentId:
-              (state.extra as String?) ?? state.uri.queryParameters['id'] ?? '',
+          parentId: (state.extra is String ? state.extra as String : null) ??
+              state.uri.queryParameters['id'] ??
+              '',
         ),
       ),
       GoRoute(
@@ -156,7 +158,7 @@ class AppRouter {
       GoRoute(
         path: '/tx-detail',
         builder: (_, state) => HistoryDetailScreen(
-          tx: state.extra as TxRecord?,
+          tx: state.extra is TxRecord ? state.extra as TxRecord : null,
         ),
       ),
       GoRoute(
@@ -170,7 +172,7 @@ class AppRouter {
       GoRoute(
         path: '/confirm-action',
         builder: (_, state) => ConfirmActionScreen(
-          data: (state.extra as Map<String, dynamic>?) ?? {},
+          data: safeStringMap(state.extra),
         ),
       ),
       GoRoute(
@@ -183,13 +185,14 @@ class AppRouter {
       GoRoute(
         path: '/tx-progress',
         builder: (_, state) => TxProgressScreen(
-          txData: state.extra as Map<String, dynamic>?,
+          txData: state.extra is Map ? safeStringMap(state.extra) : null,
         ),
       ),
       GoRoute(
           path: '/token-transfer',
           builder: (_, state) {
-            final extra = state.extra as Map<String, dynamic>?;
+            final extra =
+                state.extra is Map ? safeStringMap(state.extra) : null;
             return TokenTransferScreen(
               initialTokenAddress: extra?['tokenAddress']?.toString(),
               initialTokenSymbol: extra?['tokenSymbol']?.toString(),
@@ -218,7 +221,7 @@ class AppRouter {
         path: '/confirm-contract-call',
         builder: (_, state) => ConfirmContractCallScreen(
           requestId: state.uri.queryParameters['id'] ?? '',
-          details: state.extra as Map<String, dynamic>?,
+          details: state.extra is Map ? safeStringMap(state.extra) : null,
         ),
       ),
     ],

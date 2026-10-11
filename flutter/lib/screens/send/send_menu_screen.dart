@@ -53,11 +53,15 @@ class SendMenuScreen extends StatelessWidget {
         title: const Text('Send Menu'),
         centerTitle: true,
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, i) => _MenuCard(item: items[i]),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (context, i) => _MenuCard(item: items[i]),
+        ),
       ),
     );
   }

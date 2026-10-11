@@ -71,64 +71,67 @@ class _QrScanScreenState extends State<QrScanScreen> {
   }
 
   Widget _buildDesktopBody(ColorScheme cs) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Icon(Icons.content_paste_rounded, size: 48, color: cs.primary),
-              const SizedBox(height: 16),
-              Text(
-                'Paste or type the recipient address',
-                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _pasteCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Address',
-                  hintText: 'oct...',
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.content_paste_rounded),
-                    onPressed: () async {
-                      final data =
-                          await Clipboard.getData(Clipboard.kTextPlain);
-                      if (data?.text != null) {
-                        _pasteCtrl.text = data!.text!.trim();
-                      }
-                    },
-                    tooltip: 'Paste',
-                  ),
+    return SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Icon(Icons.content_paste_rounded, size: 48, color: cs.primary),
+                const SizedBox(height: 16),
+                Text(
+                  'Paste or type the recipient address',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
+                  textAlign: TextAlign.center,
                 ),
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-                onSubmitted: (_) => _submitManual(),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _submitManual,
-                      icon: const Icon(Icons.check_rounded),
-                      label: const Text('Use Address'),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: _pasteCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Address',
+                    hintText: 'oct...',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.content_paste_rounded),
+                      onPressed: () async {
+                        final data =
+                            await Clipboard.getData(Clipboard.kTextPlain);
+                        if (data?.text != null && context.mounted) {
+                          final pasted = data?.text?.trim() ?? '';
+                          if (pasted.isNotEmpty) _pasteCtrl.text = pasted;
+                        }
+                      },
+                      tooltip: 'Paste',
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _pasteFromClipboard,
-                      icon: const Icon(Icons.content_paste_go_rounded),
-                      label: const Text('Paste & Go'),
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                  onSubmitted: (_) => _submitManual(),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _submitManual,
+                        icon: const Icon(Icons.check_rounded),
+                        label: const Text('Use Address'),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _pasteFromClipboard,
+                        icon: const Icon(Icons.content_paste_go_rounded),
+                        label: const Text('Paste & Go'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -136,56 +139,64 @@ class _QrScanScreenState extends State<QrScanScreen> {
   }
 
   Widget _buildMobileBody(ColorScheme cs) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 240,
-                height: 240,
-                decoration: BoxDecoration(
-                  border: Border.all(color: cs.primary, width: 2.5),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(Icons.qr_code_scanner_rounded,
-                    size: 80, color: cs.primary.withValues(alpha: 0.4)),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Point camera at a QR code',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-              const SizedBox(height: 20),
-              if (!_simulating) ...[
-                OutlinedButton.icon(
-                  onPressed: _simulate,
-                  icon: const Icon(Icons.qr_code_rounded, color: Colors.white),
-                  label: const Text('Simulate Scan (Demo)',
-                      style: TextStyle(color: Colors.white)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white54),
+    // Camera-stack page: keep the preview full-bleed but guard controls
+    // against the status / gesture bars.
+    return SafeArea(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 240,
+                    height: 240,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: cs.primary, width: 2.5),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(Icons.qr_code_scanner_rounded,
+                        size: 80, color: cs.primary.withValues(alpha: 0.4)),
                   ),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _pasteFromClipboard,
-                  icon: const Icon(Icons.content_paste_rounded,
-                      color: Colors.white),
-                  label: const Text('Paste from Clipboard',
-                      style: TextStyle(color: Colors.white)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white54),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Point camera at a QR code',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
-                ),
-              ] else
-                const CircularProgressIndicator(color: Colors.white),
-            ],
+                  const SizedBox(height: 20),
+                  if (!_simulating) ...[
+                    OutlinedButton.icon(
+                      onPressed: _simulate,
+                      icon: const Icon(Icons.qr_code_rounded,
+                          color: Colors.white),
+                      label: const Text('Simulate Scan (Demo)',
+                          style: TextStyle(color: Colors.white)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.white54),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _pasteFromClipboard,
+                      icon: const Icon(Icons.content_paste_rounded,
+                          color: Colors.white),
+                      label: const Text('Paste from Clipboard',
+                          style: TextStyle(color: Colors.white)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.white54),
+                      ),
+                    ),
+                  ] else
+                    const CircularProgressIndicator(color: Colors.white),
+                ],
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

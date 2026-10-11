@@ -262,8 +262,7 @@ class _BalanceCard extends StatelessWidget {
       encDisplay = '${ws.encryptedBalance} OCT';
       encIcon = Icons.enhanced_encryption_outlined;
       encColor = cs.secondary;
-    } else if (ws.encryptedBalanceCipher != null &&
-        ws.encryptedBalanceCipher!.isNotEmpty &&
+    } else if ((ws.encryptedBalanceCipher?.isNotEmpty ?? false) &&
         ws.encryptedBalanceCipher != '0') {
       // Has encrypted data but not decrypted (PVAC may not be initialized)
       encDisplay = 'Encrypted (tap to decrypt)';
@@ -275,6 +274,7 @@ class _BalanceCard extends StatelessWidget {
       encIcon = Icons.enhanced_encryption_outlined;
       encColor = cs.onSurfaceVariant;
     }
+    final errorMessage = ws.errorMessage;
 
     return OctopusCard(
       child: Column(
@@ -412,7 +412,7 @@ class _BalanceCard extends StatelessWidget {
           ),
 
           // ── Error notice (connectivity) ───────────────────────────────
-          if (ws.errorMessage != null) ...[
+          if (errorMessage != null) ...[
             const SizedBox(height: 8),
             Row(
               children: [
@@ -420,7 +420,7 @@ class _BalanceCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    ws.errorMessage!,
+                    errorMessage,
                     style: tt.bodySmall?.copyWith(color: cs.error),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -445,12 +445,13 @@ class _TokenEmptyState extends StatelessWidget {
     final tt = Theme.of(context).textTheme;
 
     if (ws.errorMessage != null) {
+      final errorMessage = ws.errorMessage ?? '';
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.error_outline_rounded, size: 40, color: cs.error),
           const SizedBox(height: 12),
-          Text(ws.errorMessage!,
+          Text(errorMessage,
               style: tt.bodyMedium?.copyWith(color: cs.error),
               textAlign: TextAlign.center),
         ],

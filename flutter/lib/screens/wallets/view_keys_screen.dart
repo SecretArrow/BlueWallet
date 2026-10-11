@@ -25,11 +25,16 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
   bool _loadingMnemonic = false;
 
   Future<void> _revealKey() async {
+    if (!mounted) return;
     setState(() => _loading = true);
     final ws = context.read<WalletService>();
     final id = widget.walletId ?? ws.activeWallet?.id;
-    if (id == null) return;
+    if (id == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     final pk = await ws.getPrivateKey(id);
+    if (!mounted) return;
     setState(() {
       _privateKey = pk ?? 'Key not found';
       _revealed = true;
@@ -48,13 +53,14 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
         ? ws.wallets.where((w) => w.id == widget.walletId).firstOrNull
         : ws.activeWallet;
     if (wallet == null) {
-      setState(() => _loadingMnemonic = false);
+      if (mounted) setState(() => _loadingMnemonic = false);
       return;
     }
 
     // For child wallets, read mnemonic from the parent
     final mnemonicId = wallet.parentId ?? wallet.id;
     final m = await ws.getMnemonic(mnemonicId);
+    if (!mounted) return;
     setState(() {
       _mnemonic = m;
       _mnemonicRevealed = true;
@@ -76,47 +82,50 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
     final controller = TextEditingController(text: wallet.name);
     final ws = context.read<WalletService>();
 
-    showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename Wallet'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Wallet Name',
-            hintText: 'Enter new name',
+    try {
+      await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          title: const Text('Rename Wallet'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              labelText: 'Wallet Name',
+              hintText: 'Enter new name',
+            ),
+            autofocus: true,
           ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final navigator = Navigator.of(context);
-              final messenger = ScaffoldMessenger.of(context);
-              final newName = controller.text.trim();
-              if (newName.isNotEmpty) {
-                final ok = await ws.renameWallet(wallet.id, newName);
-                if (ok) {
-                  if (mounted) navigator.pop(true);
-                } else {
-                  if (mounted) {
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final navigator = Navigator.of(dialogCtx);
+                final messenger = ScaffoldMessenger.of(context);
+                final newName = controller.text.trim();
+                if (newName.isNotEmpty) {
+                  final ok = await ws.renameWallet(wallet.id, newName);
+                  if (!mounted) return;
+                  if (ok) {
+                    navigator.pop(true);
+                  } else {
                     messenger.showSnackBar(
                       const SnackBar(
                           content: Text('Name already exists or invalid')),
                     );
                   }
                 }
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   @override
@@ -132,170 +141,188 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('View Keys')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Warning banner
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: cs.errorContainer,
-                borderRadius: BorderRadius.circular(12),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Warning banner
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: cs.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_rounded,
+                        color: cs.onErrorContainer, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Never share your private key or seed phrase with anyone. '
+                        'Anyone who has it has full control of your wallet.',
+                        style:
+                            TextStyle(color: cs.onErrorContainer, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
+              const SizedBox(height: 16),
+
+              // Wallet name with edit button
+              Row(
                 children: [
-                  Icon(Icons.warning_rounded,
-                      color: cs.onErrorContainer, size: 22),
-                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Never share your private key or seed phrase with anyone. '
-                      'Anyone who has it has full control of your wallet.',
-                      style:
-                          TextStyle(color: cs.onErrorContainer, fontSize: 13),
+                      name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 18),
                     ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.edit_rounded, color: cs.primary, size: 20),
+                    onPressed: () => _showRenameDialog(context, wallet),
+                    tooltip: 'Rename Wallet',
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Wallet name with edit button
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 18),
+              // Address card
+              _KeyCard(
+                label: 'Public Address',
+                value: address,
+                onCopy: () => _copy(context, address, 'Address'),
+              ),
+              const SizedBox(height: 12),
+
+              // Private key
+              if (!_revealed) ...[
+                OctopusCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Private Key',
+                          style: TextStyle(
+                              color: cs.onSurfaceVariant, fontSize: 12)),
+                      const SizedBox(height: 10),
+                      TonalButton(
+                        label: 'Reveal Private Key',
+                        icon: Icons.visibility_rounded,
+                        loading: _loading,
+                        onPressed: _loading ? null : _revealKey,
+                      ),
+                    ],
                   ),
                 ),
-                IconButton(
-                  icon: Icon(Icons.edit_rounded, color: cs.primary, size: 20),
-                  onPressed: () => _showRenameDialog(context, wallet),
-                  tooltip: 'Rename Wallet',
+              ] else ...[
+                _KeyCard(
+                  label: 'Private Key (Base64)',
+                  value: _privateKey ?? '',
+                  sensitive: true,
+                  onCopy: () =>
+                      _copy(context, _privateKey ?? '', 'Private key'),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
 
-            // Address card
-            _KeyCard(
-              label: 'Public Address',
-              value: address,
-              onCopy: () => _copy(context, address, 'Address'),
-            ),
-            const SizedBox(height: 12),
-
-            // Private key
-            if (!_revealed) ...[
-              OctopusCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Private Key',
-                        style: TextStyle(
-                            color: cs.onSurfaceVariant, fontSize: 12)),
-                    const SizedBox(height: 10),
-                    TonalButton(
-                      label: 'Reveal Private Key',
-                      icon: Icons.visibility_rounded,
-                      loading: _loading,
-                      onPressed: _loading ? null : _revealKey,
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              _KeyCard(
-                label: 'Private Key (Base64)',
-                value: _privateKey ?? '',
-                sensitive: true,
-                onCopy: () => _copy(context, _privateKey ?? '', 'Private key'),
-              ),
-            ],
-
-            // Seed Phrase — only for mnemonic wallets
-            if (hasMnemonic) ...[
-              const SizedBox(height: 12),
-              OctopusCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Seed Phrase (12 Words)',
-                                  style: TextStyle(
-                                      color: cs.onSurfaceVariant,
-                                      fontSize: 12)),
-                              if (wallet?.derivationPath != null) ...[
-                                const SizedBox(height: 2),
-                                Text(wallet!.derivationPath!,
+              // Seed Phrase — only for mnemonic wallets
+              if (hasMnemonic) ...[
+                const SizedBox(height: 12),
+                OctopusCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Seed Phrase (12 Words)',
                                     style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 10,
-                                        color: cs.onSurfaceVariant)),
+                                        color: cs.onSurfaceVariant,
+                                        fontSize: 12)),
+                                if (wallet?.derivationPath != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(wallet?.derivationPath ?? '',
+                                      style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 10,
+                                          color: cs.onSurfaceVariant)),
+                                ],
                               ],
-                            ],
-                          ),
-                        ),
-                        if (_mnemonic != null)
-                          IconButton(
-                            icon: Icon(
-                              _mnemonicRevealed
-                                  ? Icons.visibility_off_rounded
-                                  : Icons.visibility_rounded,
-                              size: 18,
-                              color: cs.primary,
                             ),
-                            onPressed: _revealMnemonic,
-                            tooltip: _mnemonicRevealed
-                                ? 'Hide seed phrase'
-                                : 'Show seed phrase',
                           ),
-                        if (_mnemonic != null)
-                          IconButton(
-                            icon: Icon(Icons.copy, size: 18, color: cs.primary),
-                            onPressed: () =>
-                                _copy(context, _mnemonic!, 'Seed phrase'),
-                            tooltip: 'Copy seed phrase',
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    if (!_mnemonicRevealed || _mnemonic == null) ...[
-                      TonalButton(
-                        label: 'Reveal Seed Phrase',
-                        icon: Icons.lock_open_rounded,
-                        loading: _loadingMnemonic,
-                        onPressed: _loadingMnemonic ? null : _revealMnemonic,
+                          if (_mnemonic != null)
+                            IconButton(
+                              icon: Icon(
+                                _mnemonicRevealed
+                                    ? Icons.visibility_off_rounded
+                                    : Icons.visibility_rounded,
+                                size: 18,
+                                color: cs.primary,
+                              ),
+                              onPressed: _revealMnemonic,
+                              tooltip: _mnemonicRevealed
+                                  ? 'Hide seed phrase'
+                                  : 'Show seed phrase',
+                            ),
+                          if (_mnemonic != null)
+                            IconButton(
+                              icon:
+                                  Icon(Icons.copy, size: 18, color: cs.primary),
+                              onPressed: () {
+                                final m = _mnemonic;
+                                if (m != null && m.isNotEmpty) {
+                                  _copy(context, m, 'Seed phrase');
+                                }
+                              },
+                              tooltip: 'Copy seed phrase',
+                            ),
+                        ],
                       ),
-                    ] else ...[
-                      _MnemonicGrid(words: _mnemonic!.split(' ')),
+                      const SizedBox(height: 10),
+                      if (!_mnemonicRevealed || _mnemonic == null) ...[
+                        TonalButton(
+                          label: 'Reveal Seed Phrase',
+                          icon: Icons.lock_open_rounded,
+                          loading: _loadingMnemonic,
+                          onPressed: _loadingMnemonic ? null : _revealMnemonic,
+                        ),
+                      ] else ...[
+                        Builder(builder: (_) {
+                          final m = _mnemonic;
+                          if (m == null || m.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return _MnemonicGrid(words: m.split(' '));
+                        }),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.account_tree_rounded),
-                label: const Text('Derive Child Wallet'),
-                onPressed: () {
-                  final id = wallet?.id ?? '';
-                  context.push('/derive-child-wallet', extra: id);
-                },
-              ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.account_tree_rounded),
+                  label: const Text('Derive Child Wallet'),
+                  onPressed: () {
+                    final id = wallet?.id ?? '';
+                    if (id.isNotEmpty) {
+                      context.push('/derive-child-wallet', extra: id);
+                    }
+                  },
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

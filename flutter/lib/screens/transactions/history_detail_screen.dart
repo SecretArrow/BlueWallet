@@ -57,11 +57,16 @@ class HistoryDetailScreen extends StatelessWidget {
     if (tx == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Transaction')),
-        body: const Center(child: Text('Transaction not found')),
+        body: const SafeArea(
+          child: Center(child: Text('Transaction not found')),
+        ),
       );
     }
+    // Promote to a non-null local: `tx` is a public widget field, which Dart
+    // does not promote, so assert once right after the explicit null guard.
+    final TxRecord t = tx!;
 
-    final isSent = tx!.type == 'sent' || tx!.type == 'send';
+    final isSent = t.type == 'sent' || t.type == 'send';
 
     return Scaffold(
       appBar: AppBar(title: const Text('Transaction Detail')),
@@ -90,7 +95,7 @@ class HistoryDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      '${isSent ? '-' : '+'} ${tx!.amount} OCT',
+                      '${isSent ? '-' : '+'} ${t.amount} OCT',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -102,14 +107,14 @@ class HistoryDetailScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _statusColor(tx!.status, cs)
-                            .withValues(alpha: 0.15),
+                        color:
+                            _statusColor(t.status, cs).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        _statusLabel(tx!.status),
+                        _statusLabel(t.status),
                         style: TextStyle(
-                          color: _statusColor(tx!.status, cs),
+                          color: _statusColor(t.status, cs),
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.2,
@@ -127,29 +132,29 @@ class HistoryDetailScreen extends StatelessWidget {
                   children: [
                     _Row(
                         label: 'Hash',
-                        value: tx!.hash,
+                        value: t.hash,
                         monospace: true,
                         copyable: true),
                     const Divider(height: 1),
-                    _Row(label: 'Type', value: tx!.type.toUpperCase()),
+                    _Row(label: 'Type', value: t.type.toUpperCase()),
                     const Divider(height: 1),
                     _Row(
                         label: 'From',
-                        value: tx!.fromAddress,
+                        value: t.fromAddress,
                         monospace: true,
                         copyable: true),
                     const Divider(height: 1),
                     _Row(
                         label: 'To',
-                        value: tx!.toAddress,
+                        value: t.toAddress,
                         monospace: true,
                         copyable: true),
-                    if ((tx!.memo ?? '').isNotEmpty) ...[
+                    if ((t.memo ?? '').isNotEmpty) ...[
                       const Divider(height: 1),
-                      _Row(label: 'Memo', value: tx!.memo ?? ''),
+                      _Row(label: 'Memo', value: t.memo ?? ''),
                     ],
                     const Divider(height: 1),
-                    _Row(label: 'Date', value: _formatTimestamp(tx!.timestamp)),
+                    _Row(label: 'Date', value: _formatTimestamp(t.timestamp)),
                   ],
                 ),
               ),
@@ -157,9 +162,16 @@ class HistoryDetailScreen extends StatelessWidget {
 
               // Explorer link
               OutlinedButton.icon(
-                onPressed: () {
-                  final url = Uri.parse('https://octra.network/tx/${tx!.hash}');
-                  launchUrl(url, mode: LaunchMode.externalApplication);
+                onPressed: () async {
+                  final hash = t.hash.trim();
+                  if (hash.isEmpty || !context.mounted) return;
+                  final url = Uri.tryParse('https://octra.network/tx/$hash');
+                  if (url == null) return;
+                  try {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } catch (_) {
+                    // No browser available — stay on screen.
+                  }
                 },
                 icon: const Icon(Icons.open_in_new_rounded),
                 label: const Text('View in Explorer'),

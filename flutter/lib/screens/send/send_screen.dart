@@ -45,7 +45,7 @@ class _SendScreenState extends State<SendScreen> {
   }
 
   Future<void> _send() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -90,25 +90,40 @@ class _SendScreenState extends State<SendScreen> {
     }
     showModalBottomSheet(
       context: context,
-      builder: (ctx) => ListView(
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('Address Book',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
           ),
-          ...entries.map((e) => ListTile(
-                title: Text(e.label),
-                subtitle: Text(
-                  e.address,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Address Book',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
-                onTap: () {
-                  _toCtrl.text = e.address;
-                  Navigator.pop(ctx);
-                },
-              )),
-        ],
+                ...entries.map((e) => ListTile(
+                      title: Text(e.label),
+                      subtitle: Text(
+                        e.address,
+                        style: const TextStyle(
+                            fontFamily: 'monospace', fontSize: 12),
+                      ),
+                      onTap: () {
+                        _toCtrl.text = e.address;
+                        Navigator.pop(ctx);
+                      },
+                    )),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

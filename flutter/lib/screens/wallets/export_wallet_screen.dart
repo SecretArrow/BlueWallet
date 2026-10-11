@@ -33,7 +33,10 @@ class _ExportWalletScreenState extends State<ExportWalletScreen> {
   Future<void> _loadKey() async {
     final ws = context.read<WalletService>();
     final walletId = widget.walletId ?? ws.activeWallet?.id;
-    if (walletId == null) return;
+    if (walletId == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     final sk = await ws.getPrivateKey(walletId);
     if (mounted) {
       setState(() {

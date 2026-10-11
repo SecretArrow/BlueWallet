@@ -36,7 +36,7 @@ class _DevCallScreenState extends State<DevCallScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -45,7 +45,11 @@ class _DevCallScreenState extends State<DevCallScreen> {
       List<dynamic> args = [];
       final argsStr = _argsCtrl.text.trim();
       if (argsStr.isNotEmpty) {
-        args = jsonDecode(argsStr) as List<dynamic>;
+        final decoded = jsonDecode(argsStr);
+        if (decoded is! List) {
+          throw Exception('Arguments must be a JSON array, e.g. [1, "abc"]');
+        }
+        args = decoded;
       }
       final ws = context.read<WalletService>();
       final ns = context.read<NetworkService>();

@@ -28,6 +28,11 @@ public class StealthTaskDetailActivity extends BaseTxActivity {
         setupToolbar(R.id.stealth_detail_toolbar, "Stealth Task");
 
         taskId = getIntent().getStringExtra("task_id");
+        if (taskId == null || taskId.trim().isEmpty()) {
+            android.widget.Toast.makeText(this, "Task not found", android.widget.Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
         if (taskId != null && !taskId.trim().isEmpty()) {
             TxTaskStore.markTaskOpened(getApplicationContext(), taskId);
         }

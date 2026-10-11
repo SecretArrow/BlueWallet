@@ -14,8 +14,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.biometric.BiometricManager;
 import androidx.biometric.BiometricPrompt;
 import androidx.core.content.ContextCompat;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -49,15 +47,12 @@ public class UnlockActivity extends AppCompatActivity {
                 WindowManager.LayoutParams.FLAG_SECURE);
         setContentView(R.layout.activity_unlock);
 
-        // Apply window insets so content never overlaps nav bar / gesture strip
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content), (v, insets) -> {
-            androidx.core.graphics.Insets navBars =
-                    insets.getInsets(WindowInsetsCompat.Type.navigationBars());
-            androidx.core.graphics.Insets statusBars =
-                    insets.getInsets(WindowInsetsCompat.Type.statusBars());
-            v.setPadding(v.getPaddingLeft(), statusBars.top, v.getPaddingRight(), navBars.bottom);
-            return insets;
-        });
+        // Centralized edge-to-edge + system-bar insets (status bar, navigation
+        // / gesture strip, cutout) plus IME so the PIN field and Unlock button
+        // are never covered by the keyboard. Idempotent; replaces the previous
+        // bespoke listener which missed cutout/IME and never enabled
+        // edge-to-edge. Same package — no import needed.
+        InsetsHelper.applyToActivity(this);
 
         initViews();
 

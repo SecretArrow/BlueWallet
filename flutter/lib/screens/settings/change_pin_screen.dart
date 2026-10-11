@@ -76,34 +76,38 @@ class _ChangePinScreenState extends State<ChangePinScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Change PIN')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Update your security PIN',
-                style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
-            const SizedBox(height: 24),
-            if (_error != null) ...[
-              _Banner(message: _error!, isError: true),
-              const SizedBox(height: 12),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Update your security PIN',
+                  style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+              const SizedBox(height: 24),
+              if (_error != null) ...[
+                _Banner(message: _error!, isError: true),
+                const SizedBox(height: 12),
+              ],
+              if (_success) ...[
+                _Banner(message: 'PIN changed successfully!', isError: false),
+                const SizedBox(height: 12),
+              ],
+              _PinField(label: 'Current PIN', controller: _currentCtrl),
+              const SizedBox(height: 16),
+              _PinField(label: 'New PIN', controller: _newCtrl),
+              const SizedBox(height: 16),
+              _PinField(label: 'Confirm New PIN', controller: _confirmCtrl),
+              const SizedBox(height: 24),
+              TonalButton(
+                label: 'Change PIN',
+                loading: _loading,
+                onPressed: _loading ? null : _changePin,
+              ),
             ],
-            if (_success) ...[
-              _Banner(message: 'PIN changed successfully!', isError: false),
-              const SizedBox(height: 12),
-            ],
-            _PinField(label: 'Current PIN', controller: _currentCtrl),
-            const SizedBox(height: 16),
-            _PinField(label: 'New PIN', controller: _newCtrl),
-            const SizedBox(height: 16),
-            _PinField(label: 'Confirm New PIN', controller: _confirmCtrl),
-            const SizedBox(height: 24),
-            TonalButton(
-              label: 'Change PIN',
-              loading: _loading,
-              onPressed: _loading ? null : _changePin,
-            ),
-          ],
+          ),
         ),
       ),
     );

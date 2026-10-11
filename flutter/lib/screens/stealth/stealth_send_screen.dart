@@ -31,7 +31,7 @@ class _StealthSendScreenState extends State<StealthSendScreen> {
   }
 
   Future<void> _send() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() {
       _loading = true;
       _error = null;

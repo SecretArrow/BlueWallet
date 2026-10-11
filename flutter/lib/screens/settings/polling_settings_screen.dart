@@ -79,81 +79,86 @@ class _PollingSettingsScreenState extends State<PollingSettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Polling Settings')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: OctopusCard(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Polling Interval (seconds)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _intervalController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  hintText: '5',
-                  helperText: 'Seconds between each status check (Default: 5s)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: OctopusCard(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Polling Interval (seconds)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _intervalController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: '5',
+                    helperText:
+                        'Seconds between each status check (Default: 5s)',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              const Divider(),
-              const SizedBox(height: 24),
-              const Text(
-                'Send Timeout Threshold (minutes)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _sendThresholdController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  hintText: '5',
-                  helperText: 'Minutes before prompting etc. (Default: 5m)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 24),
+                const Text(
+                  'Send Timeout Threshold (minutes)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _sendThresholdController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: '5',
+                    helperText: 'Minutes before prompting etc. (Default: 5m)',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              const Divider(),
-              const SizedBox(height: 24),
-              const Text(
-                'Advanced Timeout (minutes)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const Text(
-                'Includes Stealth Send, Encrypt, and Decrypt Balance',
-                style: TextStyle(color: Colors.grey, fontSize: 11),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _advancedThresholdController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  hintText: '10',
-                  helperText: 'Default: 10m',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 24),
+                const Text(
+                  'Advanced Timeout (minutes)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const Text(
+                  'Includes Stealth Send, Encrypt, and Decrypt Balance',
+                  style: TextStyle(color: Colors.grey, fontSize: 11),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _advancedThresholdController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: '10',
+                    helperText: 'Default: 10m',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: FilledButton(
-                  onPressed: _save,
-                  child: const Text('Save Settings'),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: _save,
+                    child: const Text('Save Settings'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

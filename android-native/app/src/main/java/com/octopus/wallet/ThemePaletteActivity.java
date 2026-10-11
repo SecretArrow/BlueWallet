@@ -39,6 +39,8 @@ public class ThemePaletteActivity extends AppCompatActivity {
         setTheme(ThemeManager.resolveThemeRes(this));
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_theme_palette);
+        // Centralized edge-to-edge + system-bar insets (status/nav/cutout/IME). Idempotent; see InsetsHelper.
+        InsetsHelper.applyToActivity(this);
 
         MaterialToolbar toolbar = findViewById(R.id.theme_palette_toolbar);
         setSupportActionBar(toolbar);

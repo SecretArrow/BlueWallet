@@ -11,6 +11,8 @@ import androidx.activity.result.contract.ActivityResultContracts;
 public class EncryptBalanceActivity extends BaseTxActivity {
     private View submitButton;
     private long recommendedFee = 3000L;
+    /** Last submit tap (uptime ms) — double-tap debounce, never strands the button. */
+    private long lastSubmitMs = 0L;
 
     private final ActivityResultLauncher<Intent> progressLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -58,6 +60,10 @@ public class EncryptBalanceActivity extends BaseTxActivity {
         });
 
         findViewById(R.id.encrypt_submit_button).setOnClickListener(v -> {
+            // Double-submit guard: ignore taps within 2s of the previous one.
+            long now = android.os.SystemClock.uptimeMillis();
+            if (now - lastSubmitMs < 2000L) return;
+            lastSubmitMs = now;
             String amountText = amountInput.getText().toString().trim();
             String customFeeText = customFeeInput.getText().toString().trim();
 

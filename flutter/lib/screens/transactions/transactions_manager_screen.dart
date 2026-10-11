@@ -27,23 +27,27 @@ class _TransactionsManagerScreenState extends State<TransactionsManagerScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Transaction Manager')),
-      body: pending.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.task_alt_rounded, size: 54, color: cs.outline),
-                  const SizedBox(height: 10),
-                  Text('No pending transactions',
-                      style: TextStyle(color: cs.onSurfaceVariant)),
-                ],
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: pending.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.task_alt_rounded, size: 54, color: cs.outline),
+                    const SizedBox(height: 10),
+                    Text('No pending transactions',
+                        style: TextStyle(color: cs.onSurfaceVariant)),
+                  ],
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                itemCount: pending.length,
+                itemBuilder: (ctx, i) => _PendingTxCard(tx: pending[i]),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: pending.length,
-              itemBuilder: (ctx, i) => _PendingTxCard(tx: pending[i]),
-            ),
+      ),
     );
   }
 }

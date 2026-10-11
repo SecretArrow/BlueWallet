@@ -40,6 +40,8 @@ public class TorProxySettingsActivity extends AppCompatActivity {
         setTheme(ThemeManager.resolveThemeRes(this));
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_tor_proxy_settings);
+        // Centralized edge-to-edge + system-bar insets (status/nav/cutout/IME). Idempotent; see InsetsHelper.
+        InsetsHelper.applyToActivity(this);
 
         // Toolbar
         MaterialToolbar toolbar = findViewById(R.id.tor_toolbar);
@@ -183,8 +185,12 @@ public class TorProxySettingsActivity extends AppCompatActivity {
     }
 
     private void showAddServerDialog() {
+        if (isFinishing() || isDestroyed()) return;
         LayoutInflater inflater = LayoutInflater.from(this);
         View dialogView = inflater.inflate(R.layout.dialog_add_proxy, null);
+        // Keep the dialog's inputs above the navigation / gesture bar and the
+        // keyboard (dialog windows don't inherit the activity's adjustResize).
+        InsetsHelper.applySystemBars(dialogView);
 
         final EditText nameInput = dialogView.findViewById(R.id.proxy_name_input);
         final EditText hostInput = dialogView.findViewById(R.id.proxy_host_input);

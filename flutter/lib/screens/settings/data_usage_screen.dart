@@ -25,12 +25,16 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
       final totalUsage = await _service.getTotalUsage();
+      if (!mounted) return;
       final sessionUsage = await _service.getSessionUsage();
+      if (!mounted) return;
       final history = await _service.getUsageHistoryList();
+      if (!mounted) return;
 
       setState(() {
         _totalUsage = totalUsage;
@@ -38,11 +42,12 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
         _history = history;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading data: $e')),
+          const SnackBar(content: Text('Error loading usage data')),
         );
       }
     }
@@ -93,90 +98,95 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadData,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Total Data Usage Card
-                    _buildUsageCard(
-                      title: 'Total Data Usage',
-                      usage: _totalUsage ?? DataUsage(rxBytes: 0, txBytes: 0),
-                      showRxTx: true,
-                      titleStyle: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: cs.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Session Data Usage Card
-                    _buildUsageCard(
-                      title: 'Current Session',
-                      usage: _sessionUsage ?? DataUsage(rxBytes: 0, txBytes: 0),
-                      showRxTx: false,
-                      titleStyle: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: cs.secondary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Clear History Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _clearHistory,
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('Clear History'),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Transaction History Header
-                    Text(
-                      'Transaction History',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Empty State or History List
-                    if (_history.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(32),
-                        alignment: Alignment.center,
-                        child: Text(
-                          'No data usage recorded yet',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: cs.onSurfaceVariant,
-                          ),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _loadData,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Total Data Usage Card
+                      _buildUsageCard(
+                        title: 'Total Data Usage',
+                        usage: _totalUsage ?? DataUsage(rxBytes: 0, txBytes: 0),
+                        showRxTx: true,
+                        titleStyle: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: cs.primary,
                         ),
-                      )
-                    else
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _history.length,
-                        itemBuilder: (context, index) {
-                          return _buildHistoryItem(_history[index]);
-                        },
                       ),
-                  ],
+                      const SizedBox(height: 16),
+
+                      // Session Data Usage Card
+                      _buildUsageCard(
+                        title: 'Current Session',
+                        usage:
+                            _sessionUsage ?? DataUsage(rxBytes: 0, txBytes: 0),
+                        showRxTx: false,
+                        titleStyle: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: cs.secondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Clear History Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _clearHistory,
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Clear History'),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Transaction History Header
+                      Text(
+                        'Transaction History',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Empty State or History List
+                      if (_history.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(32),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'No data usage recorded yet',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        )
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _history.length,
+                          itemBuilder: (context, index) {
+                            return _buildHistoryItem(_history[index]);
+                          },
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+      ),
     );
   }
 

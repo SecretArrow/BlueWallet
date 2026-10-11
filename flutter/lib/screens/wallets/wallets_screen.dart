@@ -26,32 +26,36 @@ class WalletsScreen extends StatelessWidget {
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add Account'),
       ),
-      body: ws.wallets.isEmpty
-          ? Center(
-              child: Text(
-                'No wallets found',
-                style: TextStyle(color: cs.onSurfaceVariant),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: ws.wallets.isEmpty
+            ? Center(
+                child: Text(
+                  'No wallets found',
+                  style: TextStyle(color: cs.onSurfaceVariant),
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                itemCount: ws.wallets.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (_, i) {
+                  final w = ws.wallets[i];
+                  final isActive = w.id == ws.activeWallet?.id;
+                  return _WalletTile(
+                    wallet: w,
+                    isActive: isActive,
+                    canDelete: ws.wallets.length > 1,
+                    maskAddr: _maskAddr,
+                    onActivate: () => ws.setActiveWallet(w.id),
+                    onViewKeys: () => context.push('/view-keys?id=${w.id}'),
+                    onExport: () => context.push('/export-wallet?id=${w.id}'),
+                    onDelete: () => _confirmDelete(context, ws, w),
+                  );
+                },
               ),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              itemCount: ws.wallets.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final w = ws.wallets[i];
-                final isActive = w.id == ws.activeWallet?.id;
-                return _WalletTile(
-                  wallet: w,
-                  isActive: isActive,
-                  canDelete: ws.wallets.length > 1,
-                  maskAddr: _maskAddr,
-                  onActivate: () => ws.setActiveWallet(w.id),
-                  onViewKeys: () => context.push('/view-keys?id=${w.id}'),
-                  onExport: () => context.push('/export-wallet?id=${w.id}'),
-                  onDelete: () => _confirmDelete(context, ws, w),
-                );
-              },
-            ),
+      ),
     );
   }
 

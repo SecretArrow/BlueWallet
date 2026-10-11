@@ -120,18 +120,28 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
               FilledButton(
                 onPressed: () {
                   if (formKey.currentState?.validate() ?? false) {
+                    final port = int.tryParse(portCtrl.text.trim());
+                    if (port == null || port < 1 || port > 65535) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Port must be between 1 and 65535')),
+                      );
+                      return;
+                    }
                     final tor = context.read<TorProxyService>();
                     tor.addProxyServer(ProxyConfig(
                       name: nameCtrl.text.trim(),
                       host: hostCtrl.text.trim(),
-                      port: int.parse(portCtrl.text.trim()),
+                      port: port,
                       type: type,
                     ));
                     Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Proxy server added successfully')),
-                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Proxy server added successfully')),
+                      );
+                    }
                   }
                 },
                 child: const Text('Save'),
@@ -140,7 +150,11 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
           );
         },
       ),
-    );
+    ).then((_) {
+      nameCtrl.dispose();
+      hostCtrl.dispose();
+      portCtrl.dispose();
+    });
   }
 
   void _confirmDelete(BuildContext context, ProxyConfig server) {
@@ -188,276 +202,285 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add Proxy'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Status Card
-            OctopusCard(
-              padding: const EdgeInsets.all(16.0),
-              radius: 20,
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: tor.enabled
-                          ? cs.primary.withValues(alpha: 0.12)
-                          : cs.onSurface.withValues(alpha: 0.08),
-                      shape: BoxShape.circle,
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Status Card
+              OctopusCard(
+                padding: const EdgeInsets.all(16.0),
+                radius: 20,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: tor.enabled
+                            ? cs.primary.withValues(alpha: 0.12)
+                            : cs.onSurface.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.shield_rounded,
+                        color: tor.enabled ? cs.primary : cs.onSurfaceVariant,
+                        size: 24,
+                      ),
                     ),
-                    child: Icon(
-                      Icons.shield_rounded,
-                      color: tor.enabled ? cs.primary : cs.onSurfaceVariant,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Route RPC via Tor',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          tor.enabled
-                              ? 'Enabled (${tor.activeType} at ${tor.activeHost}:${tor.activePort})'
-                              : 'Disabled (Direct connection)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Switch(
-                    value: tor.enabled,
-                    onChanged: (val) {
-                      tor.setEnabled(val);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(val
-                              ? 'Tor routing enabled'
-                              : 'Tor routing disabled - Direct connections active'),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Server list title
-            Padding(
-              padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
-              child: Text(
-                'Available Proxies',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: cs.primary,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-
-            // Server List Card
-            OctopusCard(
-              padding: EdgeInsets.zero,
-              radius: 20,
-              child: ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: tor.servers.length,
-                separatorBuilder: (_, __) => Divider(
-                  height: 1,
-                  color: cs.onSurface.withValues(alpha: 0.08),
-                ),
-                itemBuilder: (context, i) {
-                  final s = tor.servers[i];
-                  final isActive = tor.activeHost == s.host &&
-                      tor.activePort == s.port &&
-                      tor.activeType == s.type;
-
-                  return InkWell(
-                    onTap: () {
-                      try {
-                        tor.setActiveProxy(s.host, s.port, s.type);
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Invalid proxy entry: $e')),
-                        );
-                        return;
-                      }
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Switched proxy to ${s.name}'),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.only(
-                      topLeft: i == 0 ? const Radius.circular(20) : Radius.zero,
-                      topRight:
-                          i == 0 ? const Radius.circular(20) : Radius.zero,
-                      bottomLeft: i == tor.servers.length - 1
-                          ? const Radius.circular(20)
-                          : Radius.zero,
-                      bottomRight: i == tor.servers.length - 1
-                          ? const Radius.circular(20)
-                          : Radius.zero,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0, vertical: 14.0),
-                      child: Row(
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Active status indicator
-                          Container(
-                            width: 12,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: isActive
-                                  ? (tor.enabled
-                                      ? Colors.green
-                                      : cs.primary.withValues(alpha: 0.4))
-                                  : Colors.transparent,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isActive
-                                    ? (tor.enabled ? Colors.green : cs.primary)
-                                    : cs.onSurfaceVariant
-                                        .withValues(alpha: 0.4),
-                                width: 2,
-                              ),
+                          const Text(
+                            'Route RPC via Tor',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      s.name,
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: isActive
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                        color: cs.onSurface,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    if (s.isDefault)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              cs.primary.withValues(alpha: 0.1),
-                                          borderRadius:
-                                              BorderRadius.circular(4),
+                          const SizedBox(height: 2),
+                          Text(
+                            tor.enabled
+                                ? 'Enabled (${tor.activeType} at ${tor.activeHost}:${tor.activePort})'
+                                : 'Disabled (Direct connection)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: tor.enabled,
+                      onChanged: (val) {
+                        tor.setEnabled(val);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(val
+                                ? 'Tor routing enabled'
+                                : 'Tor routing disabled - Direct connections active'),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Server list title
+              Padding(
+                padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
+                child: Text(
+                  'Available Proxies',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: cs.primary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+
+              // Server List Card
+              OctopusCard(
+                padding: EdgeInsets.zero,
+                radius: 20,
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: tor.servers.length,
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    color: cs.onSurface.withValues(alpha: 0.08),
+                  ),
+                  itemBuilder: (context, i) {
+                    final s = tor.servers[i];
+                    final isActive = tor.activeHost == s.host &&
+                        tor.activePort == s.port &&
+                        tor.activeType == s.type;
+
+                    return InkWell(
+                      onTap: () {
+                        try {
+                          tor.setActiveProxy(s.host, s.port, s.type);
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Invalid proxy entry: $e')),
+                          );
+                          return;
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Switched proxy to ${s.name}'),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.only(
+                        topLeft:
+                            i == 0 ? const Radius.circular(20) : Radius.zero,
+                        topRight:
+                            i == 0 ? const Radius.circular(20) : Radius.zero,
+                        bottomLeft: i == tor.servers.length - 1
+                            ? const Radius.circular(20)
+                            : Radius.zero,
+                        bottomRight: i == tor.servers.length - 1
+                            ? const Radius.circular(20)
+                            : Radius.zero,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 14.0),
+                        child: Row(
+                          children: [
+                            // Active status indicator
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: isActive
+                                    ? (tor.enabled
+                                        ? Colors.green
+                                        : cs.primary.withValues(alpha: 0.4))
+                                    : Colors.transparent,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isActive
+                                      ? (tor.enabled
+                                          ? Colors.green
+                                          : cs.primary)
+                                      : cs.onSurfaceVariant
+                                          .withValues(alpha: 0.4),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        s.name,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: isActive
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          color: cs.onSurface,
                                         ),
-                                        child: Text(
-                                          'Default',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: cs.primary,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
                                       ),
-                                    if (isActive)
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets.only(left: 4.0),
-                                        child: Container(
+                                      const SizedBox(width: 8),
+                                      if (s.isDefault)
+                                        Container(
                                           padding: const EdgeInsets.symmetric(
                                               horizontal: 6, vertical: 2),
                                           decoration: BoxDecoration(
-                                            color: tor.enabled
-                                                ? Colors.green
-                                                    .withValues(alpha: 0.1)
-                                                : cs.primary
-                                                    .withValues(alpha: 0.1),
+                                            color: cs.primary
+                                                .withValues(alpha: 0.1),
                                             borderRadius:
                                                 BorderRadius.circular(4),
                                           ),
                                           child: Text(
-                                            tor.enabled ? 'ACTIVE' : 'SELECTED',
+                                            'Default',
                                             style: TextStyle(
                                               fontSize: 9,
-                                              color: tor.enabled
-                                                  ? Colors.green
-                                                  : cs.primary,
+                                              color: cs.primary,
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                         ),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${s.type} • ${s.host}:${s.port}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: cs.onSurfaceVariant,
+                                      if (isActive)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(left: 4.0),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: tor.enabled
+                                                  ? Colors.green
+                                                      .withValues(alpha: 0.1)
+                                                  : cs.primary
+                                                      .withValues(alpha: 0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              tor.enabled
+                                                  ? 'ACTIVE'
+                                                  : 'SELECTED',
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                color: tor.enabled
+                                                    ? Colors.green
+                                                    : cs.primary,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${s.type} • ${s.host}:${s.port}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          if (!s.isDefault)
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline_rounded),
-                              color: cs.error,
-                              iconSize: 20,
-                              onPressed: () => _confirmDelete(context, s),
-                            ),
-                        ],
+                            if (!s.isDefault)
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                color: cs.error,
+                                iconSize: 20,
+                                onPressed: () => _confirmDelete(context, s),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Explanatory footer
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline_rounded,
+                        size: 16, color: cs.onSurfaceVariant),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Tor routes your RPC requests through onion circuits to mask your IP address. For local proxy setups, install Orbot and enable its SOCKS (port 9050) or HTTP (port 8118) server. Dynamic OkHttp-equivalent proxying is applied to all active network calls automatically.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: cs.onSurfaceVariant,
+                          height: 1.4,
+                        ),
                       ),
                     ),
-                  );
-                },
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            // Explanatory footer
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline_rounded,
-                      size: 16, color: cs.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Tor routes your RPC requests through onion circuits to mask your IP address. For local proxy setups, install Orbot and enable its SOCKS (port 9050) or HTTP (port 8118) server. Dynamic OkHttp-equivalent proxying is applied to all active network calls automatically.',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: cs.onSurfaceVariant,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 80), // extra padding for fab
-          ],
+              const SizedBox(height: 80), // extra padding for fab
+            ],
+          ),
         ),
       ),
     );

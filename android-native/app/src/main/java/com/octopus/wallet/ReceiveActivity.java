@@ -53,7 +53,15 @@ public class ReceiveActivity extends BaseTxActivity {
     }
 
     private void copyAddress(String address) {
+        if (address == null || address.trim().isEmpty()) {
+            Toast.makeText(this, "No address to copy", Toast.LENGTH_SHORT).show();
+            return;
+        }
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard == null) {
+            Toast.makeText(this, "Clipboard unavailable", Toast.LENGTH_SHORT).show();
+            return;
+        }
         clipboard.setPrimaryClip(ClipData.newPlainText("Address", address));
         Toast.makeText(this, "Address copied", Toast.LENGTH_SHORT).show();
     }

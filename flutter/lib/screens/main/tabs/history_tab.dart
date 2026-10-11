@@ -145,14 +145,16 @@ class _HistoryTabState extends State<HistoryTab> {
         child: Stack(
           children: [
             ListView.builder(
-              padding: EdgeInsets.zero,
+              padding: const EdgeInsets.only(bottom: 24),
               itemCount: items.length,
               itemBuilder: (context, i) {
                 final item = items[i];
                 if (item is Map && item['type'] == _dateHeaderType) {
-                  return _DateHeader(label: item['label'] as String);
+                  return _DateHeader(
+                      label: item['label']?.toString() ?? 'Unknown date');
                 }
-                return _HistoryRow(tx: item as TxRecord, myAddress: myAddr);
+                if (item is! TxRecord) return const SizedBox.shrink();
+                return _HistoryRow(tx: item, myAddress: myAddr);
               },
             ),
             // Subtle top-of-list spinner when refreshing but list has data.

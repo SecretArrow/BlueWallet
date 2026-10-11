@@ -53,6 +53,8 @@ public class ExportWalletsActivity extends AppCompatActivity {
         setTheme(ThemeManager.resolveThemeRes(this));
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_export_wallet);
+        // Centralized edge-to-edge + system-bar insets (status/nav/cutout/IME). Idempotent; see InsetsHelper.
+        InsetsHelper.applyToActivity(this);
 
         MaterialToolbar toolbar = findViewById(R.id.export_toolbar);
         setSupportActionBar(toolbar);
