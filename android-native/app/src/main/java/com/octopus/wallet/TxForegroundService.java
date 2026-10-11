@@ -227,8 +227,8 @@ public class TxForegroundService extends Service {
 
     @Override
     public void onDestroy() {
-        super.onDestroy();
         executor.shutdown();
+        super.onDestroy();
     }
 
     private synchronized int scheduleRecovery() {
@@ -688,8 +688,12 @@ public class TxForegroundService extends Service {
             }
 
             try {
-                Thread.sleep(PollingSettingsStore.getIntervalMs(this));
-            } catch (InterruptedException ignored) {
+                // Back off while the node keeps failing: 1x, 2x, 4x, 8x the base interval.
+                long baseDelayMs = PollingSettingsStore.getIntervalMs(this);
+                long delayMs = baseDelayMs * (1L << Math.min(consecutiveErrors, 3));
+                Thread.sleep(delayMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
 
@@ -807,12 +811,16 @@ public class TxForegroundService extends Service {
     private Runnable startStealthHeartbeat(String taskId,
                                            AtomicReference<StealthHeartbeatState> stateRef) {
         AtomicBoolean running = new AtomicBoolean(true);
+        final Thread[] holder = new Thread[1];
         Thread t = new Thread(() -> {
             while (running.get()) {
                 try {
                     Thread.sleep(STEALTH_HEARTBEAT_MS);
-                } catch (InterruptedException ignored) {
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
+                if (!running.get()) break;
                 StealthHeartbeatState snapshot = stateRef.get();
                 StealthTaskManager.bumpActiveHeartbeat(
                         getApplicationContext(),
@@ -825,8 +833,13 @@ public class TxForegroundService extends Service {
         });
         t.setName("stealth-heartbeat-" + taskId);
         t.setDaemon(true);
+        holder[0] = t;
         t.start();
-        return () -> running.set(false);
+        return () -> {
+            running.set(false);
+            Thread th = holder[0];
+            if (th != null) th.interrupt();
+        };
     }
 
     private void updateStealthHeartbeatState(AtomicReference<StealthHeartbeatState> stateRef,

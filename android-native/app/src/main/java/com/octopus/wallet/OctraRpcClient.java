@@ -63,6 +63,61 @@ public final class OctraRpcClient {
     /** Hard ceiling for retry attempts (fail-safe: never loop unbounded). */
     static final int MAX_ATTEMPTS = 5;
 
+    /**
+     * Thrown when the node answers HTTP 429 (rate limit). Carries the
+     * server-requested wait in milliseconds (from {@code Retry-After},
+     * capped). Extends {@link java.io.IOException} so existing
+     * transient-error handling keeps working.
+     */
+    public static final class RateLimitedException extends java.io.IOException {
+        private final long retryAfterMs;
+
+        public RateLimitedException(String message, long retryAfterMs) {
+            super(message);
+            this.retryAfterMs = Math.max(0, retryAfterMs);
+        }
+
+        /** Server-requested wait, already capped at {@link #MAX_RATE_LIMIT_WAIT_MS}. */
+        public long getRetryAfterMs() {
+            return retryAfterMs;
+        }
+    }
+
+    /** Upper bound for a single rate-limit wait (fail-safe, avoids hour-long stalls). */
+    static final long MAX_RATE_LIMIT_WAIT_MS = 120_000L;
+
+    /** Extra random spread added to waits so concurrent clients do not stampede. */
+    static final long RETRY_JITTER_MS = 1_000L;
+
+    /**
+     * Parse a {@code Retry-After} header value (delta-seconds) into
+     * milliseconds, capped at {@link #MAX_RATE_LIMIT_WAIT_MS}.
+     * Unparseable (e.g. HTTP-date) values yield {@code 0} — the caller
+     * still backs off via the normal per-attempt delay.
+     */
+    static long parseRetryAfterMs(String value) {
+        if (value == null) return 0;
+        try {
+            long seconds = Long.parseLong(value.trim());
+            if (seconds < 0) return 0;
+            return Math.min(seconds * 1_000L, MAX_RATE_LIMIT_WAIT_MS);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /**
+     * True for errors worth retrying (network, timeout, HTTP 5xx/429).
+     * False for programming errors and malformed data. Pure logic —
+     * safe to unit-test on plain JVM (no Android framework touched).
+     */
+    static boolean isTransient(Exception e) {
+        if (e instanceof IllegalArgumentException) return false;
+        if (e instanceof org.json.JSONException) return false;
+        if (e instanceof IllegalStateException) return false;
+        return e instanceof java.io.IOException;
+    }
+
     private OctraRpcClient() {
         http = new OkHttpClient.Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
@@ -145,19 +200,38 @@ public final class OctraRpcClient {
             } catch (IllegalArgumentException e) {
                 // Permanent (bad method/URL) — retrying can never succeed.
                 throw e;
+            } catch (RateLimitedException e) {
+                // 429: honor the server's request (capped) plus jitter so
+                // concurrent pollers do not retry in lockstep and re-trigger
+                // the limit. Still bounded by MAX_ATTEMPTS overall.
+                last = e;
+                if (i < max) {
+                    sleepCapped(e.getRetryAfterMs()
+                            + java.util.concurrent.ThreadLocalRandom.current()
+                                    .nextLong(RETRY_JITTER_MS + 1));
+                }
             } catch (Exception e) {
                 last = e;
                 if (i < max) {
-                    try {
-                        Thread.sleep(250L * i);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw ie;
-                    }
+                    // Linear backoff with the same jitter (thundering-herd guard).
+                    sleepCapped(250L * i
+                            + java.util.concurrent.ThreadLocalRandom.current()
+                                    .nextLong(RETRY_JITTER_MS + 1));
                 }
             }
         }
         throw (last != null ? last : new IllegalStateException("RPC failed"));
+    }
+
+    /** Interruptible sleep used by retry waits (restores the flag). */
+    private static void sleepCapped(long ms) throws InterruptedException {
+        if (ms <= 0) return;
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw ie;
+        }
     }
 
     /**
@@ -175,6 +249,11 @@ public final class OctraRpcClient {
         }
         try (Response resp = http.newCall(req).execute()) {
             if (!resp.isSuccessful()) {
+                if (resp.code() == 429) {
+                    throw new RateLimitedException("REST HTTP 429 " + resp.message()
+                            + " from " + url,
+                            parseRetryAfterMs(resp.header("Retry-After")));
+                }
                 throw new java.io.IOException("REST HTTP " + resp.code() + " " + resp.message()
                         + " from " + url);
             }
@@ -570,6 +649,14 @@ public final class OctraRpcClient {
                     }
                 } catch (Exception ignored) {
                     Log.w(TAG, "Could not read error body (non-2xx already reported)");
+                }
+                if (resp.code() == 429) {
+                    // Rate limit: surface the server's Retry-After (may be
+                    // absent — then callers fall back to normal backoff).
+                    String retryAfter = resp.header("Retry-After");
+                    throw new RateLimitedException("RPC HTTP 429 " + resp.message()
+                            + " from " + url + (snippet.isEmpty() ? "" : ": " + snippet),
+                            parseRetryAfterMs(retryAfter));
                 }
                 throw new java.io.IOException("RPC HTTP " + resp.code() + " " + resp.message()
                         + " from " + url + (snippet.isEmpty() ? "" : ": " + snippet));

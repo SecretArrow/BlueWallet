@@ -166,4 +166,39 @@ public class OctraRpcClientTest {
             fail("must not throw: " + e);
         }
     }
+
+    // ── Rate limiting (pure logic, no network) ─────────────────────────
+
+    @Test
+    public void parseRetryAfterMs_parsesAndCaps() {
+        assertEquals(0, OctraRpcClient.parseRetryAfterMs(null));
+        assertEquals(0, OctraRpcClient.parseRetryAfterMs(""));
+        assertEquals(5_000L, OctraRpcClient.parseRetryAfterMs("5"));
+        assertEquals(5_000L, OctraRpcClient.parseRetryAfterMs("  5  "));
+        assertEquals(0, OctraRpcClient.parseRetryAfterMs("-3"));
+        assertEquals(0, OctraRpcClient.parseRetryAfterMs("Wed, 21 Oct 2015 07:28:00 GMT"));
+        assertEquals(0, OctraRpcClient.parseRetryAfterMs("soon"));
+        assertEquals(OctraRpcClient.MAX_RATE_LIMIT_WAIT_MS,
+                OctraRpcClient.parseRetryAfterMs("999999"));
+    }
+
+    @Test
+    public void rateLimitedException_carriesCappedWait() {
+        OctraRpcClient.RateLimitedException e =
+                new OctraRpcClient.RateLimitedException("429", 2_000L);
+        assertEquals(2_000L, e.getRetryAfterMs());
+        assertTrue(e instanceof java.io.IOException);
+        assertEquals(0, new OctraRpcClient.RateLimitedException("x", -5).getRetryAfterMs());
+    }
+
+    @Test
+    public void isTransient_classifiesCorrectly() {
+        assertTrue(OctraRpcClient.isTransient(
+                new OctraRpcClient.RateLimitedException("429", 0)));
+        assertTrue(OctraRpcClient.isTransient(new java.io.IOException("timeout")));
+        assertTrue(OctraRpcClient.isTransient(new java.net.SocketTimeoutException("t")));
+        assertTrue(!OctraRpcClient.isTransient(new IllegalArgumentException("bad")));
+        assertTrue(!OctraRpcClient.isTransient(new org.json.JSONException("bad json")));
+        assertTrue(!OctraRpcClient.isTransient(new IllegalStateException("empty")));
+    }
 }

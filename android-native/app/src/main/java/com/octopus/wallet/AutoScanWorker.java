@@ -38,14 +38,35 @@ public class AutoScanWorker extends Worker {
     private static final int    NOTIF_ID    = 5300;
 
     private static final String PREFS        = "auto_scan_worker_runtime";
-    private static final String KEY_LAST_HASH_PREFIX = "worker_last_hash_";
+    private static final String KEY_NOTIFIED_SET_PREFIX = "worker_notified_";
+    /** Cap for the notified-hash set (fail-safe: preferences must stay small). */
+    static final int MAX_NOTIFIED_HASHES = 100;
+
+    /**
+     * Notification id derived from the full 31-bit hash — collisions are
+     * ~2^31 apart instead of 2^16 with the old masking. XOR (not addition)
+     * keeps the result non-negative for every input. Pure, unit-tested.
+     */
+    static int notificationIdFor(String hash) {
+        if (hash == null) return NOTIF_ID;
+        return NOTIF_ID ^ (hash.hashCode() & 0x7fffffff);
+    }
+
+    /**
+     * Records a newly notified hash in insertion order, pruning the oldest
+     * beyond {@code cap}. Pure, unit-tested.
+     */
+    static java.util.List<String> recordNotified(java.util.List<String> current,
+                                                  String hash, int cap) {
+        java.util.List<String> out = new java.util.ArrayList<>(current);
+        out.remove(hash);
+        out.add(hash);
+        while (out.size() > cap) out.remove(0);
+        return out;
+    }
 
     public AutoScanWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
-    }
-
-    private WalletRepository repo() {
-        return new WalletRepository(getApplicationContext());
     }
 
     @NonNull
@@ -62,7 +83,7 @@ public class AutoScanWorker extends Worker {
             JSONObject info = new JSONObject(OctraNative.getInstance().getWalletInfo());
             if (info.has("error")) {
                 Log.w(LOG_TAG, "Wallet info error: " + info.optString("error"));
-                return Result.success(); // wallet locked — nothing we can do
+                return Result.success(); // wallet locked — retrying cannot help
             }
 
             String rpcUrl = info.optString("rpc_url", UrlSecurityValidator.DEFAULT_RPC);
@@ -82,51 +103,86 @@ public class AutoScanWorker extends Worker {
 
             return Result.success();
         } catch (Exception e) {
+            // Transient (network/timeout/rate-limit) → let WorkManager retry
+            // with its backoff policy; permanent data errors → success so a
+            // poisoned wallet cannot retry forever.
+            if (OctraRpcClient.isTransient(e)) {
+                Log.w(LOG_TAG, "Worker scan transient failure, retrying: " + e.getMessage());
+                return Result.retry();
+            }
             Log.w(LOG_TAG, "Worker scan failed: " + e.getMessage());
-            return Result.success(); // don't retry on partial errors
+            return Result.success();
         }
     }
 
     // ── Incoming-tx detection ──────────────────────────────────────────────
 
-    private void checkIncoming(Context ctx, String rpcUrl, String address) {
-        try {
-            List<JSONObject> history = repo().fetchHistory(rpcUrl, address, 10, 0);
-            if (history.isEmpty()) return;
+    private void checkIncoming(Context ctx, String rpcUrl, String address) throws Exception {
+        // Throwing fetch: transient network/rate-limit failures propagate to
+        // doWork() for WorkManager retry; per-tx data problems are skipped
+        // inline below and never fail the whole scan.
+        List<JSONObject> history =
+                new WalletRepository(getApplicationContext()).fetchHistoryThrowing(rpcUrl, address, 25, 0);
+        if (history.isEmpty()) return;
 
-            for (JSONObject tx : history) {
-                if (tx == null) continue;
+        java.util.Set<String> notified = loadNotifiedSet(ctx, address);
+        boolean changed = false;
+        for (JSONObject tx : history) {
+            if (tx == null) continue;
 
-                String to   = firstNonEmpty(tx.optString("to", ""), tx.optString("recipient", ""));
-                String from = firstNonEmpty(tx.optString("from", ""), tx.optString("sender", ""));
-                String status = tx.optString("status", "");
+            String to   = firstNonEmpty(tx.optString("to", ""), tx.optString("recipient", ""));
+            String from = firstNonEmpty(tx.optString("from", ""), tx.optString("sender", ""));
+            String status = tx.optString("status", "");
 
-                if (!address.equalsIgnoreCase(to.trim())) continue;
-                if (from.trim().isEmpty() || from.equalsIgnoreCase(address)) continue;
-                String ns = status.toLowerCase();
-                if (ns.contains("reject") || ns.contains("fail")) continue;
+            if (!address.equalsIgnoreCase(to.trim())) continue;
+            if (from.trim().isEmpty() || from.equalsIgnoreCase(address)) continue;
+            String ns = status.toLowerCase();
+            if (ns.contains("reject") || ns.contains("fail")) continue;
 
-                String hash = firstNonEmpty(tx.optString("hash", ""), tx.optString("tx_hash", "")).trim();
-                if (hash.isEmpty()) continue;
+            String hash = firstNonEmpty(tx.optString("hash", ""), tx.optString("tx_hash", "")).trim();
+            if (hash.isEmpty()) continue;
+            if (notified.contains(hash)) continue; // already notified earlier
 
-                String key     = KEY_LAST_HASH_PREFIX + address;
-                String lastHash = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                        .getString(key, "");
-                if (hash.equals(lastHash)) break; // already notified
+            // Found a new incoming tx — notify (each new tx, not just the first)
+            String amountRaw = firstNonEmpty(tx.optString("amount_raw", ""), tx.optString("amount", "0"));
+            String symbol    = firstNonEmpty(tx.optString("token_symbol", ""), tx.optString("symbol", "OCT"));
+            if (symbol.isEmpty()) symbol = "OCT";
 
-                // Found a new incoming tx — notify
-                String amountRaw = firstNonEmpty(tx.optString("amount_raw", ""), tx.optString("amount", "0"));
-                String symbol    = firstNonEmpty(tx.optString("token_symbol", ""), tx.optString("symbol", "OCT"));
-                if (symbol.isEmpty()) symbol = "OCT";
-
+            try {
                 postIncomingNotification(ctx, from, amountRaw, symbol, address, hash);
-                ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                        .edit().putString(key, hash).apply();
-                break;
+            } catch (Exception e) {
+                Log.w(LOG_TAG, "Notify failed for " + hash + ": " + e.getMessage());
+                continue; // do not record un-notified hashes
+            }
+            notified.add(hash);
+            changed = true;
+        }
+        if (changed) saveNotifiedSet(ctx, address, notified);
+    }
+
+    private java.util.Set<String> loadNotifiedSet(Context ctx, String address) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        String raw = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_NOTIFIED_SET_PREFIX + address, "[]");
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray(raw);
+            for (int i = 0; i < arr.length(); i++) {
+                String h = arr.optString(i, "");
+                if (!h.isEmpty()) out.add(h);
             }
         } catch (Exception e) {
-            Log.w(LOG_TAG, "Incoming check failed: " + e.getMessage());
+            Log.w(LOG_TAG, "Notified-set parse failed, starting fresh");
         }
+        return out;
+    }
+
+    private void saveNotifiedSet(Context ctx, String address, java.util.Set<String> notified) {
+        java.util.List<String> ordered = new java.util.ArrayList<>(notified);
+        while (ordered.size() > MAX_NOTIFIED_HASHES) ordered.remove(0);
+        org.json.JSONArray arr = new org.json.JSONArray();
+        for (String h : ordered) arr.put(h);
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putString(KEY_NOTIFIED_SET_PREFIX + address, arr.toString()).apply();
     }
 
     // notify() is guarded by a POST_NOTIFICATIONS check at the call site;
@@ -143,7 +199,7 @@ public class AutoScanWorker extends Worker {
 
         Intent intent = new Intent(ctx, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent pi = PendingIntent.getActivity(ctx, hash.hashCode() & 0xffff,
+        PendingIntent pi = PendingIntent.getActivity(ctx, notificationIdFor(hash),
                 intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         Notification notif = new NotificationCompat.Builder(ctx, CHANNEL_ID)
@@ -156,7 +212,7 @@ public class AutoScanWorker extends Worker {
                 .setContentIntent(pi)
                 .build();
 
-        NotificationManagerCompat.from(ctx).notify(NOTIF_ID + (hash.hashCode() & 0xffff), notif);
+        NotificationManagerCompat.from(ctx).notify(notificationIdFor(hash), notif);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
