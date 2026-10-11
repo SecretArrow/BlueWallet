@@ -86,7 +86,8 @@ class BackgroundPollingService extends ChangeNotifier {
   void _startPollTimer() {
     _pollTimer = Timer.periodic(_pollInterval, (_) async {
       if (_pollBusy) {
-        debugPrint('[BackgroundPolling] poll tick skipped (previous still running)');
+        debugPrint(
+            '[BackgroundPolling] poll tick skipped (previous still running)');
         return;
       }
       _pollBusy = true;
@@ -103,7 +104,8 @@ class BackgroundPollingService extends ChangeNotifier {
     // Initial delay before first PVAC check
     _pvacTimer = Timer.periodic(_pvacCheckInterval, (_) async {
       if (_pvacBusy) {
-        debugPrint('[BackgroundPolling] pvac tick skipped (previous still running)');
+        debugPrint(
+            '[BackgroundPolling] pvac tick skipped (previous still running)');
         return;
       }
       _pvacBusy = true;
