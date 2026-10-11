@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../services/recent_sites_service.dart';
 
-/// Settings tab — matches Android MainActivity settings view exactly:
+/// Settings tab — matches Android MainActivity settings view:
 /// flat rows with 44dp circle icon, title only, bottom divider.
-/// Items sorted alphabetically, then About + Logout at bottom.
+/// Items ordered by frequency of use (most used first), then About + Logout
+/// at bottom. DApp Browser lives in the bottom navigation tab, not here.
 /// Dev Tools visible only on desktop (Linux / Windows / macOS).
+/// NOTE: Android has no Biometric row (handled in UnlockActivity); position
+/// 6 is skipped there, everything else keeps the same relative order.
 class SettingsTab extends StatelessWidget {
   const SettingsTab({super.key});
 
@@ -17,25 +20,24 @@ class SettingsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      // Sorted alphabetically (same as Android)
-      _Item('Address Book', Icons.import_contacts_rounded, '/address-book'),
-      _Item('Auto Scan', Icons.radar_rounded, '/auto-scan'),
-      _Item('Biometric', Icons.fingerprint_rounded, '/biometric-settings'),
-      _Item('Cache', Icons.storage_rounded, null,
-          onTap: (ctx) => _clearCache(ctx)),
-      _Item('Change PIN', Icons.pin_rounded, '/change-pin'),
-      _Item('Data Usage', Icons.data_usage_rounded, '/data-usage'),
-      _Item('DApp Browser', Icons.web_rounded, '/dapp-browser'),
-      _Item('DApp Origins', Icons.language_rounded, '/dapp-origins'),
-      if (_isDesktop)
-        _Item('Developer Tools', Icons.code_rounded, '/dev-tools'),
+      // Ordered by frequency of use (same as Android, minus Biometric there)
+      _Item('Wallets', Icons.account_balance_wallet_rounded, '/wallets'),
       _Item('Networks', Icons.public_rounded, '/network-settings'),
-      _Item('Polling Settings', Icons.history_rounded, '/polling-settings'),
+      _Item('Change PIN', Icons.pin_rounded, '/change-pin'),
+      _Item('Theme', Icons.palette_rounded, '/theme-palette'),
+      _Item('Address Book', Icons.import_contacts_rounded, '/address-book'),
+      _Item('Biometric', Icons.fingerprint_rounded, '/biometric-settings'),
+      _Item('DApp Origins', Icons.language_rounded, '/dapp-origins'),
       _Item('Permissions', Icons.notifications_rounded, '/permissions-center'),
       _Item('Session', Icons.timer_rounded, '/session-lock'),
-      _Item('Theme', Icons.palette_rounded, '/theme-palette'),
+      _Item('Cache', Icons.storage_rounded, null,
+          onTap: (ctx) => _clearCache(ctx)),
+      _Item('Data Usage', Icons.data_usage_rounded, '/data-usage'),
+      _Item('Auto Scan', Icons.radar_rounded, '/auto-scan'),
+      _Item('Polling Settings', Icons.history_rounded, '/polling-settings'),
       _Item('Tor Proxy', Icons.security_rounded, '/tor-proxy'),
-      _Item('Wallets', Icons.account_balance_wallet_rounded, '/wallets'),
+      if (_isDesktop)
+        _Item('Developer Tools', Icons.code_rounded, '/dev-tools'),
       // Always at bottom
       _Item('About', Icons.info_rounded, '/about'),
       _Item('Logout', Icons.logout_rounded, null,
