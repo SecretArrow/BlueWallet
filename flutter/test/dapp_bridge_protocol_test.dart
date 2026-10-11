@@ -203,7 +203,8 @@ void main() {
     });
 
     test('networkIdForChain maps both networks', () {
-      expect(DappBridgeProtocol.networkIdForChain('octra-mainnet-1'), 'mainnet');
+      expect(
+          DappBridgeProtocol.networkIdForChain('octra-mainnet-1'), 'mainnet');
       expect(DappBridgeProtocol.networkIdForChain('octra-devnet-1'), 'devnet');
       expect(DappBridgeProtocol.networkIdForChain(''), 'devnet');
       expect(DappBridgeProtocol.networkIdForChain(null), 'devnet');

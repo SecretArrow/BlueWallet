@@ -354,7 +354,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
         case 'wallet_getNetwork':
           _bridgeResult(
               id,
-              jsonEncode(DappBridgeProtocol.networkIdForChain(ns.activeChainId)));
+              jsonEncode(
+                  DappBridgeProtocol.networkIdForChain(ns.activeChainId)));
           break;
 
         case 'wallet_getNetworkInfo':
