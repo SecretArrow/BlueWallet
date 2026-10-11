@@ -90,7 +90,7 @@ describe('sendTransaction', () => {
   function connected(responses = {}) {
     const a = adapterWith({
       octra_requestAccounts: [ADDR],
-      'octra_sendTransaction': { hash: 'h1' },
+      'wallet_sendTransaction': { hash: 'h1' },
       ...responses,
     });
     return (async () => {
@@ -105,7 +105,7 @@ describe('sendTransaction', () => {
     const r = await a.sendTransaction({ to: OTHER, amountOct: '10.5' });
     assert.equal(r.hash, 'h1');
     const t = a.transport;
-    assert.equal(t.calls.at(-1).method, 'octra_sendTransaction');
+    assert.equal(t.calls.at(-1).method, 'wallet_sendTransaction');
     assert.deepEqual(t.calls.at(-1).params[0].amount, '10500000');
   });
 
@@ -125,7 +125,7 @@ describe('sendTransaction', () => {
   });
 
   it('empty hash is a failure, not success', async () => {
-    const a = await connected({ 'octra_sendTransaction': {} });
+    const a = await connected({ 'wallet_sendTransaction': {} });
     await assert.rejects(() => a.sendTransaction({ to: OTHER, amount: '1' }),
       (e) => e.code === ERROR_CODES.TRANSACTION_FAILED);
   });
@@ -135,9 +135,9 @@ describe('callContract / contractView / balances', () => {
   it('calls through with normalized results', async () => {
     const a = adapterWith({
       octra_requestAccounts: [ADDR],
-      octra_callContract: { txHash: 't1' },
-      octra_callView: { price: '5' },
-      octra_getBalance: { balance_raw: '2000000' },
+      octra_sendContractTransaction: { txHash: 't1' },
+      wallet_callView: { price: '5' },
+      getBalance: { balance_raw: '2000000' },
       octra_getEncryptedBalance: { address: ADDR, cipher: 'c1' },
     });
     await a.initialize();
@@ -151,6 +151,57 @@ describe('callContract / contractView / balances', () => {
     assert.equal(b.currency, 'OCT');
     const e = await a.getEncryptedBalance();
     assert.equal(e.cipher, 'c1');
+  });
+
+  it('sends the canonical new wire names', async () => {
+    const a = adapterWith({
+      octra_requestAccounts: [ADDR],
+      octra_sendContractTransaction: { txHash: 't1' },
+      wallet_callView: { price: '5' },
+      getBalance: { balance_raw: '2000000' },
+    });
+    await a.initialize();
+    await a.connect();
+    await a.callContract({ contract: OTHER, method: 'swap', params: [] });
+    assert.equal(a.transport.calls.at(-1).method, 'octra_sendContractTransaction');
+    await a.contractView({ contract: OTHER, method: 'get_price' });
+    assert.equal(a.transport.calls.at(-1).method, 'wallet_callView');
+    await a.getBalance();
+    assert.equal(a.transport.calls.at(-1).method, 'getBalance');
+  });
+
+  it('legacy names still served via the localhost compat path', async () => {
+    // Dual-stack guard: legacy names keep working; canonical new names
+    // route to the same /api endpoints.
+    const { LocalhostTransport } = await import('../src/transports.mjs');
+    const t = new LocalhostTransport({
+      fetchImpl: async (url) => {
+        const u = String(url);
+        if (u.endsWith('/api/balance')) return { ok: true, status: 200, json: async () => ({ balance_raw: '1000000' }) };
+        if (u.includes('/api/contract/view')) return { ok: true, status: 200, json: async () => ({ price: '1' }) };
+        return { ok: false, status: 404, json: async () => ({ error: 'not found' }) };
+      },
+    });
+    // Both dialects hit the same /api routes.
+    assert.deepEqual(await t.request('octra_getBalance', []), { balance_raw: '1000000' });
+    assert.deepEqual(await t.request('getBalance', []), { balance_raw: '1000000' });
+    assert.deepEqual(
+      await t.request('octra_callView', ['octAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'm', [], '']),
+      { price: '1' },
+    );
+    assert.deepEqual(
+      await t.request('wallet_callView', ['octAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'm', [], '']),
+      { price: '1' },
+    );
+    // Plain sends stay refused on both dialects (approval-gated only).
+    await assert.rejects(() => t.request('octra_sendTransaction', []),
+      (e) => e.code === ERROR_CODES.UNSUPPORTED_METHOD);
+    await assert.rejects(() => t.request('wallet_sendTransaction', []),
+      (e) => e.code === ERROR_CODES.UNSUPPORTED_METHOD);
+    await assert.rejects(() => t.request('octra_callContract', []),
+      (e) => e.code === ERROR_CODES.UNSUPPORTED_METHOD);
+    await assert.rejects(() => t.request('octra_sendContractTransaction', []),
+      (e) => e.code === ERROR_CODES.UNSUPPORTED_METHOD);
   });
 
   it('validates contract inputs', async () => {
@@ -206,6 +257,12 @@ describe('LocalhostTransport guards (no network)', () => {
     } });
     await assert.rejects(() => t.request('octra_sendTransaction', []),
       (e) => e.code === ERROR_CODES.UNSUPPORTED_METHOD);
+    await assert.rejects(() => t.request('wallet_sendTransaction', []),
+      (e) => e.code === ERROR_CODES.UNSUPPORTED_METHOD);
+    await assert.rejects(() => t.request('octra_callContract', []),
+      (e) => e.code === ERROR_CODES.UNSUPPORTED_METHOD);
+    await assert.rejects(() => t.request('octra_sendContractTransaction', []),
+      (e) => e.code === ERROR_CODES.UNSUPPORTED_METHOD);
     await assert.rejects(() => t.request('nope', []),
       (e) => e.code === ERROR_CODES.UNSUPPORTED_METHOD);
     await assert.rejects(
@@ -238,9 +295,36 @@ describe('LocalhostTransport guards (no network)', () => {
       },
     });
     t.setToken('tok123');
-    await assert.rejects(() => t.request('octra_getBalance', []),
+    await assert.rejects(() => t.request('getBalance', []),
       (e) => e.code === ERROR_CODES.NETWORK_UNAVAILABLE && e.status === 401);
     assert.equal(seenAuth, 'Bearer tok123');
+  });
+
+  it('InjectedTransport.connectRaw prefers request(), falls back to legacy connect()', async () => {
+    const { InjectedTransport } = await import('../src/transports.mjs');
+    // Modern path: provider with request() answers octra_requestAccounts.
+    const seen = [];
+    const modern = new InjectedTransport({
+      async request({ method }) {
+        seen.push(method);
+        assert.equal(method, 'octra_requestAccounts');
+        return ['octAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'];
+      },
+    });
+    assert.equal(await modern.available(), true);
+    assert.deepEqual(await modern.connectRaw(), ['octAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA']);
+    assert.deepEqual(seen, ['octra_requestAccounts']);
+    // Legacy path: provider without request() falls back to connect().
+    let connectCalls = 0;
+    const legacy = new InjectedTransport({
+      async connect() {
+        connectCalls++;
+        return { address: 'octBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB' };
+      },
+    });
+    assert.equal(await legacy.available(), true);
+    assert.deepEqual(await legacy.connectRaw(), { address: 'octBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB' });
+    assert.equal(connectCalls, 1);
   });
 });
 
@@ -306,7 +390,7 @@ describe('getBalance accepts every wallet surface shape', () => {
   async function balanceOf(wireBody) {
     const a = adapterWith({
       octra_requestAccounts: [ADDR],
-      octra_getBalance: wireBody,
+      getBalance: wireBody,
     });
     await a.initialize();
     await a.connect();

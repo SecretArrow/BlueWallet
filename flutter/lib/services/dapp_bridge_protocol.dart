@@ -88,6 +88,10 @@ class DappBridgeProtocol {
   static const String orionPrefix = 'orion_wallet_';
 
   /// Reads + session calls answered for the `window.wallet` facade.
+  /// `wallet_sendTransaction` (approval-gated submit, twin of
+  /// `octra_sendTransaction`) and `wallet_callView` (read-only view, twin
+  /// of `octra_callView`) live here alongside the earlier account /
+  /// chainId / balance aliases.
   static const Set<String> walletServedMethods = {
     'wallet_connect',
     'wallet_disconnect',
@@ -100,6 +104,8 @@ class DappBridgeProtocol {
     'wallet_getChainId',
     'wallet_getPermissions',
     'wallet_ping',
+    'wallet_sendTransaction',
+    'wallet_callView',
   };
 
   /// Reduce a method name to canonical form: trim, then fold the

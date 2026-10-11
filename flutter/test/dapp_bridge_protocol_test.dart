@@ -250,4 +250,23 @@ void main() {
           isFalse);
     });
   });
+
+  group('wallet_* submit/view aliases (dual-stack, legacy kept)', () {
+    test('wallet_sendTransaction + wallet_callView dispatch', () {
+      for (final m in ['wallet_sendTransaction', 'wallet_callView']) {
+        expect(DappBridgeProtocol.isSupported(m), isTrue, reason: m);
+        expect(DappBridgeProtocol.walletServedMethods.contains(m), isTrue,
+            reason: m);
+        // orion_wallet_* is the same operation under the brand prefix.
+        expect(DappBridgeProtocol.isSupported('orion_$m'), isTrue,
+            reason: 'orion_$m');
+        expect(DappBridgeProtocol.isKnownUnsupported(m), isFalse, reason: m);
+      }
+    });
+
+    test('legacy twins keep working alongside the aliases', () {
+      expect(DappBridgeProtocol.isSupported('octra_sendTransaction'), isTrue);
+      expect(DappBridgeProtocol.isSupported('octra_callView'), isTrue);
+    });
+  });
 }

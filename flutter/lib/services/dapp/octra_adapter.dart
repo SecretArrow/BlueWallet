@@ -54,6 +54,9 @@ class OctraAdapter implements WalletAdapter {
         'wallet_getChainId',
         'wallet_getPermissions',
         'wallet_ping',
+        // wallet_* twins of legacy submit/view (dual-stack, legacy kept)
+        'wallet_sendTransaction',
+        'wallet_callView',
       };
 
   @override
@@ -133,8 +136,10 @@ class OctraAdapter implements WalletAdapter {
       case 'octra_switchNetwork':
         return _handleSwitchNetwork(request, ctx);
       case 'octra_callView':
+      case 'wallet_callView':
         return _handleCallView(request);
       case 'octra_sendTransaction':
+      case 'wallet_sendTransaction':
         return _handleSend(request, ctx);
       case 'octra_sendContractTransaction':
         return _handleContractTransaction(request, ctx);

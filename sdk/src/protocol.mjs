@@ -22,10 +22,15 @@ export const LEGACY_METHODS = Object.freeze([
   'octra_callView',
 ]);
 
-/** RFC-O-1 aliases answered by BlueWallet wallets (Fase A). */
+/** RFC-O-1 aliases answered by BlueWallet wallets (Fase A).
+ * Canonical NEW names (alias RFC program): `wallet_sendTransaction`
+ * (submit, approval-gated) and `wallet_callView` (read-only). Legacy
+ * names stay in LEGACY_METHODS below — dual-stack, no removal. */
 export const RFC_METHODS = Object.freeze([
   'octra_requestAccounts',
   'octra_getEncryptedBalance',
+  'wallet_sendTransaction',
+  'wallet_callView',
 ]);
 
 /** Every method name the wallet answers to, in either dialect. */

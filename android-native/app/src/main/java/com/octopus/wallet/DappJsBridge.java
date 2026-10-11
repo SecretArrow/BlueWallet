@@ -277,6 +277,7 @@ public final class DappJsBridge {
         return DappBridgeProtocol.REQUEST_ACCOUNTS.equals(canonical)
                 || "wallet_connect".equals(canonical)
                 || "octra_sendTransaction".equals(canonical)
+                || "wallet_sendTransaction".equals(canonical)
                 || "octra_sendContractTransaction".equals(canonical)
                 || "octra_callContract".equals(canonical)
                 || "octra_switchNetwork".equals(canonical);

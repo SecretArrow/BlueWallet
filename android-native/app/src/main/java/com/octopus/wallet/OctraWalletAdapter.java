@@ -74,6 +74,7 @@ public final class OctraWalletAdapter implements WalletAdapter {
                     fetchBalance(ctx, requestId);
                     return true;
                 case "octra_sendTransaction":
+                case "wallet_sendTransaction":
                     handleSendTransaction(ctx, requestId, paramsJson);
                     return true;
                 case "octra_sendContractTransaction":
@@ -83,6 +84,7 @@ public final class OctraWalletAdapter implements WalletAdapter {
                     handleCallContract(ctx, requestId, paramsJson);
                     return true;
                 case "octra_callView":
+                case "wallet_callView":
                     handleCallViewLegacy(ctx, requestId, paramsJson);
                     return true;
                 case "octra_getEncryptedBalance":

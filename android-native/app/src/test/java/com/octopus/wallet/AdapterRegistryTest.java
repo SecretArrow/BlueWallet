@@ -90,4 +90,24 @@ public class AdapterRegistryTest {
         sessions.revoke(null, "example.com");
         assertFalse(sessions.isConnected("https://example.com/"));
     }
+
+    @Test
+    public void resolve_servesWalletSendAndCallViewAliases() {
+        // Resolve via registry (canonical + orion_ fold).
+        assertNotNull(AdapterRegistry.resolve("wallet_sendTransaction"));
+        assertNotNull(AdapterRegistry.resolve("wallet_callView"));
+        assertNotNull(AdapterRegistry.resolve("orion_wallet_sendTransaction"));
+        assertNotNull(AdapterRegistry.resolve("orion_wallet_callView"));
+        // Adapter dispatch set carries both twins alongside legacy.
+        OctraWalletAdapter adapter = new OctraWalletAdapter();
+        assertTrue(adapter.supports("wallet_sendTransaction"));
+        assertTrue(adapter.supports("wallet_callView"));
+        assertTrue(adapter.supports("octra_sendTransaction"));
+        assertTrue(adapter.supports("octra_callView"));
+        // Protocol + registry agree (supported = dispatched, never silently dropped).
+        assertTrue(DappBridgeProtocol.isSupported("wallet_sendTransaction"));
+        assertTrue(DappBridgeProtocol.isSupported("wallet_callView"));
+        assertTrue(AdapterRegistry.isSupported("wallet_sendTransaction"));
+        assertTrue(AdapterRegistry.isSupported("wallet_callView"));
+    }
 }

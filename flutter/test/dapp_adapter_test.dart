@@ -20,6 +20,38 @@ class _StubAdapter implements WalletAdapter {
       'stub-chain';
 }
 
+/// Dual-stack alias stub: answers the canonical `wallet_*` submit/view
+/// twins alongside the legacy names (legacy behaviour untouched).
+class _AliasAdapter implements WalletAdapter {
+  @override
+  String get id => 'alias';
+  @override
+  String get chainType => 'Alias';
+  @override
+  Set<String> get supportedMethods => const {
+        'octra_sendTransaction',
+        'wallet_sendTransaction',
+        'octra_callView',
+        'wallet_callView',
+      };
+  @override
+  bool supports(String m) => supportedMethods.contains(m);
+  @override
+  Future<AdapterResult> handle(DappRequest r, AdapterContext ctx) async {
+    switch (r.method) {
+      case 'octra_sendTransaction':
+      case 'wallet_sendTransaction':
+        return {'hash': 'alias-hash', 'ok': true};
+      case 'octra_callView':
+      case 'wallet_callView':
+        return {'result': 'alias-view'};
+      default:
+        throw DappError('Unsupported method: ${r.method}',
+            DappBridgeProtocol.unsupportedMethod);
+    }
+  }
+}
+
 AdapterContext _ctx() => AdapterContext(
       requestApproval: (
               {required String title,
@@ -143,6 +175,35 @@ void main() {
     test('VisitedPage.domainOf strips www + handles oct', () {
       expect(VisitedPage.domainOf('https://www.example.com/a'), 'example.com');
       expect(VisitedPage.domainOf('oct://MyCircle/page'), 'mycircle');
+    });
+  });
+
+  group('wallet_* submit/view aliases (dual-stack, legacy kept)', () {
+    DappRequest req(String method) => DappRequest(
+        jsId: 1,
+        origin: 'https://app.example.com',
+        method: method,
+        params: const [],
+        receivedAt: DateTime.now());
+
+    test('alias twins dispatch identically to legacy', () async {
+      final registry = AdapterRegistry([_AliasAdapter()]);
+      for (final m in [
+        'octra_sendTransaction',
+        'wallet_sendTransaction',
+        'octra_callView',
+        'wallet_callView',
+      ]) {
+        expect(registry.isSupported(m), isTrue, reason: m);
+      }
+      final sendLegacy =
+          await registry.dispatch(req('octra_sendTransaction'), _ctx());
+      final sendAlias =
+          await registry.dispatch(req('wallet_sendTransaction'), _ctx());
+      expect(sendAlias, sendLegacy);
+      final viewLegacy = await registry.dispatch(req('octra_callView'), _ctx());
+      final viewAlias = await registry.dispatch(req('wallet_callView'), _ctx());
+      expect(viewAlias, viewLegacy);
     });
   });
 }

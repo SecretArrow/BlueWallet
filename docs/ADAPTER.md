@@ -177,15 +177,21 @@ answers without touching wallet state. See `docs/THIRD-PARTY.md`.
 
 ## Method surface
 
-| Legacy (existing) | RFC-O-1 alias | Notes |
-|---|---|---|
-| `connect()` | `requestAccounts()` | approval-gated; alias answers `["addr"]` |
-| `octra_accounts`, `octra_chainId` | — | pre-connect reads |
-| `octra_getBalance` | — | cached balances |
-| — | `octra_getEncryptedBalance` | `{address, cipher}`; error when never refreshed |
-| `octra_sendTransaction` | — | approval UI |
-| `octra_callContract` | — | approval UI |
-| `octra_callView` | — | read-only |
+| Legacy (existing) | RFC-O-1 alias | Canonical NEW (alias RFC program) | Notes |
+|---|---|---|---|
+| `connect()` | `requestAccounts()` | — | approval-gated; alias answers `["addr"]` |
+| `octra_accounts`, `octra_chainId` | — | — | pre-connect reads |
+| `octra_getBalance` | — | `getBalance` | cached balances; same `/api/balance` on localhost |
+| — | `octra_getEncryptedBalance` | — | `{address, cipher}`; error when never refreshed |
+| `octra_sendTransaction` | — | `wallet_sendTransaction` | approval UI; submit, approval-gated |
+| `octra_callContract` | — | `octra_sendContractTransaction` | approval UI; submit, approval-gated |
+| `octra_callView` | — | `wallet_callView` | read-only; same `/api/contract/view` on localhost |
+
+Dual-stack: the adapter sends the canonical NEW names; the native
+provider answers `wallet_*` directly and `LocalhostTransport` serves
+both dialects on the same `/api` routes. Legacy names are **not
+removed** — existing integrations keep working untouched and the
+version guard below stays pinned.
 
 ## Error codes (RFC-O-1, 4th `__octra_response` argument)
 
@@ -203,5 +209,9 @@ Old dApps ignore the 4th argument — fully backward compatible.
 ## Deprecation policy (strangler)
 
 - Legacy dialect: supported, deprecation warnings planned, **removal at v0.19.0**.
+  Until then: dual-stack — canonical NEW names (`wallet_sendTransaction`,
+  `wallet_callView`) dispatch alongside legacy, legacy is **not deleted**,
+  and the version guard (`sdk/test/version.test.mjs` fails at ≥0.19 with the
+  legacy provider still live) stays in place.
 - `OctraWalletAdapter` JS package (Fase B) becomes the documented path.
 - Internal pages (swap/bridge/circles) migrate to the adapter (Fase C).

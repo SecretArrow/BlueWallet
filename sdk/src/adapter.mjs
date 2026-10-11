@@ -124,7 +124,9 @@ export class OctraWalletAdapter {
   async getBalance() {
     this._requireConnected();
     const t = this._requireTransport();
-    const res = await this._withTimeout(t.request('octra_getBalance', []));
+    // Canonical wire name is `getBalance` (provider native answers it
+    // directly). Legacy `octra_getBalance` stays served by transports.
+    const res = await this._withTimeout(t.request('getBalance', []));
     // Injected path answers a JSON-RPC envelope; localhost answers a body.
     const r = unwrapRpc(res) ?? {};
     // Field names differ per wallet surface and must all be accepted:
@@ -192,7 +194,9 @@ export class OctraWalletAdapter {
     return this._withTimeout(t.request('octra_getEncryptedBalance', []));
   }
 
-  /** Read-only contract view. No unlock, no approval. */
+  /** Read-only contract view. No unlock, no approval.
+   * Canonical wire name is `wallet_callView` (legacy `octra_callView`
+   * stays served by transports for compat). */
   async contractView({ contract, method, params = [], caller } = {}) {
     this._requireTransport();
     if (!contract || !method) {
@@ -200,7 +204,7 @@ export class OctraWalletAdapter {
     }
     const t = this._requireTransport();
     return this._withTimeout(
-      t.request('octra_callView', [contract, method, params, caller ?? this.address ?? '']),
+      t.request('wallet_callView', [contract, method, params, caller ?? this.address ?? '']),
     );
   }
 
@@ -221,8 +225,10 @@ export class OctraWalletAdapter {
       throw new OctraWalletError(ERROR_CODES.INVALID_AMOUNT, 'Amount must be greater than 0');
     }
     const t = this._requireTransport();
+    // Canonical wire name is `wallet_sendTransaction` (submit,
+    // approval-gated). Legacy `octra_sendTransaction` stays served.
     const res = await this._withTimeout(
-      t.request('octra_sendTransaction', [{ to, amount: micro, ...(message !== undefined ? { message } : {}) }]),
+      t.request('wallet_sendTransaction', [{ to, amount: micro, ...(message !== undefined ? { message } : {}) }]),
     );
     const hash = res?.hash ?? res?.tx_hash ?? res?.txHash;
     if (!hash) {
@@ -261,7 +267,9 @@ export class OctraWalletAdapter {
       return { txHash: res?.tx_hash ?? res?.txHash, raw: res };
     }
     const res = await this._withTimeout(
-      t.request('octra_callContract', [contract, method, params, micro]),
+      // Canonical wire name is `octra_sendContractTransaction` (submit,
+      // approval-gated). Legacy `octra_callContract` stays served.
+      t.request('octra_sendContractTransaction', [contract, method, params, micro]),
     );
     return { txHash: res?.txHash ?? res?.tx_hash ?? res?.hash, raw: res };
   }

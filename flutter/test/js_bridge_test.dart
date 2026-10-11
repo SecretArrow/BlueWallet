@@ -213,4 +213,44 @@ void main() {
       expect(b.isDisposed, isTrue);
     });
   });
+
+  group('JsBridge wallet_* submit/view aliases (dual-stack)', () {
+    test('send alias needs approval, view alias stays a read (like twins)', () {
+      expect(
+          JsBridge.approvalMethods.contains('octra_sendTransaction'), isTrue);
+      expect(
+          JsBridge.approvalMethods.contains('wallet_sendTransaction'), isTrue);
+      expect(JsBridge.approvalMethods.contains('octra_callView'), isFalse);
+      expect(JsBridge.approvalMethods.contains('wallet_callView'), isFalse);
+    });
+
+    test('both aliases stay session-gated like their twins', () {
+      for (final m in [
+        'octra_sendTransaction',
+        'wallet_sendTransaction',
+        'octra_callView',
+        'wallet_callView',
+      ]) {
+        expect(JsBridge.preConnectMethods.contains(m), isFalse, reason: m);
+      }
+    });
+
+    test('providerJs forwards the aliases, facade uses the new reads', () {
+      final js = JsBridge.providerJs;
+      expect(js.contains('wallet_sendTransaction'), isTrue);
+      expect(js.contains('wallet_callView'), isTrue);
+      // Facade internals ride the canonical aliases, not the legacy names.
+      expect(js.contains("method:'wallet_getAccounts'"), isTrue);
+      expect(js.contains("method:'wallet_getBalance'"), isTrue);
+      expect(js.contains("method:'octra_accounts'"), isFalse);
+      expect(js.contains("method:'octra_getBalance'"), isFalse);
+      expect(js.contains("method:'octra_chainId'"), isFalse);
+      // Facade API itself is unchanged.
+      expect(js.contains('async getAccounts()'), isTrue);
+      expect(js.contains('async getBalance()'), isTrue);
+      expect(js.contains('async getChainId()'), isTrue);
+      // Legacy connect path is untouched.
+      expect(js.contains("type: 'connect'"), isTrue);
+    });
+  });
 }
