@@ -565,3 +565,50 @@ Run kedua gagal dengan `net::ERR_CLEARTEXT_NOT_PERMITTED` untuk
 - A42 — `10.0.2.2` (alias loopback emulator) ikut diizinkan agar WebView di
   emulator bisa menjangkau `127.0.0.1`; di perangkat nyata hanya loopback yang
   dipakai.
+
+## Bukti Fase D2 — dApp 0xio (third-party) di browser
+
+Pemetaan kasus dilakukan sebelum coding, dari SDK MIT `@0xio/sdk` 2.8.1
+(yang dibaca: nama method + bentuk params/hasil — tanpa menyalin kode).
+Adapter mereka (`OctraProviderAdapter`) menggerakkan
+`window.octra.request({method, params})` dan mendeteksi dompet apa pun lewat
+`isOctra === true`.
+
+| # | Skenario | Lokasi penanganan | Test |
+|---|---|---|---|
+| 1 | Adapter kirim params objek `{...}`, bukan array | `asTxObject`/`txObject` (array-first-or-self) | `asTxObject_acceptsBothShapes` (JVM), `txObject accepts both shapes` (Dart) |
+| 2 | Flutter membuang params Map (`as List?` → `[]`) | bungkus `[map]` di `_handleBridgeMessage` | cabang + review (tak ada unit path tanpa WebView) |
+| 3 | `octra_callContract` ganda makna (view vs submit) | `isViewCall`: tanpa `amount`/`ou` → view | `isViewCall_splitsByAttachedValue` (JVM + Dart) |
+| 4 | View tanpa approval | `handleCallViewObject`/`_handleViewObject` (read-only) | cabang di kedua handler |
+| 5 | `amount` + `amountOct` sekaligus / tak ada | `resolveTxAmount` (tepat-satu) | `resolveTxAmount_exactArithmeticOnly` |
+| 6 | Desimal tak-exact (`0.1+0.2`) | `octToMicro` maks 6 desimal, tolak | `octToMicro_convertsExactly` + kasus `0.30000000000000004` |
+| 7 | Amount nol | tolak sebelum dialog | cabang `amount == '0'` |
+| 8 | `message` > 1000 char | tolak sebelum dialog | cabang message-length |
+| 9 | `isPrivate: true` | tolak eksplisit (tanpa stealth via provider) | cabang `isPrivate` |
+| 10 | `octra_networkInfo` belum ada | `{id mainnet/devnet, name, chainId, rpcUrl, explorerUrl, isTestnet}` | `isSupported_coversThirdPartyReads` |
+| 11 | `octra_permissions` belum ada | gema scope yang diminta saat approval | `extractRequestedPermissions`/`requestedPermissions` |
+| 12 | Permissions tak-terparse | default `['accounts']`, tak pernah throw | kasus null/kosong/bukan-JSON |
+| 13 | `disconnect` via request (adapter) | bersihkan sesi + `{success: true}` | `disconnect` di registry + cabang |
+| 14 | `getBalance` adapter baca `balance`/`privateBalance` | alias ke fetch mentah | cabang `getBalance` |
+| 15 | Pubkey tak tersimpan | error jujur (bukan string kosong) | cabang `sendPublicKey`/`getPublicKey` |
+| 16 | `switchNetwork` tak bisa pindah | `{network: current, switched}` jujur | cabang `answerSwitchNetwork` |
+| 17 | Sign-only / message / privat FHE | `KNOWN_UNSUPPORTED` → `4200` menyebut nama method | `isKnownUnsupported_namesUnservedMethods` |
+| 18 | Hasil submit tanpa `accepted` | `acceptedSubmitJson` gabung mentah + normalisasi | `acceptedSubmitJson_preservesRawAndAddsAccepted` |
+| 19 | `_connected` JS basi (adapter tak pakai helper) | sinkron di `.then` untuk `octra_requestAccounts`/`disconnect` | cabang provider JS (E2E manual) |
+| 20 | `disconnect` sebelum connect melempar | dikecualikan dari gate pra-connect | gate JS + `preConnect` Dart |
+
+### Asumsi eksplisit (D2)
+
+- A47 — `ou` yang dikirim dApp dibaca tapi **tidak diterapkan**; fee oracle
+  dompet yang menentukan (konsisten dengan penghapusan `ou` hardcode di C1/C2).
+- A48 — `octra_permissions` menggemakan apa yang diminta halaman, bukan hasil
+  negosiasi per-scope: approval dompet ini all-or-nothing.
+- A49 — `getPublicKey` di Flutter selalu error jujur (`WalletProfile` tak
+  menyimpan pubkey); di Android menjawab bila `active_public_key` tersimpan.
+- A50 — Aturan view-vs-submit (`isViewCall`) bergantung pada **ada/tidaknya
+  key** `amount`/`ou`: view 0xio tak pernah mengirimnya, submit selalu. Bila
+  konvensi mereka berubah, test bentuk akan menangkapnya lebih dulu.
+- A51 — Verifikasi D2 bersifat unit + manual QA (`docs/THIRD-PARTY.md`):
+  belum ada E2E WebView yang memuat SDK 0xio asli (butuh internet + emulator).
+- A52 — Orion (`window.wallet`) belum diimplementasi — PR D3; popup
+  `MessageChannel` mereka menarget origin dompet Orion dan tak bisa dicegat.

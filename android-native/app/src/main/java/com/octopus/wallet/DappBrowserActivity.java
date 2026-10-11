@@ -29,7 +29,10 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -54,6 +57,14 @@ public class DappBrowserActivity extends AppCompatActivity {
 
     private boolean isConnected = false;
     private String connectedAddress = null;
+    /**
+     * Scopes granted at the last approval, echoed back by
+     * {@code octra_permissions}. Third-party adapters (0xio) negotiate these;
+     * this wallet approves all-or-nothing, so the list is what the page asked
+     * for — never more. Defaults to {@code ["accounts"]}.
+     */
+    private List<String> connectedPermissions =
+            new ArrayList<>(Collections.singletonList("accounts"));
 
     // ─── Lifecycle ─────────────────────────────────────────────────────
 
@@ -260,12 +271,26 @@ public class DappBrowserActivity extends AppCompatActivity {
             "    },\n" +
             "\n" +
             "    async request({method, params = []}) {\n" +
-            "      if (!_connected && method !== 'octra_accounts' && method !== 'octra_chainId')\n" +
+            "      if (!_connected && method !== 'octra_accounts' && method !== 'octra_chainId'\n" +
+            "          && method !== 'disconnect')\n" +
             "        throw new Error('Not connected. Call window.octra.connect() first.');\n" +
             "      const id = ++_requestId;\n" +
             "      return new Promise((resolve, reject) => {\n" +
             "        _pending.set(id, {resolve, reject});\n" +
             "        OctraWalletBridge.request(id, method, JSON.stringify(params));\n" +
+            "      }).then(r => {\n" +
+            "        // Third-party adapters drive request() directly (never the\n" +
+            "        // helpers above) — keep the local session flags in sync so\n" +
+            "        // the pre-connect gate and .isConnected stay truthful.\n" +
+            "        if (method === 'octra_requestAccounts' && Array.isArray(r)) {\n" +
+            "          _connected = true; _accounts = r;\n" +
+            "          _emit('connect', {address: r[0]}); _emit('accountsChanged', _accounts);\n" +
+            "        }\n" +
+            "        if (method === 'disconnect') {\n" +
+            "          _connected = false; _accounts = [];\n" +
+            "          _emit('disconnect'); _emit('accountsChanged', []);\n" +
+            "        }\n" +
+            "        return r;\n" +
             "      });\n" +
             "    },\n" +
             "\n" +
@@ -604,7 +629,7 @@ public class DappBrowserActivity extends AppCompatActivity {
                     sendResult(requestId, "[\"" + connectedAddress + "\"]");
                     break;
                 case "octra_requestAccounts":
-                    handleRequestAccounts(requestId);
+                    handleRequestAccounts(requestId, paramsJson);
                     break;
                 case "octra_chainId":
                     sendResult(requestId, "\"" + getActiveChainId() + "\"");
@@ -612,8 +637,19 @@ public class DappBrowserActivity extends AppCompatActivity {
                 case "octra_getBalance":
                     fetchBalance(requestId);
                     break;
+                case "getBalance":
+                    // 0xio provider path: same balance read, answered raw — the
+                    // node result already carries the decimal `balance` string
+                    // the adapter reads (missing `privateBalance` → SDK-side 0).
+                    fetchBalance(requestId);
+                    break;
                 case "octra_sendTransaction":
                     handleSendTransaction(requestId, paramsJson);
+                    break;
+                case "octra_sendContractTransaction":
+                    // 0xio state-changing call, object form
+                    // {contract, method, params, amount?, ou?}.
+                    handleContractTransaction(requestId, paramsJson);
                     break;
                 case "octra_callContract":
                     handleCallContract(requestId, paramsJson);
@@ -624,9 +660,36 @@ public class DappBrowserActivity extends AppCompatActivity {
                 case "octra_getEncryptedBalance":
                     fetchEncryptedBalance(requestId);
                     break;
+                case "octra_networkInfo":
+                    sendResult(requestId, networkInfoJson().toString());
+                    break;
+                case "octra_permissions":
+                    sendResult(requestId, new JSONArray(connectedPermissions).toString());
+                    break;
+                case "disconnect":
+                    isConnected = false;
+                    connectedAddress = null;
+                    connectedPermissions = new ArrayList<>(
+                            Collections.singletonList("accounts"));
+                    sendResult(requestId, "{\"success\":true}");
+                    break;
+                case "getPublicKey":
+                    sendPublicKey(requestId);
+                    break;
+                case "octra_switchNetwork":
+                    answerSwitchNetwork(requestId, paramsJson);
+                    break;
                 default:
-                    sendError(requestId, "Unsupported method: " + method,
-                            DappBridgeProtocol.UNSUPPORTED_METHOD);
+                    if (DappBridgeProtocol.isKnownUnsupported(normalized)) {
+                        sendError(requestId,
+                                method + " is not supported by this wallet"
+                                        + " (sign-only submission split, message signing"
+                                        + " and FHE-private primitives stay in the wallet UI)",
+                                DappBridgeProtocol.UNSUPPORTED_METHOD);
+                    } else {
+                        sendError(requestId, "Unsupported method: " + method,
+                                DappBridgeProtocol.UNSUPPORTED_METHOD);
+                    }
             }
         } catch (Exception e) {
             sendError(requestId, e.getMessage());
@@ -637,10 +700,11 @@ public class DappBrowserActivity extends AppCompatActivity {
      * RFC-O-1 requestAccounts: approval-gated account list. Reuses the
      * connect approval UI but answers with a plain address array.
      */
-    private void handleRequestAccounts(int requestId) {
+    private void handleRequestAccounts(int requestId, String paramsJson) {
+        List<String> requested = DappBridgeProtocol.extractRequestedPermissions(paramsJson);
         String origin = webView.getUrl();
         if (!isOriginAllowed(origin)) {
-            showRequestAccountsApproval(requestId, origin);
+            showRequestAccountsApproval(requestId, origin, requested);
             return;
         }
         String address = getWalletAddress();
@@ -651,10 +715,12 @@ public class DappBrowserActivity extends AppCompatActivity {
         }
         isConnected = true;
         connectedAddress = address;
+        connectedPermissions = requested;
         sendResult(requestId, "[\"" + address + "\"]");
     }
 
-    private void showRequestAccountsApproval(int requestId, String origin) {
+    private void showRequestAccountsApproval(int requestId, String origin,
+                                             List<String> requested) {
         String host = "Unknown";
         try {
             android.net.Uri parsed = android.net.Uri.parse(origin);
@@ -679,6 +745,7 @@ public class DappBrowserActivity extends AppCompatActivity {
                     }
                     isConnected = true;
                     connectedAddress = address;
+                    connectedPermissions = requested;
                     sendResult(requestId, "[\"" + address + "\"]");
                 })
                 .setNegativeButton("Deny", (d, w) -> {
@@ -730,32 +797,91 @@ public class DappBrowserActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * Accept both param shapes: legacy positional {@code [{to, amount, ...}]}
+     * and the 0xio provider object form {@code {to, amount, ...}}. The object
+     * form additionally honours {@code amountOct}, {@code message}, and
+     * refuses private sends (no stealth submission over the provider).
+     */
     private void handleSendTransaction(int requestId, String paramsJson) {
+        final JSONObject tx;
         try {
-            JSONArray params = new JSONArray(paramsJson);
-            JSONObject txParams = params.getJSONObject(0);
-            String to = txParams.getString("to");
-            String amount = txParams.optString("amount", "0");
+            tx = DappBridgeProtocol.asTxObject(paramsJson);
+        } catch (JSONException e) {
+            sendError(requestId, "Invalid params: " + e.getMessage());
+            return;
+        }
+        if (tx.optBoolean("isPrivate", false)) {
+            sendError(requestId,
+                    "Private transfers are not served over the provider"
+                            + " — use the wallet UI",
+                    DappBridgeProtocol.UNSUPPORTED_METHOD);
+            return;
+        }
+        final String to = tx.optString("to", "").trim();
+        if (to.isEmpty()) {
+            sendError(requestId, "Invalid params: missing recipient address");
+            return;
+        }
+        final String amount;
+        try {
+            amount = DappBridgeProtocol.resolveTxAmount(tx);
+        } catch (JSONException e) {
+            sendError(requestId, "Invalid params: " + e.getMessage());
+            return;
+        }
+        if ("0".equals(amount)) {
+            sendError(requestId, "Invalid params: amount must be greater than 0");
+            return;
+        }
+        String message = tx.optString("message", null);
+        if (message != null) {
+            message = message.trim();
+            if (message.isEmpty()) message = null;
+            else if (message.length() > 1000) {
+                sendError(requestId, "Invalid params: message over 1000 chars");
+                return;
+            }
+        }
+        final String memo = message;
 
-            // Show confirmation dialog
-            new AlertDialog.Builder(this)
+        // Show confirmation dialog
+        String prompt = "Send " + amount + " OCT to\n" + to + "?";
+        if (memo != null) prompt += "\n\nMessage: " + memo;
+        new AlertDialog.Builder(this)
                 .setTitle("Confirm Transaction")
-                .setMessage("Send " + amount + " OCT to\n" + to + "?")
+                .setMessage(prompt)
                 .setPositiveButton("Confirm", (d, w) -> {
                     // Submit via the wallet's existing send flow
-                    submitTransaction(requestId, to, amount, "standard", null, null);
+                    submitTransaction(requestId, to, amount, "standard", null, memo);
                 })
                 .setNegativeButton("Cancel", (d, w) -> {
                     sendError(requestId, "User rejected transaction");
                 })
                 .setCancelable(false)
                 .show();
-        } catch (JSONException e) {
-            sendError(requestId, "Invalid params: " + e.getMessage());
-        }
     }
 
     private void handleCallContract(int requestId, String paramsJson) {
+        String t = paramsJson == null ? "" : paramsJson.trim();
+        if (t.startsWith("{")) {
+            // Object form {contract, method, params, ...}: a view when it
+            // carries no value (0xio contract_call_view), a submission otherwise.
+            // The legacy array form below always submits (existing behaviour).
+            JSONObject o;
+            try {
+                o = new JSONObject(t);
+            } catch (JSONException e) {
+                sendError(requestId, "Invalid params: " + e.getMessage());
+                return;
+            }
+            if (DappBridgeProtocol.isViewCall(o)) {
+                handleCallViewObject(requestId, o);
+                return;
+            }
+            handleContractTransaction(requestId, paramsJson);
+            return;
+        }
         try {
             JSONArray params = new JSONArray(paramsJson);
             String address = params.getString(0);
@@ -779,6 +905,149 @@ public class DappBrowserActivity extends AppCompatActivity {
         } catch (JSONException e) {
             sendError(requestId, "Invalid params: " + e.getMessage());
         }
+    }
+
+    /** Read-only view from the object form (no unlock, no approval). */
+    private void handleCallViewObject(int requestId, JSONObject o) {
+        String address = o.optString("contract", "").trim();
+        String method = o.optString("method", "").trim();
+        if (address.isEmpty() || method.isEmpty()) {
+            sendError(requestId, "Invalid params: view needs contract + method");
+            return;
+        }
+        JSONArray callParams = o.optJSONArray("params");
+        String caller = o.optString("caller", connectedAddress != null ? connectedAddress : "");
+        ((OctraWalletApplication) getApplication()).getIoExecutor().execute(() -> {
+            try {
+                OctraRpcClient rpc = OctraRpcClient.getInstance();
+                JSONArray rpcParams = new JSONArray();
+                rpcParams.put(address);
+                rpcParams.put(method);
+                rpcParams.put(callParams != null ? callParams : new JSONArray());
+                rpcParams.put(caller != null ? caller : "");
+                JSONObject result = rpc.call(getNodeRpcUrl(), "contract_call", rpcParams);
+                runOnUiThread(() -> sendResult(requestId, result.toString()));
+            } catch (Exception e) {
+                runOnUiThread(() -> sendError(requestId, e.getMessage()));
+            }
+        });
+    }
+
+    /**
+     * 0xio state-changing call, object form
+     * {contract, method, params?, amount?, ou?}: approval-gated submit.
+     * The attached {@code ou} is read but the wallet fee oracle stays
+     * authoritative (submitTransaction applies the wallet default).
+     */
+    private void handleContractTransaction(int requestId, String paramsJson) {
+        final JSONObject o;
+        try {
+            o = DappBridgeProtocol.asTxObject(paramsJson);
+        } catch (JSONException e) {
+            sendError(requestId, "Invalid params: " + e.getMessage());
+            return;
+        }
+        final String address = o.optString("contract", "").trim();
+        final String methodName = o.optString("method", "").trim();
+        if (address.isEmpty() || methodName.isEmpty()) {
+            sendError(requestId, "Invalid params: call needs contract + method");
+            return;
+        }
+        JSONArray callParams = o.optJSONArray("params");
+        final String paramsStr = callParams != null ? callParams.toString() : "[]";
+        final String amount;
+        try {
+            amount = (o.has("amount") && !o.isNull("amount"))
+                    ? DappBridgeProtocol.resolveTxAmount(o) : "0";
+        } catch (JSONException e) {
+            sendError(requestId, "Invalid params: " + e.getMessage());
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Contract Call")
+                .setMessage("Call " + methodName + " on\n" + address +
+                    (!"0".equals(amount) ? "\n\nAmount: " + amount + " OCT" : ""))
+                .setPositiveButton("Confirm", (d, w) -> {
+                    submitTransaction(requestId, address, amount, "call",
+                            methodName, paramsStr);
+                })
+                .setNegativeButton("Cancel", (d, w) -> {
+                    sendError(requestId, "User rejected");
+                })
+                .setCancelable(false)
+                .show();
+    }
+
+    /** Network record for third-party adapters: stable id + display fields. */
+    JSONObject networkInfoJson() throws JSONException {
+        String chainId = getActiveChainId();
+        boolean mainnet = chainId.contains("mainnet");
+        JSONObject o = new JSONObject();
+        o.put("id", mainnet ? "mainnet" : "devnet");
+        o.put("name", mainnet ? "Octra Mainnet" : "Octra Devnet");
+        o.put("chainId", chainId);
+        o.put("rpcUrl", getNodeRpcUrl());
+        o.put("explorerUrl", getActiveExplorerUrl());
+        o.put("isTestnet", !mainnet);
+        return o;
+    }
+
+    /** Ed25519 public key (base64) when the wallet stored one, else honest error. */
+    private void sendPublicKey(int requestId) {
+        String address = connectedAddress;
+        if (address == null || address.isEmpty()) address = getWalletAddress();
+        if (address == null || address.isEmpty()) {
+            sendError(requestId, "Wallet not loaded",
+                    DappBridgeProtocol.UNAUTHORIZED);
+            return;
+        }
+        String pk = getWalletPublicKeyB64();
+        if (pk == null || pk.isEmpty()) {
+            sendError(requestId, "No public key available for the active wallet");
+            return;
+        }
+        try {
+            JSONObject o = new JSONObject();
+            o.put("publicKey", pk);
+            sendResult(requestId, o.toString());
+        } catch (JSONException e) {
+            sendError(requestId, e.getMessage());
+        }
+    }
+
+    /**
+     * Network switch: this wallet follows its own configured node, so a page
+     * can never move it. Answer honestly — switched:true only when already there.
+     */
+    private void answerSwitchNetwork(int requestId, String paramsJson) {
+        String wanted = "";
+        try {
+            JSONObject o = DappBridgeProtocol.asTxObject(paramsJson);
+            wanted = o.optString("networkId", o.optString("network", "")).trim();
+        } catch (JSONException e) {
+            // Deliberate fallthrough: an unparseable switch request is still
+            // answered below with the current network + switched:false, so the
+            // page learns the truth instead of hanging on a throw.
+            wanted = "";
+        }
+        String current = networkId();
+        boolean same = !wanted.isEmpty()
+                && (wanted.equalsIgnoreCase(current)
+                    || wanted.equalsIgnoreCase(getActiveChainId()));
+        try {
+            JSONObject o = new JSONObject();
+            o.put("network", current);
+            o.put("switched", same);
+            sendResult(requestId, o.toString());
+        } catch (JSONException e) {
+            sendError(requestId, e.getMessage());
+        }
+    }
+
+    /** Stable network id for this wallet ("mainnet" or "devnet"). */
+    String networkId() {
+        return getActiveChainId().contains("mainnet") ? "mainnet" : "devnet";
     }
 
     private void handleCallView(int requestId, String paramsJson) {
@@ -827,7 +1096,7 @@ public class DappBrowserActivity extends AppCompatActivity {
                 if (message != null) tx.put("message", message);
 
                 JSONObject result = rpc.call(nodeUrl, "octra_submit", new JSONArray().put(tx));
-                runOnUiThread(() -> sendResult(requestId, result.toString()));
+                runOnUiThread(() -> sendResult(requestId, DappBridgeProtocol.acceptedSubmitJson(result)));
             } catch (Exception e) {
                 runOnUiThread(() -> sendError(requestId, e.getMessage()));
             }

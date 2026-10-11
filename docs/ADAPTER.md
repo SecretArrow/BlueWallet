@@ -125,6 +125,30 @@ exactly what to do (circles has no token modal — A30).
 honest: the test recomputes the gap from the sources, fails if the doc goes
 stale, and pins the count so it can only shrink.
 
+## Status: Fase D2 — third-party dApps (0xio SDK) in the browser
+
+dApps built with `@0xio/sdk` work in the in-app browser with no dApp-side
+changes: its `OctraProviderAdapter` drives `window.octra.request()` and
+auto-detects this wallet (`isOctra` + `octra#initialized`). Full mapping in
+`docs/THIRD-PARTY.md`. What changed in the provider:
+
+- New reads: `octra_networkInfo`, `octra_permissions` (tracked from the
+  approval), `disconnect` (clears the session), `getBalance`, `getPublicKey`,
+  `octra_switchNetwork` (honest no-op — the wallet follows its own node).
+- New shapes: bare-object params accepted everywhere (the adapter sends
+  `{...}`, not `[{...}]`); `octra_callContract` with an object is a **view**
+  when no value is attached, a submission otherwise; submits answer
+  `{hash, accepted: true, success: true}` with raw keys preserved.
+- New rejects: sign-only split, message signing and FHE-private primitives
+  answer explicit `4200` naming the method — this wallet submits via its own
+  approval and never hands out sign-only payloads.
+- The JS provider syncs `_connected`/`_accounts` when adapters call
+  `request({method: 'octra_requestAccounts'})` directly, so the pre-connect
+  gate stays truthful.
+
+Orion-built dApps are next (D3): a `window.wallet` surface backed by the same
+approval flow; sign-only stays rejected by design.
+
 ## Method surface
 
 | Legacy (existing) | RFC-O-1 alias | Notes |
