@@ -77,22 +77,77 @@ class DappBridgeProtocol {
     'octra_registerPrivateViewKey',
     'octra_sendContractTransactionSequence',
     'octra_submitBatch',
+    'wallet_signMessage',
+    'wallet_signTypedData',
+    'wallet_approveContract',
+    'wallet_signContract',
+    'wallet_signTransfer',
   };
 
-  /// Trim + null-guard a raw method name from JS.
-  static String canonicalize(String? method) => method?.trim() ?? '';
+  /// Orion-brand prefix; an alias for the matching `wallet_*` method.
+  static const String orionPrefix = 'orion_wallet_';
 
-  /// True when the bridge dispatches this method (either dialect).
+  /// Reads + session calls answered for the `window.wallet` facade.
+  static const Set<String> walletServedMethods = {
+    'wallet_connect',
+    'wallet_disconnect',
+    'wallet_getAccounts',
+    'wallet_getAddress',
+    'wallet_getBalance',
+    'wallet_getNetwork',
+    'wallet_getNetworkInfo',
+    'wallet_getNetworks',
+    'wallet_getChainId',
+    'wallet_getPermissions',
+    'wallet_ping',
+  };
+
+  /// Reduce a method name to canonical form: trim, then fold the
+  /// `orion_wallet_` alias onto `wallet_*`. Unknown names pass through
+  /// unchanged and are rejected downstream.
+  static String canonicalize(String? method) {
+    final trimmed = method?.trim() ?? '';
+    if (trimmed.startsWith(orionPrefix)) {
+      return 'wallet_${trimmed.substring(orionPrefix.length)}';
+    }
+    return trimmed;
+  }
+
+  /// True when the bridge dispatches this method (any dialect).
   static bool isSupported(String? method) {
     final m = canonicalize(method);
     return legacyMethods.contains(m) ||
         rfcMethods.contains(m) ||
-        xioServedMethods.contains(m);
+        xioServedMethods.contains(m) ||
+        walletServedMethods.contains(m);
   }
 
   /// True for a recognised-but-unserved method (explicit reject, never silent).
   static bool isKnownUnsupported(String? method) =>
       knownUnsupportedMethods.contains(canonicalize(method));
+
+  /// Stable network id ('mainnet' or 'devnet') for a chain id.
+  static String networkIdForChain(String? chainId) =>
+      (chainId != null && chainId.contains('mainnet')) ? 'mainnet' : 'devnet';
+
+  /// Liveness record for `wallet_ping`: answers without touching wallet
+  /// state, opening a popup, or mutating the session it observes.
+  static Map<String, dynamic> buildPing({
+    required bool connected,
+    required bool locked,
+    required String origin,
+    required int tsMs,
+  }) {
+    return {
+      'pong': true,
+      'v': 1,
+      'connected': connected,
+      'locked': locked,
+      'capabilities': ['ping', 'events'],
+      'origin': origin,
+      'ts': tsMs,
+    };
+  }
 
   /// Permissions a page asked for (`[{permissions: [...]}]`), or
   /// `['accounts']` when nothing parseable was asked. Never throws: a

@@ -165,6 +165,60 @@ public class DappBridgeProtocolTest {
     }
 
     @Test
+    public void canonicalize_foldsOrionAlias() {
+        assertEquals("wallet_getAccounts",
+                DappBridgeProtocol.canonicalize("orion_wallet_getAccounts"));
+        assertEquals("wallet_ping",
+                DappBridgeProtocol.canonicalize("  orion_wallet_ping  "));
+        // Unknown names still pass through for downstream rejection.
+        assertEquals("octra_broadcast",
+                DappBridgeProtocol.canonicalize("octra_broadcast"));
+    }
+
+    @Test
+    public void isSupported_coversWalletFacade() {
+        for (String m : new String[]{"wallet_connect", "wallet_disconnect",
+                "wallet_getAccounts", "wallet_getAddress", "wallet_getBalance",
+                "wallet_getNetwork", "wallet_getNetworkInfo", "wallet_getNetworks",
+                "wallet_getChainId", "wallet_getPermissions", "wallet_ping"}) {
+            assertTrue("expected supported: " + m, DappBridgeProtocol.isSupported(m));
+            // orion_wallet_* is the same operation under the brand prefix.
+            assertTrue("expected alias supported: orion_" + m,
+                    DappBridgeProtocol.isSupported("orion_" + m));
+        }
+        for (String m : new String[]{"wallet_signMessage", "wallet_signTypedData",
+                "wallet_approveContract", "wallet_signContract", "wallet_signTransfer"}) {
+            assertTrue("expected known-unsupported: " + m,
+                    DappBridgeProtocol.isKnownUnsupported(m));
+            assertFalse("must not dispatch: " + m, DappBridgeProtocol.isSupported(m));
+        }
+    }
+
+    @Test
+    public void networkIdForChain_mapsBothNetworks() {
+        assertEquals("mainnet", DappBridgeProtocol.networkIdForChain("octra-mainnet-1"));
+        assertEquals("devnet", DappBridgeProtocol.networkIdForChain("octra-devnet-1"));
+        assertEquals("devnet", DappBridgeProtocol.networkIdForChain(""));
+        assertEquals("devnet", DappBridgeProtocol.networkIdForChain(null));
+    }
+
+    @Test
+    public void buildPing_answersWithoutSideEffects() throws Exception {
+        org.json.JSONObject ping = DappBridgeProtocol.buildPing(
+                true, false, "https://dapp.example", 123L);
+        assertTrue(ping.getBoolean("pong"));
+        assertEquals(1, ping.getInt("v"));
+        assertTrue(ping.getBoolean("connected"));
+        assertFalse(ping.getBoolean("locked"));
+        assertEquals("https://dapp.example", ping.getString("origin"));
+        assertEquals(123L, ping.getLong("ts"));
+        assertEquals("ping", ping.getJSONArray("capabilities").getString(0));
+        // Null origin degrades to empty string, never throws.
+        assertEquals("", DappBridgeProtocol.buildPing(false, true, null, 0L)
+                .getString("origin"));
+    }
+
+    @Test
     public void isSupported_coversBothDialects() {
         // Legacy dialect (existing clients keep working).
         assertTrue(DappBridgeProtocol.isSupported("octra_accounts"));

@@ -612,3 +612,36 @@ Adapter mereka (`OctraProviderAdapter`) menggerakkan
   belum ada E2E WebView yang memuat SDK 0xio asli (butuh internet + emulator).
 - A52 — Orion (`window.wallet`) belum diimplementasi — PR D3; popup
   `MessageChannel` mereka menarget origin dompet Orion dan tak bisa dicegat.
+
+## Bukti Fase D3 — `window.wallet` facade (Orion-style dApps)
+
+Pemetaan dari `WalletProvider` Orion (CC BY-NC-SA — yang dibaca: nama method
++ bentuk hasil; tanpa menyalin kode). Facade `window.wallet` didukung bridge
+yang sama + UX approval yang sama; popup `MessageChannel` mereka menarget
+origin dompet Orion dan di luar cakupan secara konstruksi.
+
+| # | Skenario | Lokasi penanganan | Test |
+|---|---|---|---|
+| 1 | `orion_wallet_*` tak dikenali | `canonicalize` lipat ke `wallet_*` | `canonicalize_foldsOrionAlias` (JVM), `canonicalize folds the orion_ alias` (Dart) |
+| 2 | Reads `wallet_*` belum ada | 11 dispatch + registry | `isSupported_coversWalletFacade` / `window.wallet facade dispatches reads` |
+| 3 | Sign-only diminta | `KNOWN_UNSUPPORTED` + `METHOD_FORBIDDEN` lokal di facade | registry test + cabang `request()` facade |
+| 4 | `wallet_ping` menyentuh state | `buildPing` murni (tanpa popup/sesi) | `buildPing_answersWithoutSideEffects` |
+| 5 | Chain id → id stabil | `networkIdForChain` | `networkIdForChain_mapsBothNetworks` |
+| 6 | Slot `window.wallet` sudah diklaim | `try/catch` + `if (!window.wallet)`; `octra` tetap melayani | cabang definisi facade |
+| 7 | Injector dApp menimpa facade | writable+configurable + first-wins | A54 |
+| 8 | Pubkey kosong di `connect()` | fallback `''`, bukan gagal connect | `_walletConnectResult` try/catch |
+| 9 | Alamat kosong di `connect()` | throw sebelum compose | cabang `!address` |
+| 10 | `getBalance` mentah beda bentuk | `??` fallback + `Number.isFinite` guard | cabang `getBalance` facade |
+
+### Asumsi eksplisit (D3)
+
+- A53 — Facade mengiklankan capabilities `['ping','events']` saja: yang
+  jujur didukung (sign_* tak ada, `sessionRestore` tak ada).
+- A54 — `window.wallet` writable+configurable (kebalikan `window.octra` yang
+  frozen): agar injector bawaan dApp (first-wins) memakai facade ini tanpa
+  throw, dan balapan dengan provider lain tak memecahkan script.
+- A55 — `locked` pada `ping()` facade = `!connected` (aproksimasi sisi klien);
+  nilai otoritatif tetap milik dompet via dialog approval.
+- A56 — Verifikasi facade JS bersifat review + QA manual (tak ada runtime JS
+  di CI selain E2E emulator); yang diuji unit adalah registry + dispatch
+  native yang mem-backing-nya.

@@ -58,18 +58,40 @@ method. Rationale:
   identity, kept deliberately (see `docs/ADAPTER.md`).
 - Message signing and FHE-private primitives stay in the wallet UI.
 
-## Orion-built dApps (planned)
+## Orion-built dApps (`window.wallet` facade)
 
-Orion's dApp SDK talks to its wallet through a popup `MessageChannel`
-(`wallet_*` / `orion_wallet_*` envelopes), which targets the Orion wallet
-origin and cannot reach this browser. What _can_ work here is the injected
-provider Orion also ships (`window.wallet`, plus `window.octra` alias and the
-`octra:wallet#initialized` announcement): exposing a `window.wallet` object
-with the same high-level surface (connect/disconnect, reads, `ping`,
-`request`, events) backed by this wallet's approval flow. Sign-only methods
-(`signTransfer`, `signContract`, …) will stay explicit rejects per the
-identity above — Orion dApps connect and read; they do not get sign-only
-payloads out of this wallet.
+Orion's dApp SDK also ships an injected provider (`window.wallet`, with a
+`window.octra` alias and the `octra:wallet#initialized` announcement). This
+browser exposes a `window.wallet` object with the same high-level surface,
+backed by this wallet's approval flow — Orion-built dApps that use the
+injected provider connect here with no changes. (dApps driving Orion's popup
+`MessageChannel` transport target the Orion wallet origin and cannot reach
+this browser — that path is out of scope by construction.)
+
+| Facade method | Backed by | Notes |
+|---|---|---|
+| `connect()` | `octra_requestAccounts` + reads | approval dialog → `{address, publicKey, accounts, network, networkInfo, chainId, capabilities: ['ping','events']}`; `publicKey` is `''` when the wallet stored none |
+| `disconnect()` | `disconnect` | clears session, emits `disconnect` |
+| `getAccounts()` / `getAddress()` | `octra_accounts` | |
+| `getPublicKey()` | `getPublicKey` | honest error when unavailable |
+| `getBalance()` | `octra_getBalance` | mapped to `{balance, balanceRaw, nonce}` |
+| `getNetwork()` / `getNetworkInfo()` / `getNetworks()` | `octra_networkInfo` | single-network wallet → one-element list |
+| `getChainId()` / `getPermissions()` | same names | |
+| `signMessage`, `signTypedData`, `approveContract`, `signContract`, `signTransfer` | — | throw `{code: 'METHOD_FORBIDDEN'}` locally, never touch the bridge |
+| `ping()` | local | `{pong: true, v: 1, connected, locked, capabilities, origin, ts}` |
+| `isAlive()` / `isConnected()` | local session flags | |
+| `request(method, params)` | `window.octra.request` | `orion_wallet_*` folded to `wallet_*`; execution-shaped names refused locally with `METHOD_FORBIDDEN` (same prohibited list as the native side) |
+| `on` / `off` / `once` | local listener map | `connect`, `disconnect`, `accountChanged` emitted by the facade |
+
+The native side answers the `wallet_*` names directly (`wallet_getAccounts`,
+`wallet_getBalance`, `wallet_ping`, …) with `orion_wallet_*` folded to the
+same handlers, so the facade is thin and every mapping is unit-tested.
+
+Deliberate races: `window.wallet` is defined writable + configurable (unlike
+`window.octra`, which is frozen). If a dApp bundles Orion's own injector,
+its first-wins check finds ours and uses it; if another provider already
+claimed the slot, our definition is skipped inside `try/catch` and
+`window.octra` keeps serving.
 
 ## Manual QA (needs the emulator + internet)
 

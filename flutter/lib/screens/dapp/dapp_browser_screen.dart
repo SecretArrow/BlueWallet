@@ -319,11 +319,70 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
           break;
 
         case 'disconnect':
+        case 'wallet_disconnect':
           setState(() {
             _connectedAddress = null;
             _grantedPermissions = ['accounts'];
           });
           _bridgeResult(id, jsonEncode({'success': true}));
+          break;
+
+        // `window.wallet` facade (Orion-style high-level reads).
+        case 'wallet_connect':
+          await _handleRequestAccounts(id, params);
+          break;
+
+        case 'wallet_getAccounts':
+          _bridgeResult(id, jsonEncode([_connectedAddress ?? '']));
+          break;
+
+        case 'wallet_getAddress':
+          _bridgeResult(id, jsonEncode(_connectedAddress ?? ''));
+          break;
+
+        case 'wallet_getBalance':
+          _bridgeResult(
+              id,
+              jsonEncode({
+                'balance': ws.publicBalance,
+                'encryptedBalance': ws.encryptedBalance,
+                'raw': ws.balanceRaw,
+                'encryptedRaw': ws.encryptedBalanceRaw,
+              }));
+          break;
+
+        case 'wallet_getNetwork':
+          _bridgeResult(
+              id,
+              jsonEncode(DappBridgeProtocol.networkIdForChain(ns.activeChainId)));
+          break;
+
+        case 'wallet_getNetworkInfo':
+          _bridgeResult(id, jsonEncode(_networkInfo(ns)));
+          break;
+
+        case 'wallet_getNetworks':
+          _bridgeResult(id, jsonEncode([_networkInfo(ns)]));
+          break;
+
+        case 'wallet_getChainId':
+          _bridgeResult(id, jsonEncode(ns.activeChainId));
+          break;
+
+        case 'wallet_getPermissions':
+          _bridgeResult(id, jsonEncode(_grantedPermissions));
+          break;
+
+        case 'wallet_ping':
+          final pingAddr = _connectedAddress ?? ws.activeWallet?.address ?? '';
+          _bridgeResult(
+              id,
+              jsonEncode(DappBridgeProtocol.buildPing(
+                connected: _connectedAddress != null,
+                locked: pingAddr.isEmpty,
+                origin: Uri.tryParse(_urlCtrl.text)?.host ?? '',
+                tsMs: DateTime.now().millisecondsSinceEpoch,
+              )));
           break;
 
         case 'getPublicKey':
@@ -1231,6 +1290,136 @@ const String _octraProviderJs = r'''
       return this;
     },
   };
+
+  // window.wallet: Orion-style high-level facade over the same bridge.
+  // Only reads + session calls are served; every sign method throws
+  // METHOD_FORBIDDEN locally (approvals submit here — payloads are
+  // never handed out). Deliberately writable+configurable so a dApp
+  // bundling its own injector neither crashes nor silently loses.
+  const _walletListeners = {};
+  function _wemit(event, data) {
+    for (const cb of (_walletListeners[event] || [])) {
+      try { cb(data); } catch (_) {}
+    }
+  }
+  function _wforbidden(method) {
+    const err = new Error(method + ' is sign-only and not served by this wallet');
+    err.code = 'METHOD_FORBIDDEN';
+    throw err;
+  }
+  async function _walletConnectResult(address) {
+    let publicKey = '';
+    try {
+      const pk = await octraProvider.request({method:'getPublicKey'});
+      publicKey = (pk && pk.publicKey) || '';
+    } catch (e) { publicKey = ''; }
+    const networkInfo = await octraProvider.request({method:'octra_networkInfo'});
+    const chainId = await octraProvider.request({method:'octra_chainId'});
+    const permissions = await octraProvider.request({method:'octra_permissions'});
+    return { address, publicKey, accounts: [{address}],
+      network: networkInfo.id, networkInfo, chainId,
+      capabilities: ['ping','events'] };
+  }
+  const walletProvider = {
+    async connect() {
+      const accounts = await octraProvider.request({method:'octra_requestAccounts', params:[]});
+      const address = accounts[0];
+      if (!address) throw new Error('Connect did not yield an address');
+      const result = await _walletConnectResult(address);
+      _wemit('connect', result);
+      _wemit('accountChanged', {address});
+      return result;
+    },
+    async disconnect() {
+      await octraProvider.request({method:'disconnect'});
+      _wemit('disconnect', {reason:'user disconnect'});
+      return undefined;
+    },
+    isConnected() { return octraProvider.isConnected; },
+    async getAccounts() {
+      const a = await octraProvider.request({method:'octra_accounts'});
+      return a.filter(x => !!x).map(address => ({address}));
+    },
+    async getAddress() {
+      const a = await octraProvider.request({method:'octra_accounts'});
+      return a[0] || '';
+    },
+    async getPublicKey() {
+      const r = await octraProvider.request({method:'getPublicKey'});
+      return r.publicKey;
+    },
+    async getBalance() {
+      const r = await octraProvider.request({method:'octra_getBalance'});
+      const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+      return { balance: String(r.balance ?? r.public ?? ''),
+        balanceRaw: String(r.balance_raw ?? r.raw ?? ''),
+        nonce: num(r.nonce ?? r.pending_nonce) };
+    },
+    async getNetwork() {
+      const n = await octraProvider.request({method:'octra_networkInfo'});
+      return n.id;
+    },
+    async getNetworkInfo() {
+      return octraProvider.request({method:'octra_networkInfo'});
+    },
+    async getNetworks() {
+      const n = await octraProvider.request({method:'octra_networkInfo'});
+      return [n];
+    },
+    async getChainId() {
+      return octraProvider.request({method:'octra_chainId'});
+    },
+    async getPermissions() {
+      return octraProvider.request({method:'octra_permissions'});
+    },
+    async signMessage() { _wforbidden('wallet_signMessage'); },
+    async signTypedData() { _wforbidden('wallet_signTypedData'); },
+    async approveContract() { _wforbidden('wallet_approveContract'); },
+    async signContract() { _wforbidden('wallet_signContract'); },
+    async signTransfer() { _wforbidden('wallet_signTransfer'); },
+    async ping() {
+      return { pong: true, v: 1, connected: octraProvider.isConnected,
+        locked: !octraProvider.isConnected, capabilities: ['ping','events'],
+        origin: window.location.origin, ts: Date.now() };
+    },
+    async isAlive() { return octraProvider.isConnected; },
+    async request(method, params) {
+      const m = String(method == null ? '' : method);
+      const low = m.trim().toLowerCase();
+      const canon = low.startsWith('orion_wallet_') ? 'wallet_' + low.slice(13) : low;
+      if (/^(wallet_)?(signmessage|signtypeddata|approvecontract|signcontract|signtransfer|signtransaction|submittransaction|sendtransaction|broadcasttransaction|transfer|swap|bridge)$/.test(canon)
+          || /(sendtransaction|broadcast|(^|_)transfer$|(^|_)swap$|(^|_)bridge$)/.test(canon)) {
+        const err = new Error(canon + ' is prohibited: this wallet never broadcasts through the SDK');
+        err.code = 'METHOD_FORBIDDEN';
+        throw err;
+      }
+      return octraProvider.request({method: m, params});
+    },
+    on(event, cb) {
+      if (!_walletListeners[event]) _walletListeners[event] = [];
+      _walletListeners[event].push(cb);
+      return this;
+    },
+    off(event, cb) {
+      if (_walletListeners[event]) {
+        _walletListeners[event] = _walletListeners[event].filter(c => c !== cb);
+      }
+      return this;
+    },
+    once(event, cb) {
+      const self = this;
+      const wrap = (d) => { self.off(event, wrap); cb(d); };
+      return this.on(event, wrap);
+    },
+  };
+  try {
+    if (!window.wallet) {
+      Object.defineProperty(window, 'wallet', {
+        value: Object.freeze(walletProvider), writable: true, configurable: true });
+    }
+  } catch (e) { /* another provider won the race; window.octra above still serves */ }
+  window.dispatchEvent(new CustomEvent('octra:wallet#initialized',
+    {detail: {provider: window.wallet || walletProvider}}));
 
   Object.defineProperty(window, 'octra', {
     value: Object.freeze(octraProvider),
