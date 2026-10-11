@@ -213,12 +213,20 @@ describe('LocalhostTransport guards (no network)', () => {
       (e) => e.code === ERROR_CODES.INVALID_PARAMS);
   });
 
-  it('connectRaw reads the authed wallet address', async () => {
-    const t = transportWith({ '/api/wallet/info': ok({ address: 'octAAA' }) });
+  it('connectRaw reads the wallet address (desktop dialect)', async () => {
+    const t = transportWith({ '/api/wallet': ok({ address: 'octAAA' }) });
     assert.deepEqual(await t.connectRaw(), { address: 'octAAA' });
-    const bad = transportWith({ '/api/wallet/info': ok({}) });
+    const bad = transportWith({ '/api/wallet': ok({}) });
     await assert.rejects(() => bad.connectRaw(),
       (e) => e.code === ERROR_CODES.UNAUTHORIZED);
+  });
+
+  it('connectRaw maps locked wallet (503) to UNAUTHORIZED', async () => {
+    const t = transportWith({
+      '/api/wallet': { ok: false, status: 503, json: async () => ({ error: 'no wallet loaded' }) },
+    });
+    await assert.rejects(() => t.connectRaw(),
+      (e) => e.code === ERROR_CODES.UNAUTHORIZED && /unlock first/.test(e.message));
   });
 
   it('setToken updates auth and HTTP errors carry status', async () => {
@@ -277,10 +285,10 @@ describe('unwrapRpc + withAuthRetry', () => {
     const t = new LocalhostTransport({
       fetchImpl: async (url) => {
         const u = String(url);
-        if (u.endsWith('/api/status')) {
-          return { ok: true, status: 200, json: async () => ({ status: 'running' }) };
+        if (u.endsWith('/api/wallet/status')) {
+          return { ok: true, status: 200, json: async () => ({ loaded: false }) };
         }
-        if (u.endsWith('/api/wallet/info')) {
+        if (u.endsWith('/api/wallet')) {
           return { ok: true, status: 200, json: async () => ({ address: 'oct' + '3'.repeat(44) }) };
         }
         throw new Error('unexpected ' + url);
@@ -412,11 +420,25 @@ describe('getTransaction (adapter-only node lookup)', () => {
     });
     await t.request('octra_getTransaction', ['a b&c=d']);
     // encodeURIComponent leaves '/' and ':' alone — both are legal in a hash.
-    assert.ok(seen.endsWith('/api/transaction?hash=a%20b%26c%3Dd'), `unexpected URL: ${seen}`);
+    assert.ok(seen.endsWith('/api/tx?hash=a%20b%26c%3Dd'), `unexpected URL: ${seen}`);
     assert.ok(!/[&]c=/.test(seen.split('?')[1].replace('hash=a%20b%26c%3Dd', '')), 'hash must not inject extra params');
     await assert.rejects(() => t.request('octra_getTransaction', ['']),
       (e) => e.code === ERROR_CODES.INVALID_PARAMS);
     await assert.rejects(() => t.request('octra_getTransaction', [null]),
       (e) => e.code === ERROR_CODES.INVALID_PARAMS);
+  });
+
+  it('LocalhostTransport maps unknown tx (desktop 404) to found:false', async () => {
+    const t = new LocalhostTransport({
+      fetchImpl: async () => ({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: 'transaction not found' }),
+      }),
+    });
+    assert.deepEqual(await t.request('octra_getTransaction', ['abc']), {
+      found: false,
+      hash: 'abc',
+    });
   });
 });

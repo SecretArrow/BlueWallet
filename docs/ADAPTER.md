@@ -22,6 +22,21 @@ learned from OrionWallet `src/sdk` + 0xio guide — no code copied).
 
 Amounts are exact decimal strings; `ou` is wallet-decided (fee oracle).
 
+> **2026-10-11 — localhost dialect correction.** The in-app local servers were
+> removed (PR #48), so `LocalhostTransport` now speaks only the desktop webcli
+> dialect: `/api/wallet/status` (liveness), `/api/wallet` (`{address}`, 503
+> when locked), `/api/balance`, `/api/contract/view|call`, `/api/tx?hash=`
+> (404 → `{found:false}`). The Bearer token is a no-op (desktop trusts
+> loopback). The `/api/transaction` route added "on both servers" in C2 below
+> died with the app servers; desktop serves `/api/tx`.
+>
+> **Prinsip: webcli hanya dipakai untuk memproses.** Yang dipakai dari webcli
+> adalah sistemnya — kode crypto (`webcli/lib`, `pvac/`) yang dikompilasi
+> menjadi `octra_native`, dan dialek `/api/*` sebagai kontrak pemrosesan.
+> Server `httplib` (`main.cpp`) dan halaman `static/` tidak dipakai app;
+> guard di `sdk/test/embed.test.mjs` dan `circles.test.mjs` menolak
+> dependensi baru ke bagian tersebut.
+
 ## Status: Fase C1 — `swap` migrated to the adapter
 
 The embedded `swap` page (both app embeds) now routes its authenticated

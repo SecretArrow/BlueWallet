@@ -73,10 +73,15 @@ export class InjectedTransport {
 }
 
 /**
- * Localhost HTTP transport: talks to a BlueWallet app / webcli local
- * server (`/api/*`). Reads + approval-gated contract calls only —
+ * Localhost HTTP transport: talks to a webcli-style local server
+ * (`/api/*` dialect — the desktop webcli server; the in-app servers were
+ * removed in PR #48). Reads + approval-gated contract calls only —
  * plain sends are deliberately NOT exposed over HTTP (auto-sign risk),
  * so `sendTransaction` throws on this transport by design.
+ *
+ * Auth note: the desktop server trusts loopback and ignores Bearer tokens
+ * (a leftover from the removed app server, kept as a no-op for compat).
+ * Do not expose this transport to non-loopback hosts.
  */
 export class LocalhostTransport {
   name = 'localhost';
@@ -84,7 +89,7 @@ export class LocalhostTransport {
   /**
    * @param {object} [opts]
    * @param {string} [opts.baseUrl] - e.g. http://127.0.0.1:8420
-   * @param {string} [opts.token] - Bearer token from Local Web Server settings
+   * @param {string} [opts.token] - legacy no-op (desktop webcli ignores it)
    * @param {function} [opts.fetchImpl] - fetch override (tests)
    * @param {number} [opts.timeoutMs]
    */
@@ -164,11 +169,11 @@ export class LocalhostTransport {
     }
   }
 
-  /** Liveness probe: public /api/status needs no token. */
+  /** Liveness probe: public /api/wallet/status (desktop webcli dialect). */
   async available() {
     if (!this.fetchImpl) return false;
     try {
-      await this._fetch('/api/status');
+      await this._fetch('/api/wallet/status');
       return true;
     } catch {
       return false;
@@ -176,16 +181,29 @@ export class LocalhostTransport {
   }
 
   /**
-   * Raw connect: proof of tokened access via authed /api/wallet/info.
+   * Raw connect: GET /api/wallet returns {address, ...} when a wallet is
+   * loaded, 503 {"error":"no wallet loaded"} otherwise (mapped to
+   * UNAUTHORIZED so callers can tell "locked" from "unreachable").
    * Used by OctraWalletAdapter.connect() on this transport.
    */
   async connectRaw() {
-    const info = await this._fetch('/api/wallet/info');
-    const address = info && (info.address || info.wallet_address);
+    let info;
+    try {
+      info = await this._fetch('/api/wallet');
+    } catch (e) {
+      if (e instanceof OctraWalletError && e.status === 503) {
+        throw new OctraWalletError(
+          ERROR_CODES.UNAUTHORIZED,
+          'Local server has no wallet loaded (unlock first)',
+        );
+      }
+      throw e;
+    }
+    const address = info && (info.address || info.wallet_address || info.addr);
     if (!address) {
       throw new OctraWalletError(
         ERROR_CODES.UNAUTHORIZED,
-        'Local server wallet info has no address (is a wallet loaded?)',
+        'Local server wallet has no address (is a wallet loaded?)',
       );
     }
     return { address };
@@ -223,9 +241,23 @@ export class LocalhostTransport {
             'getTransaction needs a tx hash',
           );
         }
-        return this._fetch(
-          `/api/transaction?hash=${encodeURIComponent(hash.trim())}`,
-        );
+        // Desktop dialect: GET /api/tx?hash= answers the tx, or 404
+        // {"error":"transaction not found"} when unknown — surfaced as
+        // {found:false} so pollers can tell "not mined yet" from a fault.
+        try {
+          return await this._fetch(
+            `/api/tx?hash=${encodeURIComponent(hash.trim())}`,
+          );
+        } catch (e) {
+          if (
+            e instanceof OctraWalletError &&
+            e.status === 404 &&
+            /not found/i.test(e.message)
+          ) {
+            return { found: false, hash: hash.trim() };
+          }
+          throw e;
+        }
       }
       case 'octra_callContract':
       case 'octra_sendTransaction':
