@@ -13,9 +13,9 @@
 </head>
 <body>
 <h1>OctraWalletAdapter demo</h1>
-<p>Needs a BlueWallet in-app browser (injected <code>window.octra</code>) or a
-local server on <code>127.0.0.1:8420</code> (token optional for reads).</p>
-<label>Local token (from Local Web Server settings, optional):
+<p>Needs a BlueWallet in-app browser (injected <code>window.octra</code>) or the
+desktop webcli server on <code>127.0.0.1:8420</code> (no token — desktop trusts loopback).</p>
+<label>Local token (legacy, unused against desktop webcli):
 <input id="token" type="text" placeholder="Bearer token"></label>
 <div>
   <button data-action="connect">connect</button>

@@ -9,7 +9,7 @@ copied; OrionWallet is CC BY-NC-SA 4.0). Zero dependencies, vanilla `.mjs`.
 | Transport | Needs | Supports |
 |---|---|---|
 | `InjectedTransport` | `window.octra` (in-app browsers, RFC-O-1 wallets) | everything the wallet speaks |
-| `LocalhostTransport` | local server `127.0.0.1:8420` (+ token for writes) | reads + approval-gated `callContract` only — plain sends are refused by design (auto-sign risk) |
+| `LocalhostTransport` | desktop webcli server `127.0.0.1:8420` (webcli dialect: `/api/wallet/status`, `/api/wallet`, `/api/balance`, `/api/contract/*`, `/api/tx`; no token — desktop trusts loopback) | reads + approval-gated `callContract` only — plain sends are refused by design (auto-sign risk) |
 
 ## API (amounts are exact decimal STRINGS, never floats)
 
