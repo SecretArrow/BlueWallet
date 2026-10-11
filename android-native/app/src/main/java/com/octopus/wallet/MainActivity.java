@@ -1308,28 +1308,27 @@ public class MainActivity extends AppCompatActivity {
         if (settingsActionsListView == null) {
             return;
         }
+        // Ordered by frequency of use (mirrors Flutter SettingsTab; the DApp
+        // Browser lives in the bottom navigation tab, not here; there is no
+        // Biometric row on Android — handled in UnlockActivity).
         List<SettingsActionRow> initialRows = new ArrayList<>();
         initialRows.add(new SettingsActionRow("Wallets", "wallets", R.drawable.ic_wallet));
-        initialRows.add(new SettingsActionRow("Theme", "theme", R.drawable.ic_palette));
         initialRows.add(new SettingsActionRow("Networks", "network", R.drawable.ic_network));
-        initialRows.add(new SettingsActionRow("Permissions", "permissions", R.drawable.ic_notification));
         initialRows.add(new SettingsActionRow("Change PIN", "change_pin", R.drawable.ic_lock));
-        initialRows.add(new SettingsActionRow("DApp Origins", "manage_origins", R.drawable.ic_dapp));
-        initialRows.add(new SettingsActionRow("DApp Browser", "dapp_browser", R.drawable.ic_dapp));
-        initialRows.add(new SettingsActionRow("Cache", "maintenance", R.drawable.ic_cache));
-        initialRows.add(new SettingsActionRow("Session", "session", R.drawable.ic_session));
-        initialRows.add(new SettingsActionRow("Auto Scan", "auto_scan", R.drawable.ic_auto_scan));
+        initialRows.add(new SettingsActionRow("Theme", "theme", R.drawable.ic_palette));
         initialRows.add(new SettingsActionRow("Address Book", "address_book", R.drawable.ic_wallet));
+        initialRows.add(new SettingsActionRow("DApp Origins", "manage_origins", R.drawable.ic_dapp));
+        initialRows.add(new SettingsActionRow("Permissions", "permissions", R.drawable.ic_notification));
+        initialRows.add(new SettingsActionRow("Session", "session", R.drawable.ic_session));
+        initialRows.add(new SettingsActionRow("Cache", "maintenance", R.drawable.ic_cache));
         initialRows.add(new SettingsActionRow("Data Usage", "data_usage", R.drawable.ic_network));
+        initialRows.add(new SettingsActionRow("Auto Scan", "auto_scan", R.drawable.ic_auto_scan));
         initialRows.add(new SettingsActionRow("Polling Settings", "polling_settings", R.drawable.ic_nav_history));
         initialRows.add(new SettingsActionRow("Tor Proxy", "tor_proxy", R.drawable.ic_network));
-        // Sort all except About and Logout
-        List<SettingsActionRow> sortedRows = new ArrayList<>(initialRows);
-        sortedRows.sort((left, right) -> left.title.compareToIgnoreCase(right.title));
         // Add About second from bottom, Logout at bottom
-        sortedRows.add(new SettingsActionRow("About", "about", R.drawable.ic_info));
-        sortedRows.add(new SettingsActionRow("Logout", "logout", R.drawable.ic_logout));
-        final List<SettingsActionRow> rows = sortedRows;
+        initialRows.add(new SettingsActionRow("About", "about", R.drawable.ic_info));
+        initialRows.add(new SettingsActionRow("Logout", "logout", R.drawable.ic_logout));
+        final List<SettingsActionRow> rows = initialRows;
 
         settingsActionsListView.setAdapter(new SettingsActionAdapter(rows, row -> runSettingsAction(row.actionId)));
     }
@@ -1361,10 +1360,6 @@ public class MainActivity extends AppCompatActivity {
         }
         if ("manage_origins".equals(actionId)) {
             settingsActivityLauncher.launch(new Intent(this, DappOriginsActivity.class));
-            return;
-        }
-        if ("dapp_browser".equals(actionId)) {
-            settingsActivityLauncher.launch(new Intent(this, DappBrowserActivity.class));
             return;
         }
         if ("maintenance".equals(actionId)) {
