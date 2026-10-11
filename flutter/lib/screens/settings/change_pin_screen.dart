@@ -37,8 +37,8 @@ class _ChangePinScreenState extends State<ChangePinScreen> {
         current.length > 64 ||
         newPin.length > 64 ||
         confirm.length > 64) {
-      setState(
-          () => _error = 'All PINs minimal 6 digit (at least 6 digits, max 64)');
+      setState(() =>
+          _error = 'All PINs minimal 6 digit (at least 6 digits, max 64)');
       return;
     }
     if (newPin != confirm) {
