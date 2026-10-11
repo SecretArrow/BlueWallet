@@ -39,22 +39,22 @@ class WalletsScreen extends StatelessWidget {
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 itemCount: ws.wallets.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final w = ws.wallets[i];
-                final isActive = w.id == ws.activeWallet?.id;
-                return _WalletTile(
-                  wallet: w,
-                  isActive: isActive,
-                  canDelete: ws.wallets.length > 1,
-                  maskAddr: _maskAddr,
-                  onActivate: () => ws.setActiveWallet(w.id),
-                  onViewKeys: () => context.push('/view-keys?id=${w.id}'),
-                  onExport: () => context.push('/export-wallet?id=${w.id}'),
-                  onDelete: () => _confirmDelete(context, ws, w),
-                );
-              },
-            ),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (_, i) {
+                  final w = ws.wallets[i];
+                  final isActive = w.id == ws.activeWallet?.id;
+                  return _WalletTile(
+                    wallet: w,
+                    isActive: isActive,
+                    canDelete: ws.wallets.length > 1,
+                    maskAddr: _maskAddr,
+                    onActivate: () => ws.setActiveWallet(w.id),
+                    onViewKeys: () => context.push('/view-keys?id=${w.id}'),
+                    onExport: () => context.push('/export-wallet?id=${w.id}'),
+                    onDelete: () => _confirmDelete(context, ws, w),
+                  );
+                },
+              ),
       ),
     );
   }

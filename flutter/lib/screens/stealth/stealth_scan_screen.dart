@@ -93,8 +93,7 @@ class _StealthScanScreenState extends State<StealthScanScreen> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(err,
-                              style:
-                                  TextStyle(color: cs.error, fontSize: 13)),
+                              style: TextStyle(color: cs.error, fontSize: 13)),
                         ),
                       ],
                     ),

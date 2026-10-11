@@ -107,8 +107,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
                       tooltip: 'Paste',
                     ),
                   ),
-                  style:
-                      const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
                   onSubmitted: (_) => _submitManual(),
                 ),
                 const SizedBox(height: 16),
@@ -195,8 +194,8 @@ class _QrScanScreenState extends State<QrScanScreen> {
                 ],
               ),
             ),
-        ),
-      ],
+          ),
+        ],
       ),
     );
   }

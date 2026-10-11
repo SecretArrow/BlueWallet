@@ -70,55 +70,55 @@ class _SessionLockScreenState extends State<SessionLockScreen> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 child: Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                color: cs.surfaceContainerHighest,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Auto Lock',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: cs.onSurface,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  color: cs.surfaceContainerHighest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Auto Lock',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: cs.onSurface,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Automatically lock the wallet after a period of inactivity.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: cs.onSurfaceVariant,
+                        const SizedBox(height: 6),
+                        Text(
+                          'Automatically lock the wallet after a period of inactivity.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      RadioGroup<int>(
-                        groupValue: _selectedMinutes,
-                        onChanged: (val) {
-                          if (val != null) _select(val);
-                        },
-                        child: Column(
-                          children: _options
-                              .map((minutes) => RadioListTile<int>(
-                                    title: Text(_label(minutes)),
-                                    value: minutes,
-                                    activeColor: cs.primary,
-                                    contentPadding: EdgeInsets.zero,
-                                  ))
-                              .toList(),
+                        const SizedBox(height: 16),
+                        RadioGroup<int>(
+                          groupValue: _selectedMinutes,
+                          onChanged: (val) {
+                            if (val != null) _select(val);
+                          },
+                          child: Column(
+                            children: _options
+                                .map((minutes) => RadioListTile<int>(
+                                      title: Text(_label(minutes)),
+                                      value: minutes,
+                                      activeColor: cs.primary,
+                                      contentPadding: EdgeInsets.zero,
+                                    ))
+                                .toList(),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-              ),
-      ),
+            ),
     );
   }
 }

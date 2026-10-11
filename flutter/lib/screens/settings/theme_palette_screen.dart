@@ -25,73 +25,73 @@ class ThemePaletteScreen extends StatelessWidget {
             childAspectRatio: 1.6,
           ),
           itemCount: AppPalette.all.length,
-        itemBuilder: (_, i) {
-          final p = AppPalette.all[i];
-          final isSelected = tm.paletteId == p.id;
-          return GestureDetector(
-            onTap: () => tm.setPalette(p.id),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              decoration: BoxDecoration(
-                color: p.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isSelected
-                      ? p.primary
-                      : p.textSecondary.withValues(alpha: 0.2),
-                  width: isSelected ? 2 : 1,
+          itemBuilder: (_, i) {
+            final p = AppPalette.all[i];
+            final isSelected = tm.paletteId == p.id;
+            return GestureDetector(
+              onTap: () => tm.setPalette(p.id),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: p.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSelected
+                        ? p.primary
+                        : p.textSecondary.withValues(alpha: 0.2),
+                    width: isSelected ? 2 : 1,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: p.primary.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            spreadRadius: 0,
+                          )
+                        ]
+                      : null,
                 ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: p.primary.withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          spreadRadius: 0,
-                        )
-                      ]
-                    : null,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        // Color swatches
-                        _Swatch(color: p.background),
-                        const SizedBox(width: 4),
-                        _Swatch(color: p.primary),
-                        const SizedBox(width: 4),
-                        _Swatch(color: p.accent),
-                        const Spacer(),
-                        if (isSelected)
-                          Icon(Icons.check_circle_rounded,
-                              color: p.primary, size: 18),
-                      ],
-                    ),
-                    const Spacer(),
-                    Text(
-                      p.label,
-                      style: TextStyle(
-                        color: p.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          // Color swatches
+                          _Swatch(color: p.background),
+                          const SizedBox(width: 4),
+                          _Swatch(color: p.primary),
+                          const SizedBox(width: 4),
+                          _Swatch(color: p.accent),
+                          const Spacer(),
+                          if (isSelected)
+                            Icon(Icons.check_circle_rounded,
+                                color: p.primary, size: 18),
+                        ],
                       ),
-                    ),
-                    Text(
-                      p.isDark ? 'Dark' : 'Light',
-                      style: TextStyle(
-                        color: p.textSecondary,
-                        fontSize: 11,
+                      const Spacer(),
+                      Text(
+                        p.label,
+                        style: TextStyle(
+                          color: p.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
-                  ],
+                      Text(
+                        p.isDark ? 'Dark' : 'Light',
+                        style: TextStyle(
+                          color: p.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
         ),
       ),
     );

@@ -148,7 +148,6 @@ class _TxProgressScreenState extends State<TxProgressScreen>
     }
   }
 
-
   @override
   void dispose() {
     _pollTimer?.cancel();
@@ -178,130 +177,131 @@ class _TxProgressScreenState extends State<TxProgressScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-              // Status icon
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 400),
-                child: _status == _TxStatus.pending
-                    ? RotationTransition(
-                        turns: _spinCtrl,
-                        child: Icon(Icons.sync_rounded,
-                            size: 72, color: cs.primary),
-                      )
-                    : Icon(
-                        _status == _TxStatus.confirmed
-                            ? Icons.check_circle_rounded
-                            : Icons.error_rounded,
-                        size: 72,
-                        color: _status == _TxStatus.confirmed
-                            ? Colors.green
-                            : cs.error,
-                      ),
-              ),
-              const SizedBox(height: 24),
-
-              // Status message
-              Text(
-                _statusMessage,
-                style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-
-              // Details card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
+                // Status icon
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  child: _status == _TxStatus.pending
+                      ? RotationTransition(
+                          turns: _spinCtrl,
+                          child: Icon(Icons.sync_rounded,
+                              size: 72, color: cs.primary),
+                        )
+                      : Icon(
+                          _status == _TxStatus.confirmed
+                              ? Icons.check_circle_rounded
+                              : Icons.error_rounded,
+                          size: 72,
+                          color: _status == _TxStatus.confirmed
+                              ? Colors.green
+                              : cs.error,
+                        ),
                 ),
-                child: Column(
-                  children: [
-                    _Row('Type', _opType.toUpperCase()),
-                    const Divider(height: 16),
-                    _Row('Amount', '$_amount OCT'),
-                    if (_toAddress.isNotEmpty) ...[
+                const SizedBox(height: 24),
+
+                // Status message
+                Text(
+                  _statusMessage,
+                  style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+
+                // Details card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      _Row('Type', _opType.toUpperCase()),
                       const Divider(height: 16),
-                      _Row(
-                        'To',
-                        _toAddress.length > 20
-                            ? '${_toAddress.substring(0, 10)}...${_toAddress.substring(_toAddress.length - 10)}'
-                            : _toAddress,
-                      ),
-                    ],
-                    if (_txHash.isNotEmpty) ...[
-                      const Divider(height: 16),
-                      Row(
-                        children: [
-                          Text('TX Hash',
-                              style: TextStyle(color: cs.onSurfaceVariant)),
-                          const Spacer(),
-                          Flexible(
-                            child: GestureDetector(
-                              onTap: () {
-                                Clipboard.setData(ClipboardData(text: _txHash));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text('Hash copied'),
-                                      duration: Duration(seconds: 2)),
-                                );
-                              },
-                              child: Text(
-                                _txHash.length > 16
-                                    ? '${_txHash.substring(0, 8)}...${_txHash.substring(_txHash.length - 8)}'
-                                    : _txHash,
-                                style: const TextStyle(
-                                    fontFamily: 'monospace', fontSize: 11),
-                                overflow: TextOverflow.ellipsis,
+                      _Row('Amount', '$_amount OCT'),
+                      if (_toAddress.isNotEmpty) ...[
+                        const Divider(height: 16),
+                        _Row(
+                          'To',
+                          _toAddress.length > 20
+                              ? '${_toAddress.substring(0, 10)}...${_toAddress.substring(_toAddress.length - 10)}'
+                              : _toAddress,
+                        ),
+                      ],
+                      if (_txHash.isNotEmpty) ...[
+                        const Divider(height: 16),
+                        Row(
+                          children: [
+                            Text('TX Hash',
+                                style: TextStyle(color: cs.onSurfaceVariant)),
+                            const Spacer(),
+                            Flexible(
+                              child: GestureDetector(
+                                onTap: () {
+                                  Clipboard.setData(
+                                      ClipboardData(text: _txHash));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text('Hash copied'),
+                                        duration: Duration(seconds: 2)),
+                                  );
+                                },
+                                child: Text(
+                                  _txHash.length > 16
+                                      ? '${_txHash.substring(0, 8)}...${_txHash.substring(_txHash.length - 8)}'
+                                      : _txHash,
+                                  style: const TextStyle(
+                                      fontFamily: 'monospace', fontSize: 11),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                if (_showTimeoutPrompt && _status == _TxStatus.pending) ...[
+                  Text(
+                    'This transaction is taking longer than usual. Would you like to keep waiting or return to home?',
+                    textAlign: TextAlign.center,
+                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => context.pop(),
+                          child: const Text('Return Home'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            setState(() {
+                              _showTimeoutPrompt = false;
+                              _pollCount = 0;
+                            });
+                            _startPolling();
+                          },
+                          child: const Text('Keep Waiting'),
+                        ),
                       ),
                     ],
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              if (_showTimeoutPrompt && _status == _TxStatus.pending) ...[
-                Text(
-                  'This transaction is taking longer than usual. Would you like to keep waiting or return to home?',
-                  textAlign: TextAlign.center,
-                  style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => context.pop(),
-                        child: const Text('Return Home'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          setState(() {
-                            _showTimeoutPrompt = false;
-                            _pollCount = 0;
-                          });
-                          _startPolling();
-                        },
-                        child: const Text('Keep Waiting'),
-                      ),
-                    ),
-                  ],
-                ),
-              ] else if (_status != _TxStatus.pending)
-                TonalButton(
-                  label: 'Go to Home',
-                  icon: Icons.home_rounded,
-                  onPressed: () => context.pop(),
-                ),
-            ],
-          ),
+                  ),
+                ] else if (_status != _TxStatus.pending)
+                  TonalButton(
+                    label: 'Go to Home',
+                    icon: Icons.home_rounded,
+                    onPressed: () => context.pop(),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

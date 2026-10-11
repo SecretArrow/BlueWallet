@@ -32,16 +32,16 @@ class _TransactionsManagerScreenState extends State<TransactionsManagerScreen> {
         bottom: true,
         child: pending.isEmpty
             ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.task_alt_rounded, size: 54, color: cs.outline),
-                  const SizedBox(height: 10),
-                  Text('No pending transactions',
-                      style: TextStyle(color: cs.onSurfaceVariant)),
-                ],
-              ),
-            )
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.task_alt_rounded, size: 54, color: cs.outline),
+                    const SizedBox(height: 10),
+                    Text('No pending transactions',
+                        style: TextStyle(color: cs.onSurfaceVariant)),
+                  ],
+                ),
+              )
             : ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 itemCount: pending.length,

@@ -170,158 +170,158 @@ class _DeriveChildWalletScreenState extends State<DeriveChildWalletScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-            // ── Info ───────────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: cs.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.account_tree_rounded,
-                      color: cs.onPrimaryContainer, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Derive a new wallet from the same seed phrase at a '
-                      'different index. The mnemonic is not re-entered — '
-                      'it is read from secure storage.',
-                      style:
-                          TextStyle(color: cs.onPrimaryContainer, fontSize: 13),
+              // ── Info ───────────────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.account_tree_rounded,
+                        color: cs.onPrimaryContainer, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Derive a new wallet from the same seed phrase at a '
+                        'different index. The mnemonic is not re-entered — '
+                        'it is read from secure storage.',
+                        style: TextStyle(
+                            color: cs.onPrimaryContainer, fontSize: 13),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            // ── Parent info ─────────────────────────────────────────────
-            OctopusCard(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Parent Wallet',
-                      style:
-                          tt.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
-                  const SizedBox(height: 4),
-                  Text(parentName,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  Text('Base path: $parentPath',
-                      style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 11,
-                          color: cs.onSurfaceVariant)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // ── Wallet name ─────────────────────────────────────────────
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Child Wallet Name (optional)',
-                hintText: 'e.g. HD Index 1',
-                border: OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.words,
-            ),
-            const SizedBox(height: 14),
-
-            // ── Index input ─────────────────────────────────────────────
-            TextField(
-              controller: _indexCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Derivation Index',
-                hintText: 'e.g. 1',
-                border: OutlineInputBorder(),
-                helperText: "Last path component, hardened: index → index'",
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {
-                _previewAddress = null;
-              }),
-            ),
-            const SizedBox(height: 14),
-
-            // ── Preview button ──────────────────────────────────────────
-            TonalButton(
-              label: 'Preview Address',
-              icon: Icons.preview_rounded,
-              loading: _previewing,
-              onPressed: (_previewing || _creating) ? null : _doPreview,
-            ),
-
-            // ── Preview result ──────────────────────────────────────────
-            if (_fullPath != null || _previewAddress != null) ...[
-              const SizedBox(height: 14),
+              // ── Parent info ─────────────────────────────────────────────
               OctopusCard(
                 padding: const EdgeInsets.all(14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (_fullPath != null) ...[
-                      Text('Full Path',
-                          style: tt.labelSmall
-                              ?.copyWith(color: cs.onSurfaceVariant)),
-                      const SizedBox(height: 2),
-                      SelectableText(
-                        _fullPath!,
-                        style: const TextStyle(
-                            fontFamily: 'monospace', fontSize: 12),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                    if (_previewAddress != null) ...[
-                      Text('Preview Address',
-                          style: tt.labelSmall
-                              ?.copyWith(color: cs.onSurfaceVariant)),
-                      const SizedBox(height: 2),
-                      SelectableText(
-                        _previewAddress!,
-                        style: const TextStyle(
-                            fontFamily: 'monospace', fontSize: 12),
-                      ),
-                    ],
+                    Text('Parent Wallet',
+                        style: tt.labelSmall
+                            ?.copyWith(color: cs.onSurfaceVariant)),
+                    const SizedBox(height: 4),
+                    Text(parentName,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    Text('Base path: $parentPath',
+                        style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            color: cs.onSurfaceVariant)),
                   ],
                 ),
               ),
-            ],
+              const SizedBox(height: 20),
 
-            // ── Error ───────────────────────────────────────────────────
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cs.errorContainer,
-                  borderRadius: BorderRadius.circular(10),
+              // ── Wallet name ─────────────────────────────────────────────
+              TextField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Child Wallet Name (optional)',
+                  hintText: 'e.g. HD Index 1',
+                  border: OutlineInputBorder(),
                 ),
-                child:
-                    Text(_error!, style: TextStyle(color: cs.onErrorContainer)),
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 14),
+
+              // ── Index input ─────────────────────────────────────────────
+              TextField(
+                controller: _indexCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Derivation Index',
+                  hintText: 'e.g. 1',
+                  border: OutlineInputBorder(),
+                  helperText: "Last path component, hardened: index → index'",
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {
+                  _previewAddress = null;
+                }),
+              ),
+              const SizedBox(height: 14),
+
+              // ── Preview button ──────────────────────────────────────────
+              TonalButton(
+                label: 'Preview Address',
+                icon: Icons.preview_rounded,
+                loading: _previewing,
+                onPressed: (_previewing || _creating) ? null : _doPreview,
+              ),
+
+              // ── Preview result ──────────────────────────────────────────
+              if (_fullPath != null || _previewAddress != null) ...[
+                const SizedBox(height: 14),
+                OctopusCard(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_fullPath != null) ...[
+                        Text('Full Path',
+                            style: tt.labelSmall
+                                ?.copyWith(color: cs.onSurfaceVariant)),
+                        const SizedBox(height: 2),
+                        SelectableText(
+                          _fullPath!,
+                          style: const TextStyle(
+                              fontFamily: 'monospace', fontSize: 12),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      if (_previewAddress != null) ...[
+                        Text('Preview Address',
+                            style: tt.labelSmall
+                                ?.copyWith(color: cs.onSurfaceVariant)),
+                        const SizedBox(height: 2),
+                        SelectableText(
+                          _previewAddress!,
+                          style: const TextStyle(
+                              fontFamily: 'monospace', fontSize: 12),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+
+              // ── Error ───────────────────────────────────────────────────
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: cs.errorContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(_error!,
+                      style: TextStyle(color: cs.onErrorContainer)),
+                ),
+              ],
+
+              const SizedBox(height: 20),
+
+              // ── Derive button ───────────────────────────────────────────
+              FilledButton.icon(
+                icon: _creating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.check_circle_rounded),
+                label: const Text('Derive Wallet'),
+                onPressed: (_previewing || _creating) ? null : _doCreate,
               ),
             ],
-
-            const SizedBox(height: 20),
-
-            // ── Derive button ───────────────────────────────────────────
-            FilledButton.icon(
-              icon: _creating
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.check_circle_rounded),
-              label: const Text('Derive Wallet'),
-              onPressed: (_previewing || _creating) ? null : _doCreate,
-            ),
-          ],
-        ),
+          ),
         ),
       ),
     );

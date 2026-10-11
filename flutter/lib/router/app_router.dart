@@ -191,7 +191,8 @@ class AppRouter {
       GoRoute(
           path: '/token-transfer',
           builder: (_, state) {
-            final extra = state.extra is Map ? safeStringMap(state.extra) : null;
+            final extra =
+                state.extra is Map ? safeStringMap(state.extra) : null;
             return TokenTransferScreen(
               initialTokenAddress: extra?['tokenAddress']?.toString(),
               initialTokenSymbol: extra?['tokenSymbol']?.toString(),

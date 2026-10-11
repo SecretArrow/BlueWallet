@@ -146,106 +146,106 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              child: Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                color: cs.surfaceContainerHighest,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Hardware availability notice
-                      if (!_available) ...[
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: cs.errorContainer,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.warning_amber_rounded,
-                                  color: cs.onErrorContainer),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Biometric authentication is not available on '
-                                  'this device. Enroll a fingerprint or face '
-                                  'in your device settings first.',
-                                  style: TextStyle(
-                                    color: cs.onErrorContainer,
-                                    fontSize: 13,
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  color: cs.surfaceContainerHighest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Hardware availability notice
+                        if (!_available) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: cs.errorContainer,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded,
+                                    color: cs.onErrorContainer),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Biometric authentication is not available on '
+                                    'this device. Enroll a fingerprint or face '
+                                    'in your device settings first.',
+                                    style: TextStyle(
+                                      color: cs.onErrorContainer,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // Toggle
+                        SwitchListTile(
+                          title: const Text(
+                            'Enable Biometric Unlock',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: const Text(
+                            'Use fingerprint or face recognition to unlock the '
+                            'wallet instead of entering your PIN each time.',
+                          ),
+                          value: _enabled,
+                          onChanged: _available ? _toggle : null,
+                          contentPadding: EdgeInsets.zero,
+                          activeThumbColor: cs.primary,
                         ),
+
+                        // Active status banner
+                        if (_enabled) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: cs.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.fingerprint_rounded,
+                                    color: cs.primary, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Biometric unlock is active. You can still use '
+                                    'your PIN if biometric recognition fails.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: cs.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
                         const SizedBox(height: 16),
-                      ],
-
-                      // Toggle
-                      SwitchListTile(
-                        title: const Text(
-                          'Enable Biometric Unlock',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: const Text(
-                          'Use fingerprint or face recognition to unlock the '
-                          'wallet instead of entering your PIN each time.',
-                        ),
-                        value: _enabled,
-                        onChanged: _available ? _toggle : null,
-                        contentPadding: EdgeInsets.zero,
-                        activeThumbColor: cs.primary,
-                      ),
-
-                      // Active status banner
-                      if (_enabled) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: cs.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.fingerprint_rounded,
-                                  color: cs.primary, size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Biometric unlock is active. You can still use '
-                                  'your PIN if biometric recognition fails.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: cs.onSurface,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                        // Info note
+                        Text(
+                          'Biometrics are only used to verify your identity. '
+                          'Your private keys are never shared with the system '
+                          'biometric service.',
+                          style: TextStyle(
+                              fontSize: 12, color: cs.onSurfaceVariant),
                         ),
                       ],
-
-                      const SizedBox(height: 16),
-                      // Info note
-                      Text(
-                        'Biometrics are only used to verify your identity. '
-                        'Your private keys are never shared with the system '
-                        'biometric service.',
-                        style:
-                            TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
               ),
       ),
     );

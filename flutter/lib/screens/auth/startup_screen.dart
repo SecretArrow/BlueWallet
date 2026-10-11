@@ -55,32 +55,32 @@ class _StartupScreenState extends State<StartupScreen> {
       backgroundColor: cs.surface,
       body: SafeArea(
         child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/images/logo_app_octopus.png',
-              width: 80,
-              height: 80,
-              errorBuilder: (_, __, ___) => Icon(
-                Icons.account_balance_wallet_rounded,
-                size: 72,
-                color: cs.primary,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/images/logo_app_octopus.png',
+                width: 80,
+                height: 80,
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.account_balance_wallet_rounded,
+                  size: 72,
+                  color: cs.primary,
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Octopus Wallet',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: cs.onSurface,
+              const SizedBox(height: 24),
+              Text(
+                'Octopus Wallet',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
-            CircularProgressIndicator(color: cs.primary),
-          ],
-        ),
+              const SizedBox(height: 32),
+              CircularProgressIndicator(color: cs.primary),
+            ],
+          ),
         ),
       ),
     );

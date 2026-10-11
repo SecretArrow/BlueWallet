@@ -104,87 +104,88 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : RefreshIndicator(
-              onRefresh: _loadData,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Total Data Usage Card
-                    _buildUsageCard(
-                      title: 'Total Data Usage',
-                      usage: _totalUsage ?? DataUsage(rxBytes: 0, txBytes: 0),
-                      showRxTx: true,
-                      titleStyle: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: cs.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Session Data Usage Card
-                    _buildUsageCard(
-                      title: 'Current Session',
-                      usage: _sessionUsage ?? DataUsage(rxBytes: 0, txBytes: 0),
-                      showRxTx: false,
-                      titleStyle: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: cs.secondary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Clear History Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _clearHistory,
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('Clear History'),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Transaction History Header
-                    Text(
-                      'Transaction History',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Empty State or History List
-                    if (_history.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(32),
-                        alignment: Alignment.center,
-                        child: Text(
-                          'No data usage recorded yet',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: cs.onSurfaceVariant,
-                          ),
+                onRefresh: _loadData,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Total Data Usage Card
+                      _buildUsageCard(
+                        title: 'Total Data Usage',
+                        usage: _totalUsage ?? DataUsage(rxBytes: 0, txBytes: 0),
+                        showRxTx: true,
+                        titleStyle: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: cs.primary,
                         ),
-                      )
-                    else
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _history.length,
-                        itemBuilder: (context, index) {
-                          return _buildHistoryItem(_history[index]);
-                        },
                       ),
-                  ],
+                      const SizedBox(height: 16),
+
+                      // Session Data Usage Card
+                      _buildUsageCard(
+                        title: 'Current Session',
+                        usage:
+                            _sessionUsage ?? DataUsage(rxBytes: 0, txBytes: 0),
+                        showRxTx: false,
+                        titleStyle: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: cs.secondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Clear History Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _clearHistory,
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Clear History'),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Transaction History Header
+                      Text(
+                        'Transaction History',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Empty State or History List
+                      if (_history.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(32),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'No data usage recorded yet',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        )
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _history.length,
+                          itemBuilder: (context, index) {
+                            return _buildHistoryItem(_history[index]);
+                          },
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
       ),
     );
   }

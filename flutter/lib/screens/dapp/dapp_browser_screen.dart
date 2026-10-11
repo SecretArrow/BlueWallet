@@ -665,101 +665,103 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
         right: false,
         child: Column(
           children: [
-          Container(
-            color: cs.surfaceContainerHighest,
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                  onPressed: _canGoBack && !_showingStartpage
-                      ? () => unawaited(_controller.goBack())
-                      : null,
-                  constraints:
-                      const BoxConstraints(minWidth: 36, minHeight: 36),
-                  padding: EdgeInsets.zero,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
-                  onPressed: _canGoForward && !_showingStartpage
-                      ? () => unawaited(_controller.goForward())
-                      : null,
-                  constraints:
-                      const BoxConstraints(minWidth: 36, minHeight: 36),
-                  padding: EdgeInsets.zero,
-                ),
-                IconButton(
-                  icon: Icon(
-                    _isLoading ? Icons.close_rounded : Icons.refresh_rounded,
-                    size: 18,
+            Container(
+              color: cs.surfaceContainerHighest,
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon:
+                        const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                    onPressed: _canGoBack && !_showingStartpage
+                        ? () => unawaited(_controller.goBack())
+                        : null,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                    padding: EdgeInsets.zero,
                   ),
-                  onPressed: _showingStartpage
-                      ? null
-                      : () => unawaited(_controller.reload()),
-                  constraints:
-                      const BoxConstraints(minWidth: 36, minHeight: 36),
-                  padding: EdgeInsets.zero,
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _urlCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'Enter URL or search…',
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide.none,
-                      ),
-                      filled: true,
-                      fillColor: cs.surface,
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.only(left: 8, right: 4),
-                        child: Icon(
-                          _urlCtrl.text.startsWith('https://')
-                              ? Icons.lock_rounded
-                              : Icons.language_rounded,
-                          size: 14,
-                          color: _urlCtrl.text.startsWith('https://')
-                              ? Colors.green
-                              : cs.onSurfaceVariant,
+                  IconButton(
+                    icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
+                    onPressed: _canGoForward && !_showingStartpage
+                        ? () => unawaited(_controller.goForward())
+                        : null,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                    padding: EdgeInsets.zero,
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _isLoading ? Icons.close_rounded : Icons.refresh_rounded,
+                      size: 18,
+                    ),
+                    onPressed: _showingStartpage
+                        ? null
+                        : () => unawaited(_controller.reload()),
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                    padding: EdgeInsets.zero,
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: _urlCtrl,
+                      decoration: InputDecoration(
+                        hintText: 'Enter URL or search…',
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: BorderSide.none,
                         ),
+                        filled: true,
+                        fillColor: cs.surface,
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.only(left: 8, right: 4),
+                          child: Icon(
+                            _urlCtrl.text.startsWith('https://')
+                                ? Icons.lock_rounded
+                                : Icons.language_rounded,
+                            size: 14,
+                            color: _urlCtrl.text.startsWith('https://')
+                                ? Colors.green
+                                : cs.onSurfaceVariant,
+                          ),
+                        ),
+                        prefixIconConstraints:
+                            const BoxConstraints(minWidth: 28),
                       ),
-                      prefixIconConstraints: const BoxConstraints(minWidth: 28),
+                      style: const TextStyle(fontSize: 13),
+                      keyboardType: TextInputType.url,
+                      textInputAction: TextInputAction.go,
+                      onSubmitted: _navigateTo,
                     ),
-                    style: const TextStyle(fontSize: 13),
-                    keyboardType: TextInputType.url,
-                    textInputAction: TextInputAction.go,
-                    onSubmitted: _navigateTo,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            child: _showingStartpage
-                ? ListenableBuilder(
-                    listenable: Listenable.merge([_recent, _sessions]),
-                    builder: (_, __) => StartpageView(
-                      isLoading: !_recent.isLoaded,
-                      error: null,
-                      pages: _recent.pages,
-                      bookmarks:
-                          _bookmarks.isEmpty ? _defaultShortcuts : _bookmarks,
-                      onOpen: (url, target) async {
-                        // "New tab" is approximated by opening in place: the
-                        // in-app browser is single-view. Documented in README.
-                        _openUrl(url);
-                      },
-                      onDelete: (url) async => _recent.remove(url),
-                      onClearAll: () async => _recent.clearAll(),
-                      onRetry: () async => _recent.load(),
-                      onSearch: (resolved) async => _openUrl(resolved),
-                    ),
-                  )
-                : WebViewWidget(controller: _controller),
-          ),
+            Expanded(
+              child: _showingStartpage
+                  ? ListenableBuilder(
+                      listenable: Listenable.merge([_recent, _sessions]),
+                      builder: (_, __) => StartpageView(
+                        isLoading: !_recent.isLoaded,
+                        error: null,
+                        pages: _recent.pages,
+                        bookmarks:
+                            _bookmarks.isEmpty ? _defaultShortcuts : _bookmarks,
+                        onOpen: (url, target) async {
+                          // "New tab" is approximated by opening in place: the
+                          // in-app browser is single-view. Documented in README.
+                          _openUrl(url);
+                        },
+                        onDelete: (url) async => _recent.remove(url),
+                        onClearAll: () async => _recent.clearAll(),
+                        onRetry: () async => _recent.load(),
+                        onSearch: (resolved) async => _openUrl(resolved),
+                      ),
+                    )
+                  : WebViewWidget(controller: _controller),
+            ),
           ],
         ),
       ),

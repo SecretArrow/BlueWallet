@@ -81,84 +81,84 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
             constraints: const BoxConstraints(maxWidth: 480),
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Your Address', style: tt.headlineSmall),
-                const SizedBox(height: 4),
-                Text(
-                  ws.activeWallet?.name ?? '',
-                  style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                ),
-                const SizedBox(height: 24),
-                if (address.isNotEmpty)
-                  OctopusCard(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        RepaintBoundary(
-                          key: _qrKey,
-                          child: QrImageView(
-                            data: address,
-                            version: QrVersions.auto,
-                            size: 240,
-                            backgroundColor: Colors.white,
-                            eyeStyle: const QrEyeStyle(
-                              eyeShape: QrEyeShape.square,
-                              color: Colors.black,
-                            ),
-                            dataModuleStyle: const QrDataModuleStyle(
-                              dataModuleShape: QrDataModuleShape.square,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        GestureDetector(
-                          onTap: () => _copy(address),
-                          child: Text(
-                            address,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                              color: cs.onSurface,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Your Address', style: tt.headlineSmall),
+                  const SizedBox(height: 4),
+                  Text(
+                    ws.activeWallet?.name ?? '',
+                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 24),
+                  if (address.isNotEmpty)
+                    OctopusCard(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          RepaintBoundary(
+                            key: _qrKey,
+                            child: QrImageView(
+                              data: address,
+                              version: QrVersions.auto,
+                              size: 240,
+                              backgroundColor: Colors.white,
+                              eyeStyle: const QrEyeStyle(
+                                eyeShape: QrEyeShape.square,
+                                color: Colors.black,
+                              ),
+                              dataModuleStyle: const QrDataModuleStyle(
+                                dataModuleShape: QrDataModuleShape.square,
+                                color: Colors.black,
+                              ),
                             ),
                           ),
+                          const SizedBox(height: 16),
+                          GestureDetector(
+                            onTap: () => _copy(address),
+                            child: Text(
+                              address,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 12,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    const CircularProgressIndicator(),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TonalButton(
+                          label: 'Copy Address',
+                          icon: Icons.copy_rounded,
+                          onPressed:
+                              address.isEmpty ? null : () => _copy(address),
                         ),
-                      ],
-                    ),
-                  )
-                else
-                  const CircularProgressIndicator(),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TonalButton(
-                        label: 'Copy Address',
-                        icon: Icons.copy_rounded,
-                        onPressed:
-                            address.isEmpty ? null : () => _copy(address),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TonalButton(
-                        label: 'Share QR',
-                        icon: Icons.share_rounded,
-                        loading: _sharing,
-                        onPressed: (address.isEmpty || _sharing)
-                            ? null
-                            : () => _shareQr(address),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TonalButton(
+                          label: 'Share QR',
+                          icon: Icons.share_rounded,
+                          loading: _sharing,
+                          onPressed: (address.isEmpty || _sharing)
+                              ? null
+                              : () => _shareQr(address),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
         ),
       ),
     );

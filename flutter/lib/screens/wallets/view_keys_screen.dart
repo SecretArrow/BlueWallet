@@ -146,181 +146,183 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
         bottom: true,
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Warning banner
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: cs.errorContainer,
-                borderRadius: BorderRadius.circular(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Warning banner
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: cs.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_rounded,
+                        color: cs.onErrorContainer, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Never share your private key or seed phrase with anyone. '
+                        'Anyone who has it has full control of your wallet.',
+                        style:
+                            TextStyle(color: cs.onErrorContainer, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
+              const SizedBox(height: 16),
+
+              // Wallet name with edit button
+              Row(
                 children: [
-                  Icon(Icons.warning_rounded,
-                      color: cs.onErrorContainer, size: 22),
-                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Never share your private key or seed phrase with anyone. '
-                      'Anyone who has it has full control of your wallet.',
-                      style:
-                          TextStyle(color: cs.onErrorContainer, fontSize: 13),
+                      name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 18),
                     ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.edit_rounded, color: cs.primary, size: 20),
+                    onPressed: () => _showRenameDialog(context, wallet),
+                    tooltip: 'Rename Wallet',
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Wallet name with edit button
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 18),
+              // Address card
+              _KeyCard(
+                label: 'Public Address',
+                value: address,
+                onCopy: () => _copy(context, address, 'Address'),
+              ),
+              const SizedBox(height: 12),
+
+              // Private key
+              if (!_revealed) ...[
+                OctopusCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Private Key',
+                          style: TextStyle(
+                              color: cs.onSurfaceVariant, fontSize: 12)),
+                      const SizedBox(height: 10),
+                      TonalButton(
+                        label: 'Reveal Private Key',
+                        icon: Icons.visibility_rounded,
+                        loading: _loading,
+                        onPressed: _loading ? null : _revealKey,
+                      ),
+                    ],
                   ),
                 ),
-                IconButton(
-                  icon: Icon(Icons.edit_rounded, color: cs.primary, size: 20),
-                  onPressed: () => _showRenameDialog(context, wallet),
-                  tooltip: 'Rename Wallet',
+              ] else ...[
+                _KeyCard(
+                  label: 'Private Key (Base64)',
+                  value: _privateKey ?? '',
+                  sensitive: true,
+                  onCopy: () =>
+                      _copy(context, _privateKey ?? '', 'Private key'),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
 
-            // Address card
-            _KeyCard(
-              label: 'Public Address',
-              value: address,
-              onCopy: () => _copy(context, address, 'Address'),
-            ),
-            const SizedBox(height: 12),
-
-            // Private key
-            if (!_revealed) ...[
-              OctopusCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Private Key',
-                        style: TextStyle(
-                            color: cs.onSurfaceVariant, fontSize: 12)),
-                    const SizedBox(height: 10),
-                    TonalButton(
-                      label: 'Reveal Private Key',
-                      icon: Icons.visibility_rounded,
-                      loading: _loading,
-                      onPressed: _loading ? null : _revealKey,
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              _KeyCard(
-                label: 'Private Key (Base64)',
-                value: _privateKey ?? '',
-                sensitive: true,
-                onCopy: () => _copy(context, _privateKey ?? '', 'Private key'),
-              ),
-            ],
-
-            // Seed Phrase — only for mnemonic wallets
-            if (hasMnemonic) ...[
-              const SizedBox(height: 12),
-              OctopusCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Seed Phrase (12 Words)',
-                                  style: TextStyle(
-                                      color: cs.onSurfaceVariant,
-                                      fontSize: 12)),
-                              if (wallet?.derivationPath != null) ...[
-                                const SizedBox(height: 2),
-                                Text(wallet?.derivationPath ?? '',
+              // Seed Phrase — only for mnemonic wallets
+              if (hasMnemonic) ...[
+                const SizedBox(height: 12),
+                OctopusCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Seed Phrase (12 Words)',
                                     style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 10,
-                                        color: cs.onSurfaceVariant)),
+                                        color: cs.onSurfaceVariant,
+                                        fontSize: 12)),
+                                if (wallet?.derivationPath != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(wallet?.derivationPath ?? '',
+                                      style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 10,
+                                          color: cs.onSurfaceVariant)),
+                                ],
                               ],
-                            ],
-                          ),
-                        ),
-                        if (_mnemonic != null)
-                          IconButton(
-                            icon: Icon(
-                              _mnemonicRevealed
-                                  ? Icons.visibility_off_rounded
-                                  : Icons.visibility_rounded,
-                              size: 18,
-                              color: cs.primary,
                             ),
-                            onPressed: _revealMnemonic,
-                            tooltip: _mnemonicRevealed
-                                ? 'Hide seed phrase'
-                                : 'Show seed phrase',
                           ),
-                        if (_mnemonic != null)
-                          IconButton(
-                            icon: Icon(Icons.copy, size: 18, color: cs.primary),
-                            onPressed: () {
-                              final m = _mnemonic;
-                              if (m != null && m.isNotEmpty) {
-                                _copy(context, m, 'Seed phrase');
-                              }
-                            },
-                            tooltip: 'Copy seed phrase',
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    if (!_mnemonicRevealed || _mnemonic == null) ...[
-                      TonalButton(
-                        label: 'Reveal Seed Phrase',
-                        icon: Icons.lock_open_rounded,
-                        loading: _loadingMnemonic,
-                        onPressed: _loadingMnemonic ? null : _revealMnemonic,
+                          if (_mnemonic != null)
+                            IconButton(
+                              icon: Icon(
+                                _mnemonicRevealed
+                                    ? Icons.visibility_off_rounded
+                                    : Icons.visibility_rounded,
+                                size: 18,
+                                color: cs.primary,
+                              ),
+                              onPressed: _revealMnemonic,
+                              tooltip: _mnemonicRevealed
+                                  ? 'Hide seed phrase'
+                                  : 'Show seed phrase',
+                            ),
+                          if (_mnemonic != null)
+                            IconButton(
+                              icon:
+                                  Icon(Icons.copy, size: 18, color: cs.primary),
+                              onPressed: () {
+                                final m = _mnemonic;
+                                if (m != null && m.isNotEmpty) {
+                                  _copy(context, m, 'Seed phrase');
+                                }
+                              },
+                              tooltip: 'Copy seed phrase',
+                            ),
+                        ],
                       ),
-                    ] else ...[
-                      Builder(builder: (_) {
-                        final m = _mnemonic;
-                        if (m == null || m.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
-                        return _MnemonicGrid(words: m.split(' '));
-                      }),
+                      const SizedBox(height: 10),
+                      if (!_mnemonicRevealed || _mnemonic == null) ...[
+                        TonalButton(
+                          label: 'Reveal Seed Phrase',
+                          icon: Icons.lock_open_rounded,
+                          loading: _loadingMnemonic,
+                          onPressed: _loadingMnemonic ? null : _revealMnemonic,
+                        ),
+                      ] else ...[
+                        Builder(builder: (_) {
+                          final m = _mnemonic;
+                          if (m == null || m.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return _MnemonicGrid(words: m.split(' '));
+                        }),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.account_tree_rounded),
-                label: const Text('Derive Child Wallet'),
-                onPressed: () {
-                  final id = wallet?.id ?? '';
-                  if (id.isNotEmpty) {
-                    context.push('/derive-child-wallet', extra: id);
-                  }
-                },
-              ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.account_tree_rounded),
+                  label: const Text('Derive Child Wallet'),
+                  onPressed: () {
+                    final id = wallet?.id ?? '';
+                    if (id.isNotEmpty) {
+                      context.push('/derive-child-wallet', extra: id);
+                    }
+                  },
+                ),
+              ],
             ],
-          ],
-        ),
+          ),
         ),
       ),
     );

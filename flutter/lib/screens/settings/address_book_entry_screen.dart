@@ -81,51 +81,51 @@ class _AddressBookEntryScreenState extends State<AddressBookEntryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-            if (_error != null) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cs.errorContainer,
-                  borderRadius: BorderRadius.circular(10),
+              if (_error != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: cs.errorContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(_error!,
+                      style: TextStyle(color: cs.onErrorContainer)),
                 ),
-                child:
-                    Text(_error!, style: TextStyle(color: cs.onErrorContainer)),
+                const SizedBox(height: 12),
+              ],
+              TextField(
+                controller: _labelCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Label',
+                  hintText: 'e.g. Alice, Exchange...',
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _addrCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Address',
+                  hintText: 'oct...',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.qr_code_scanner_rounded),
+                    onPressed: () async {
+                      final result = await context.push<String>('/qr-scan');
+                      if (result != null && mounted) {
+                        _addrCtrl.text = result;
+                      }
+                    },
+                  ),
+                ),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+              ),
+              const SizedBox(height: 24),
+              TonalButton(
+                label: isEdit ? 'Update' : 'Save',
+                loading: _loading,
+                onPressed: _loading ? null : _save,
+              ),
             ],
-            TextField(
-              controller: _labelCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Label',
-                hintText: 'e.g. Alice, Exchange...',
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _addrCtrl,
-              decoration: InputDecoration(
-                labelText: 'Address',
-                hintText: 'oct...',
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.qr_code_scanner_rounded),
-                  onPressed: () async {
-                    final result = await context.push<String>('/qr-scan');
-                    if (result != null && mounted) {
-                      _addrCtrl.text = result;
-                    }
-                  },
-                ),
-              ),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-            ),
-            const SizedBox(height: 24),
-            TonalButton(
-              label: isEdit ? 'Update' : 'Save',
-              loading: _loading,
-              onPressed: _loading ? null : _save,
-            ),
-          ],
-        ),
+          ),
         ),
       ),
     );
