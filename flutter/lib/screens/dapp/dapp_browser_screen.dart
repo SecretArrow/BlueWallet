@@ -42,6 +42,11 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
   bool _canGoForward = false;
   String? _connectedAddress;
 
+  /// Scopes granted at the last approval, echoed back by `octra_permissions`.
+  /// This wallet approves all-or-nothing, so the list is what the page asked
+  /// for — never more. Defaults to `['accounts']`.
+  List<String> _grantedPermissions = ['accounts'];
+
   // Default DApp shortcuts
   static const List<Map<String, String>> _devnetShortcuts = [
     {
@@ -156,10 +161,21 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
         await _handleConnect(id);
         break;
       case 'request':
+        // Third-party adapters (0xio) send a single object, not an array —
+        // dropping a Map here used to silently empty every object-form call.
+        final rawParams = msg['params'];
+        final List<dynamic> params;
+        if (rawParams is List) {
+          params = rawParams.cast<dynamic>();
+        } else if (rawParams is Map) {
+          params = [rawParams];
+        } else {
+          params = [];
+        }
         await _handleRequest(
           id,
           DappBridgeProtocol.canonicalize(msg['method'] as String? ?? ''),
-          (msg['params'] as List?)?.cast<dynamic>() ?? [],
+          params,
         );
         break;
       default:
@@ -193,7 +209,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
 
   /// RFC-O-1 requestAccounts: approval-gated account list. Reuses the
   /// connect approval UI but answers with a plain address array.
-  Future<void> _handleRequestAccounts(int id) async {
+  Future<void> _handleRequestAccounts(int id, List params) async {
+    final requested = DappBridgeProtocol.requestedPermissions(params);
     final ws = context.read<WalletService>();
     final address = ws.activeWallet?.address;
     if (address == null || address.isEmpty) {
@@ -207,7 +224,10 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       confirmLabel: 'Share',
     );
     if (approved) {
-      setState(() => _connectedAddress = address);
+      setState(() {
+        _connectedAddress = address;
+        _grantedPermissions = requested;
+      });
       _bridgeResult(id, jsonEncode([address]));
     } else {
       _bridgeError(
@@ -236,11 +256,13 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
   Future<void> _handleRequest(int id, String method, List params) async {
     final ws = context.read<WalletService>();
     final ns = context.read<NetworkService>();
-    // Pre-connect reads (mirrors the JS provider + Android gate).
+    // Pre-connect reads (mirrors the JS provider + Android gate). `disconnect`
+    // is always allowed: clearing an empty session must never throw.
     const preConnect = {
       'octra_accounts',
       'octra_chainId',
       'octra_requestAccounts',
+      'disconnect',
     };
     if (_connectedAddress == null && !preConnect.contains(method)) {
       _bridgeError(id, 'Not connected', DappBridgeProtocol.unauthorized);
@@ -254,7 +276,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
           break;
 
         case 'octra_requestAccounts':
-          await _handleRequestAccounts(id);
+          await _handleRequestAccounts(id, params);
           break;
 
         case 'octra_getEncryptedBalance':
@@ -277,6 +299,41 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
               }));
           break;
 
+        case 'getBalance':
+          // 0xio provider path: the adapter reads `balance` (decimal OCT)
+          // and defaults a missing `privateBalance` to 0.
+          _bridgeResult(
+              id,
+              jsonEncode({
+                'balance': ws.publicBalance,
+                'privateBalance': ws.encryptedBalance,
+              }));
+          break;
+
+        case 'octra_networkInfo':
+          _bridgeResult(id, jsonEncode(_networkInfo(ns)));
+          break;
+
+        case 'octra_permissions':
+          _bridgeResult(id, jsonEncode(_grantedPermissions));
+          break;
+
+        case 'disconnect':
+          setState(() {
+            _connectedAddress = null;
+            _grantedPermissions = ['accounts'];
+          });
+          _bridgeResult(id, jsonEncode({'success': true}));
+          break;
+
+        case 'getPublicKey':
+          _bridgeError(id, 'No public key available for the active wallet');
+          break;
+
+        case 'octra_switchNetwork':
+          await _handleSwitchNetwork(id, params, ns);
+          break;
+
         case 'octra_callView':
           // params: [contractAddr, functionName, args, caller?]
           if (params.length < 2) {
@@ -296,36 +353,24 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
           break;
 
         case 'octra_sendTransaction':
-          // params: [{to, amount, memo?}]
-          final txParams = (params.isNotEmpty ? params[0] : {}) as Map;
-          final to = txParams['to'] as String? ?? '';
-          final amount = txParams['amount']?.toString() ?? '0';
-          final memo = txParams['memo'] as String?;
-          if (to.isEmpty) {
-            _bridgeError(id, 'Missing recipient address');
-            return;
-          }
-          final approved = await _showTxConfirmDialog(
-            title: 'Send Transaction',
-            to: to,
-            amount: amount,
-            extra: memo != null ? 'Memo: $memo' : null,
-          );
-          if (!approved) {
-            _bridgeError(id, 'User rejected transaction');
-            return;
-          }
-          final hash = await ws.sendTransaction(
-            nodeUrl: ns.activeNodeUrl,
-            toAddress: to,
-            amount: amount,
-            memo: memo,
-          );
-          _bridgeResult(id, jsonEncode({'tx_hash': hash, 'ok': true}));
+          await _handleSend(id, params, ws, ns);
+          break;
+
+        case 'octra_sendContractTransaction':
+          // 0xio state-changing call: {contract, method, params, amount?, ou?}.
+          await _handleContractTransaction(id, params, ws, ns);
           break;
 
         case 'octra_callContract':
-          // params: [contractAddr, functionName, args, amount?]
+          // Legacy array form always submits (existing behaviour). The object
+          // form is a view when it carries no value, a submission otherwise.
+          if (params.isNotEmpty &&
+              params[0] is Map &&
+              DappBridgeProtocol.isViewCall(
+                  Map<String, dynamic>.from(params[0] as Map))) {
+            await _handleViewObject(id, params[0] as Map, ws, ns);
+            return;
+          }
           if (params.isEmpty) {
             _bridgeError(id, 'octra_callContract requires params');
             return;
@@ -334,42 +379,218 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
           final fn = params[1] as String;
           final callArgs = params.length > 2 ? (params[2] as List) : [];
           final callAmount = (params.length > 3 ? params[3] : '0').toString();
-          final approved = await _showTxConfirmDialog(
-            title: 'Contract Call',
-            to: contractAddr,
-            amount: callAmount,
-            extra: 'Function: $fn',
-          );
-          if (!approved) {
-            _bridgeError(id, 'User rejected contract call');
-            return;
-          }
-          String txHash;
-          if (callAmount != '0' && callAmount.isNotEmpty) {
-            txHash = await ws.sendContractCallTx(
-              nodeUrl: ns.activeNodeUrl,
-              tokenAddress: contractAddr,
-              toAddress: contractAddr,
-              amount: callAmount,
-            );
-          } else {
-            txHash = await ws.sendContractCall(
-              nodeUrl: ns.activeNodeUrl,
-              contractAddress: contractAddr,
-              functionName: fn,
-              args: callArgs,
-            );
-          }
-          _bridgeResult(id, jsonEncode({'tx_hash': txHash, 'ok': true}));
+          await _submitContractCall(
+              id, contractAddr, fn, callArgs, callAmount, ws, ns);
           break;
 
         default:
-          _bridgeError(id, 'Unsupported method: $method',
-              DappBridgeProtocol.unsupportedMethod);
+          if (DappBridgeProtocol.isKnownUnsupported(method)) {
+            _bridgeError(
+                id,
+                '$method is not supported by this wallet (sign-only '
+                'submission split, message signing and FHE-private '
+                'primitives stay in the wallet UI)',
+                DappBridgeProtocol.unsupportedMethod);
+          } else {
+            _bridgeError(id, 'Unsupported method: $method',
+                DappBridgeProtocol.unsupportedMethod);
+          }
       }
     } catch (e) {
       _bridgeError(id, e.toString().replaceFirst('Exception: ', ''));
     }
+  }
+
+  /// Network record for third-party adapters: stable id + display fields.
+  Map<String, dynamic> _networkInfo(NetworkService ns) {
+    final mainnet = ns.activeChainId.contains('mainnet');
+    return {
+      'id': mainnet ? 'mainnet' : 'devnet',
+      'name': mainnet ? 'Octra Mainnet' : 'Octra Devnet',
+      'chainId': ns.activeChainId,
+      'rpcUrl': ns.activeNodeUrl,
+      'explorerUrl': ns.activeExplorerUrl,
+      'isTestnet': !mainnet,
+    };
+  }
+
+  /// Network switch: the wallet follows its own configured node, so a page
+  /// can never move it. Answered honestly — `switched` is true only when
+  /// already there.
+  Future<void> _handleSwitchNetwork(
+      int id, List params, NetworkService ns) async {
+    var wanted = '';
+    try {
+      final o = DappBridgeProtocol.txObject(params);
+      wanted = (o['networkId'] ?? o['network'] ?? '').toString().trim();
+    } catch (_) {
+      // Fall through with empty wanted (answered below, never throws).
+    }
+    final current = ns.activeChainId.contains('mainnet') ? 'mainnet' : 'devnet';
+    final same = wanted.isNotEmpty &&
+        (wanted.toLowerCase() == current ||
+            wanted.toLowerCase() == ns.activeChainId.toLowerCase());
+    _bridgeResult(
+        id, jsonEncode({'network': current, 'switched': same}));
+  }
+
+  /// Approval-gated native transfer. Accepts the legacy `[{to, amount, memo?}]`
+  /// and the third-party object form `{to, amount, amountOct?, message?, ...}`.
+  Future<void> _handleSend(
+      int id, List params, WalletService ws, NetworkService ns) async {
+    late final Map<String, dynamic> tx;
+    try {
+      tx = DappBridgeProtocol.txObject(params);
+    } catch (e) {
+      _bridgeError(id, 'Invalid params: $e');
+      return;
+    }
+    if (tx['isPrivate'] == true) {
+      _bridgeError(
+          id,
+          'Private transfers are not served over the provider — '
+          'use the wallet UI',
+          DappBridgeProtocol.unsupportedMethod);
+      return;
+    }
+    final to = (tx['to'] ?? '').toString().trim();
+    if (to.isEmpty) {
+      _bridgeError(id, 'Invalid params: missing recipient address');
+      return;
+    }
+    late final String amount;
+    try {
+      amount = DappBridgeProtocol.resolveTxAmount(tx);
+    } catch (e) {
+      _bridgeError(id, 'Invalid params: $e');
+      return;
+    }
+    if (amount == '0') {
+      _bridgeError(id, 'Invalid params: amount must be greater than 0');
+      return;
+    }
+    var memo = (tx['message'] ?? tx['memo'])?.toString().trim();
+    if (memo != null) {
+      if (memo.isEmpty) {
+        memo = null;
+      } else if (memo.length > 1000) {
+        _bridgeError(id, 'Invalid params: message over 1000 chars');
+        return;
+      }
+    }
+    final approved = await _showTxConfirmDialog(
+      title: 'Send Transaction',
+      to: to,
+      amount: amount,
+      extra: memo != null ? 'Message: $memo' : null,
+    );
+    if (!approved) {
+      _bridgeError(id, 'User rejected transaction');
+      return;
+    }
+    final hash = await ws.sendTransaction(
+      nodeUrl: ns.activeNodeUrl,
+      toAddress: to,
+      amount: amount,
+      memo: memo,
+    );
+    // `hash` + `accepted` for third-party adapters; raw `tx_hash` preserved.
+    _bridgeResult(
+        id,
+        jsonEncode(
+            {'tx_hash': hash, 'hash': hash, 'accepted': true, 'success': true, 'ok': true}));
+  }
+
+  /// Approval-gated contract submit from the object form
+  /// `{contract, method, params?, amount?, ou?}`.
+  Future<void> _handleContractTransaction(
+      int id, List params, WalletService ws, NetworkService ns) async {
+    late final Map<String, dynamic> o;
+    try {
+      o = DappBridgeProtocol.txObject(params);
+    } catch (e) {
+      _bridgeError(id, 'Invalid params: $e');
+      return;
+    }
+    final contract = (o['contract'] ?? '').toString().trim();
+    final fn = (o['method'] ?? '').toString().trim();
+    if (contract.isEmpty || fn.isEmpty) {
+      _bridgeError(id, 'Invalid params: call needs contract + method');
+      return;
+    }
+    final args = o['params'] is List ? (o['params'] as List) : [];
+    late final String amount;
+    try {
+      amount = o.containsKey('amount') && o['amount'] != null
+          ? DappBridgeProtocol.resolveTxAmount(o)
+          : '0';
+    } catch (e) {
+      _bridgeError(id, 'Invalid params: $e');
+      return;
+    }
+    await _submitContractCall(id, contract, fn, args, amount, ws, ns);
+  }
+
+  /// Read-only view from the object form (no unlock, no approval).
+  Future<void> _handleViewObject(
+      int id, Map view, WalletService ws, NetworkService ns) async {
+    final contract = (view['contract'] ?? '').toString().trim();
+    final fn = (view['method'] ?? '').toString().trim();
+    if (contract.isEmpty || fn.isEmpty) {
+      _bridgeError(id, 'Invalid params: view needs contract + method');
+      return;
+    }
+    final args = view['params'] is List ? (view['params'] as List) : [];
+    final caller = (view['caller'] ?? ws.activeWallet?.address ?? '').toString();
+    final result = await ws.rpcCall(
+        ns.activeNodeUrl, 'contract_call', [contract, fn, args, caller]);
+    _bridgeResult(id, jsonEncode(result));
+  }
+
+  /// Shared approval + submit for contract calls (both param shapes).
+  Future<void> _submitContractCall(
+      int id,
+      String contractAddr,
+      String fn,
+      List callArgs,
+      String callAmount,
+      WalletService ws,
+      NetworkService ns) async {
+    final approved = await _showTxConfirmDialog(
+      title: 'Contract Call',
+      to: contractAddr,
+      amount: callAmount,
+      extra: 'Function: $fn',
+    );
+    if (!approved) {
+      _bridgeError(id, 'User rejected contract call');
+      return;
+    }
+    String txHash;
+    if (callAmount != '0' && callAmount.isNotEmpty) {
+      txHash = await ws.sendContractCallTx(
+        nodeUrl: ns.activeNodeUrl,
+        tokenAddress: contractAddr,
+        toAddress: contractAddr,
+        amount: callAmount,
+      );
+    } else {
+      txHash = await ws.sendContractCall(
+        nodeUrl: ns.activeNodeUrl,
+        contractAddress: contractAddr,
+        functionName: fn,
+        args: callArgs,
+      );
+    }
+    _bridgeResult(
+        id,
+        jsonEncode({
+          'tx_hash': txHash,
+          'hash': txHash,
+          'accepted': true,
+          'success': true,
+          'ok': true
+        }));
   }
 
   /// Sends a successful result back to the injected JS provider.
@@ -934,10 +1155,28 @@ const String _octraProviderJs = r'''
     },
 
     async request({ method, params = [] }) {
-      if (!_connected && method !== 'octra_accounts' && method !== 'octra_chainId') {
+      if (!_connected && method !== 'octra_accounts' && method !== 'octra_chainId'
+          && method !== 'disconnect') {
         throw new Error('Wallet not connected. Call window.octra.connect() first.');
       }
-      return _send({ type: 'request', id: ++_requestId, method, params });
+      return _send({ type: 'request', id: ++_requestId, method, params }).then(r => {
+        // Third-party adapters drive request() directly (never the helpers
+        // above) — keep the local session flags in sync so the pre-connect
+        // gate and .isConnected stay truthful.
+        if (method === 'octra_requestAccounts' && Array.isArray(r)) {
+          _connected = true;
+          _accounts = r;
+          _emit('connect', { address: r[0] });
+          _emit('accountsChanged', _accounts);
+        }
+        if (method === 'disconnect') {
+          _connected = false;
+          _accounts = [];
+          _emit('disconnect', {});
+          _emit('accountsChanged', []);
+        }
+        return r;
+      });
     },
 
     // Convenience helpers
