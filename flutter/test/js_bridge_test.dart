@@ -215,12 +215,11 @@ void main() {
   });
 
   group('JsBridge wallet_* submit/view aliases (dual-stack)', () {
-    test('send alias needs approval, view alias stays a read (like twins)',
-        () {
-      expect(JsBridge.approvalMethods.contains('octra_sendTransaction'),
-          isTrue);
-      expect(JsBridge.approvalMethods.contains('wallet_sendTransaction'),
-          isTrue);
+    test('send alias needs approval, view alias stays a read (like twins)', () {
+      expect(
+          JsBridge.approvalMethods.contains('octra_sendTransaction'), isTrue);
+      expect(
+          JsBridge.approvalMethods.contains('wallet_sendTransaction'), isTrue);
       expect(JsBridge.approvalMethods.contains('octra_callView'), isFalse);
       expect(JsBridge.approvalMethods.contains('wallet_callView'), isFalse);
     });

@@ -196,15 +196,13 @@ void main() {
       ]) {
         expect(registry.isSupported(m), isTrue, reason: m);
       }
-      final sendLegacy = await registry.dispatch(
-          req('octra_sendTransaction'), _ctx());
+      final sendLegacy =
+          await registry.dispatch(req('octra_sendTransaction'), _ctx());
       final sendAlias =
           await registry.dispatch(req('wallet_sendTransaction'), _ctx());
       expect(sendAlias, sendLegacy);
-      final viewLegacy =
-          await registry.dispatch(req('octra_callView'), _ctx());
-      final viewAlias =
-          await registry.dispatch(req('wallet_callView'), _ctx());
+      final viewLegacy = await registry.dispatch(req('octra_callView'), _ctx());
+      final viewAlias = await registry.dispatch(req('wallet_callView'), _ctx());
       expect(viewAlias, viewLegacy);
     });
   });

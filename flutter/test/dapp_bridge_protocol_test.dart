@@ -265,8 +265,7 @@ void main() {
     });
 
     test('legacy twins keep working alongside the aliases', () {
-      expect(
-          DappBridgeProtocol.isSupported('octra_sendTransaction'), isTrue);
+      expect(DappBridgeProtocol.isSupported('octra_sendTransaction'), isTrue);
       expect(DappBridgeProtocol.isSupported('octra_callView'), isTrue);
     });
   });
