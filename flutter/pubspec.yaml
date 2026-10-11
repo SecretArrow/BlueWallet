@@ -2,7 +2,7 @@ name: octopus_wallet
 description: "Octopus Wallet - Secure crypto wallet for the Octra blockchain"
 publish_to: 'none'
 
-version: 0.19.0-alpha+313
+version: 0.18.1-alpha+313
 
 environment:
   sdk: ^3.6.2
