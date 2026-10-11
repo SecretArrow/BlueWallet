@@ -212,91 +212,8 @@ jobs:
           name: flutter-release
           path: flutter/build/app/outputs/flutter-apk/*.apk
 
-  ios-ipa:
-    needs: verify-version
-    runs-on: macos-latest
-    # Approved pattern: secrets cannot appear in `if:` (step or job level),
-    # so one check step exports the decision and everything gates on it.
-    outputs:
-      signed: ${{ steps.signing.outputs.enabled }}
-    defaults:
-      run:
-        working-directory: flutter
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - run: flutter pub get
-      - name: Check iOS signing secrets
-        id: signing
-        run: |
-          if [ -n "${{ secrets.IOS_DIST_CERT_P12_B64 }}" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          fi
-      # Signed path: only runs when iOS signing secrets are configured.
-      # Secrets are referenced here, never printed.
-      - name: Restore iOS signing (signed path only)
-        if: steps.signing.outputs.enabled == 'true'
-        run: |
-          set -euo pipefail
-          mkdir -p ~/Library/MobileDevice/"Provisioning Profiles"
-          echo "${{ secrets.IOS_PROVISION_PROFILE_B64 }}" | base64 -d > ~/Library/MobileDevice/"Provisioning Profiles"/profile.mobileprovision
-          echo "${{ secrets.IOS_DIST_CERT_P12_B64 }}" | base64 -d > /tmp/dist.p12
-          KEYCHAIN=/tmp/ci-signing.keychain-db
-          KEYCHAIN_PASS="$(openssl rand -base64 24)"
-          security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
-          # Import .p12 without printing secrets (values stay masked).
-          security import /tmp/dist.p12 -k "$KEYCHAIN" -P "${{ secrets.IOS_CERT_PASSWORD }}" -T /usr/bin/codesign -T /usr/bin/security
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN"
-          rm /tmp/dist.p12
-          echo "${{ secrets.IOS_EXPORT_OPTIONS_B64 }}" | base64 -d > ios/ExportOptions.plist
-      # Signed path: honest comment — requires valid cert + profile + ExportOptions.
-      - name: Build signed IPA (requires signing secrets)
-        if: steps.signing.outputs.enabled == 'true'
-        run: flutter build ipa --export-options-plist=ios/ExportOptions.plist --obfuscate --split-debug-info=build/debug-info --tree-shake-icons
-      - name: Rename signed IPA
-        if: steps.signing.outputs.enabled == 'true'
-        run: |
-          mv build/ios/ipa/*.ipa build/ios/ipa/octra-wallet-flutter-ios-release.ipa
-          ls build/ios/ipa/*.ipa
-      - uses: actions/upload-artifact@v4
-        if: steps.signing.outputs.enabled == 'true'
-        with:
-          name: ios-release
-          path: flutter/build/ios/ipa/*.ipa
-      # Unsigned fallback: honest comment — runs only when signing secrets are
-      # empty (not yet configured by the user). Output cannot be installed on a
-      # device; it only proves compilation succeeded.
-      - name: Build unsigned iOS (fallback without signing secrets)
-        if: steps.signing.outputs.enabled == 'false'
-        run: flutter build ios --release --no-codesign
-      # Unsigned fallback: honest comment — package the unsigned .app as a
-      # clearly-named unsigned .ipa (cannot be installed, compile proof only).
-      - name: Package unsigned IPA (compile proof only)
-        if: steps.signing.outputs.enabled == 'false'
-        run: |
-          APP=$(ls -d build/ios/iphoneos/Runner.app | head -1)
-          mkdir -p build/ios/unsigned/Payload
-          cp -R "$APP" build/ios/unsigned/Payload/
-          (cd build/ios/unsigned && zip -r octra-wallet-flutter-ios-unsigned.ipa Payload)
-          ls build/ios/unsigned/*.ipa
-      - uses: actions/upload-artifact@v4
-        if: steps.signing.outputs.enabled == 'false'
-        with:
-          name: ios-unsigned
-          path: flutter/build/ios/unsigned/*.ipa
-
   publish:
-    needs: [android-build, flutter-build, ios-ipa]
+    needs: [android-build, flutter-build]
     # Only attach to a GitHub Release on tags; manual dispatch runs build
     # validation only.
     if: startsWith(github.ref, 'refs/tags/')
@@ -311,20 +228,9 @@ jobs:
         with:
           name: flutter-release
           path: dist
-      - uses: actions/download-artifact@v4
-        # Unsigned fallback produces no ios-release artifact; skip instead of
-        # failing (needs context is allowed in step `if:`).
-        if: needs.ios-ipa.outputs.signed == 'true'
-        with:
-          name: ios-release
-          path: dist
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/**/*.apk
             dist/**/*.aab
-            dist/**/*.ipa
           generate_release_notes: true
-      # NOTE: when ios-ipa falls back to unsigned (signing secrets empty), the
-      # unsigned .ipa is still uploaded as artifact ios-unsigned with a clear
-      # unsigned file name (compile proof only, cannot be installed).
