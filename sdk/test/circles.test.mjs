@@ -104,29 +104,17 @@ describe('no cleartext exceptions (loopback server removed)', () => {
     }
   });
 
-  it('no cleartext exception permits loopback or the dead devnet IP', () => {
-    // NOTE (2026-10-11, verified against the actual files): the Flutter
-    // config is fully HTTPS-only, but android-native still carries a
-    // cleartext domain-config for 127.0.0.1 / localhost / 10.0.2.2. That
-    // remainder predates this guard; this test pins its exact host set so
-    // it can only shrink — do not add hosts here, remove them.
-    const flutterBodies = cleartextDomainConfigBodies(readFileSync(FLUTTER_NSC, 'utf8'));
-    assert.equal(flutterBodies.length, 0, 'flutter must have no cleartext domain-config');
-    const androidCleartext = cleartextDomainConfigBodies(readFileSync(ANDROID_NSC, 'utf8')).join(
-      '\n',
+  it('the android-native config has no cleartext exception left', () => {
+    const nsc = readFileSync(ANDROID_NSC, 'utf8');
+    assert.equal(
+      cleartextDomainConfigBodies(nsc).length,
+      0,
+      'android-native NSC must not permit cleartext anywhere after the loopback server removal',
     );
-    assert.ok(
-      !androidCleartext.includes('165.227.225.79'),
-      'android-native must not permit cleartext to the dead devnet IP',
-    );
-    assert.doesNotMatch(androidCleartext, />\*</, 'cleartext must never use a wildcard domain');
-    const androidHosts = [...androidCleartext.matchAll(/<domain[^>]*>([^<]+)<\/domain>/g)]
-      .map((m) => m[1])
-      .sort();
-    assert.deepEqual(
-      androidHosts,
-      ['10.0.2.2', '127.0.0.1', 'localhost'],
-      `android-native cleartext hosts changed (cleanup should only remove): ${androidHosts}`,
+    assert.match(
+      nsc,
+      /<base-config cleartextTrafficPermitted="false">/,
+      'android-native base-config must stay HTTPS-only (fail closed)',
     );
   });
 });

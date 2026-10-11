@@ -73,7 +73,7 @@ static void init_pvac_for_loaded_wallet() {
 }
 
 static bool is_valid_pin(const std::string &pin) {
-  if (pin.size() != 6) {
+  if (pin.size() < 6 || pin.size() > 64) {
     return false;
   }
   for (char c : pin) {
@@ -120,7 +120,7 @@ JNIEXPORT jstring JNICALL Java_com_octopus_wallet_OctraNative_createWallet(
     env->ReleaseStringUTFChars(pin_str, pin);
 
     if (!is_valid_pin(pin_s)) {
-      return env->NewStringUTF("{\"error\":\"PIN must be 6 digits\"}");
+      return env->NewStringUTF("{\"error\":\"PIN must be at least 6 digits\"}");
     }
 
     std::string wallet_path = g_data_dir + "/wallet.oct";
@@ -152,7 +152,7 @@ JNIEXPORT jstring JNICALL Java_com_octopus_wallet_OctraNative_importWallet(
     env->ReleaseStringUTFChars(pin_str, pin);
 
     if (!is_valid_pin(pin_s)) {
-      return env->NewStringUTF("{\"error\":\"PIN must be 6 digits\"}");
+      return env->NewStringUTF("{\"error\":\"PIN must be at least 6 digits\"}");
     }
 
     std::string wallet_path = g_data_dir + "/wallet.oct";
@@ -676,7 +676,7 @@ JNIEXPORT jstring JNICALL Java_com_octopus_wallet_OctraNative_changePin(
     }
 
     if (!is_valid_pin(new_s)) {
-      return env->NewStringUTF("{\"error\":\"new PIN must be 6 digits\"}");
+      return env->NewStringUTF("{\"error\":\"new PIN must be at least 6 digits\"}");
     }
 
     std::string wallet_path = g_data_dir + "/wallet.oct";
@@ -1026,7 +1026,7 @@ JNIEXPORT jstring JNICALL Java_com_octopus_wallet_OctraNative_importWalletMnemon
     env->ReleaseStringUTFChars(pin_str, pin);
 
     if (!is_valid_pin(pin_s)) {
-      return env->NewStringUTF("{\"error\":\"PIN must be 6 digits\"}");
+      return env->NewStringUTF("{\"error\":\"PIN must be at least 6 digits\"}");
     }
 
     std::string wallet_path = g_data_dir + "/wallet.oct";
@@ -1061,7 +1061,7 @@ JNIEXPORT jstring JNICALL Java_com_octopus_wallet_OctraNative_importWalletMnemon
     env->ReleaseStringUTFChars(pin_str, pin);
 
     if (!is_valid_pin(pin_s)) {
-      return env->NewStringUTF("{\"error\":\"PIN must be 6 digits\"}");
+      return env->NewStringUTF("{\"error\":\"PIN must be at least 6 digits\"}");
     }
 
     std::string wallet_path = g_data_dir + "/wallet.oct";
@@ -1117,7 +1117,7 @@ JNIEXPORT jstring JNICALL Java_com_octopus_wallet_OctraNative_deriveHdAccount(
     env->ReleaseStringUTFChars(pin_str, pin);
 
     if (!is_valid_pin(pin_s)) {
-      return env->NewStringUTF("{\"error\":\"PIN must be 6 digits\"}");
+      return env->NewStringUTF("{\"error\":\"PIN must be at least 6 digits\"}");
     }
 
     std::string wallet_path =

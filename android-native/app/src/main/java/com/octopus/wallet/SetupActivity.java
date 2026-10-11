@@ -109,12 +109,17 @@ public class SetupActivity extends AppCompatActivity {
         String pin = pinInput.getText().toString();
         String pinConfirm = pinConfirmInput.getText().toString();
         
-        if (pin.length() != 6) {
-            showError("PIN must be exactly 6 digits");
+        if (pin.length() < 6) {
+            showError("PIN minimal 6 digit (at least 6 digits)");
             return;
         }
-        
-        if (!pin.matches("\\d{6}")) {
+
+        if (pin.length() > 64) {
+            showError("PIN minimal 6 digit (at least 6 digits, max 64)");
+            return;
+        }
+
+        if (!pin.matches("\\d+")) {
             showError("PIN must contain only digits");
             return;
         }

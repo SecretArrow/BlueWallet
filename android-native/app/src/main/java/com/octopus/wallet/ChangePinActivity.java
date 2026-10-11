@@ -28,12 +28,12 @@ public class ChangePinActivity extends BaseTxActivity {
             String newPin = newPinInput.getText() == null ? "" : newPinInput.getText().toString().trim();
             String confirmPin = confirmPinInput.getText() == null ? "" : confirmPinInput.getText().toString().trim();
 
-            if (!currentPin.matches("\\d{6}")) {
-                showError("Current PIN must be 6 digits");
+            if (!currentPin.matches("\\d{6,64}")) {
+                showError("Current PIN minimal 6 digit (at least 6 digits, max 64)");
                 return;
             }
-            if (!newPin.matches("\\d{6}")) {
-                showError("New PIN must be 6 digits");
+            if (!newPin.matches("\\d{6,64}")) {
+                showError("New PIN minimal 6 digit (at least 6 digits, max 64)");
                 return;
             }
             if (!newPin.equals(confirmPin)) {

@@ -1,16 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <!--
-      Cleartext for loopback only. The legacy devnet IP (165.227.225.79:8080)
-      used to be listed here; it is dead (probe: connection refused) and
-      UrlSecurityValidator.normalizeRpcUrl rewrites it to the live HTTPS
-      default, so the exemption only widened the cleartext surface.
+      HTTPS-only. The former loopback cleartext exception (127.0.0.1 /
+      localhost / 10.0.2.2) for the local dApp server was removed with the
+      server itself (PR #48); the legacy devnet IP (165.227.225.79:8080) is
+      dead (probe: connection refused) and UrlSecurityValidator.normalizeRpcUrl
+      rewrites it to the live HTTPS default. No cleartext exception remains.
     -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">127.0.0.1</domain>
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">10.0.2.2</domain>
-    </domain-config>
     <!-- HTTPS-only for mainnet and explorer endpoints -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">rpc.octrascan.io</domain>

@@ -6,21 +6,26 @@ import 'package:octopus_wallet/services/pin_service.dart';
 /// secure storage, so they run without plugins. Success paths need the
 /// platform channel (integration-covered).
 void main() {
-  group('isValidPin (mirrors Android WalletPinVerifier: exactly 6 digits)', () {
-    test('accepts 6 digits', () {
+  group('isValidPin (baru: minimal 6 digit, maksimal 64 digit)', () {
+    test('accepts 6 digits (legacy) and 12 digits', () {
       expect(PinService.isValidPin('123456'), isTrue);
       expect(PinService.isValidPin('000000'), isTrue);
+      expect(PinService.isValidPin('123456789012'), isTrue);
+    });
+
+    test('rejects 5-digit PINs', () {
+      expect(PinService.isValidPin('12345'), isFalse);
     });
 
     test('rejects everything else', () {
       for (final bad in [
         '',
         '12345',
-        '1234567',
         '12345a',
         'abcdef',
         ' 123456 ',
         '12 456',
+        '12345678901234567890123456789012345678901234567890123456789012345',
       ]) {
         expect(PinService.isValidPin(bad), isFalse, reason: 'for "$bad"');
       }
@@ -29,7 +34,7 @@ void main() {
 
   group('setPin guards', () {
     test('rejects invalid PINs before touching storage', () {
-      for (final bad in ['', '123', '1234567', 'abcdef', '12 456']) {
+      for (final bad in ['', '123', '12345', 'abcdef', '12 456']) {
         expect(() => PinService.setPin(bad), throwsArgumentError,
             reason: 'for "$bad"');
       }

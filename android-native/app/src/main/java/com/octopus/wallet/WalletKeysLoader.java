@@ -21,7 +21,7 @@ public class WalletKeysLoader {
             // Attempt to unlock with entered PIN first, then default PIN as fallback.
             String pin = pinInput == null ? "" : pinInput.trim();
             boolean unlocked = false;
-            if (pin != null && pin.matches("\\d{6}")) {
+            if (pin != null && pin.matches("\\d{6,64}")) {
                 try {
                     String res = OctraNative.getInstance().unlockWallet(pin);
                     JSONObject jr = new JSONObject(res);
@@ -31,7 +31,7 @@ public class WalletKeysLoader {
 
             if (!unlocked) {
                 String defaultPin = PinStore.getDefaultPin(context);
-                if (defaultPin != null && defaultPin.matches("\\d{6}")) {
+                if (defaultPin != null && defaultPin.matches("\\d{6,64}")) {
                     try {
                         String res = OctraNative.getInstance().unlockWallet(defaultPin);
                         JSONObject jr = new JSONObject(res);
@@ -73,7 +73,7 @@ public class WalletKeysLoader {
                 java.io.File restoreDir = WalletProfileStore.getWalletDir(context, restoreId);
                 OctraNative.getInstance().lockWallet();
                 OctraNative.getInstance().init(restoreDir.getAbsolutePath());
-                if (previousPin != null && previousPin.matches("\\d{6}")) {
+                if (previousPin != null && previousPin.matches("\\d{6,64}")) {
                     OctraNative.getInstance().unlockWallet(previousPin);
                 }
             } catch (Exception ignored) {

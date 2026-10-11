@@ -153,7 +153,7 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
               controller: controller,
               keyboardType: TextInputType.number,
               obscureText: true,
-              maxLength: 6,
+              maxLength: 64,
               autofocus: true,
               decoration: const InputDecoration(
                 labelText: 'PIN Code',
@@ -161,7 +161,7 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
               ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'PIN is required';
-                if (v.trim().length < 4) return 'PIN must be at least 4 digits';
+                if (v.trim().length < 6) return 'PIN minimal 6 digit';
                 return null;
               },
             ),

@@ -72,7 +72,7 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
     }
   }
 
-  /// Shows a dialog prompting the user to enter their 6-digit PIN.
+  /// Shows a dialog prompting the user to enter their wallet PIN (min 6 digits).
   Future<String?> _promptPin() async {
     final ctrl = TextEditingController();
     final result = await showDialog<String>(
@@ -86,7 +86,7 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Enter your 6-digit wallet PIN to enable biometric unlock.',
+                'Enter your wallet PIN (minimal 6 digit) to enable biometric unlock.',
                 style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
               ),
               const SizedBox(height: 16),
@@ -96,7 +96,7 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
                   controller: ctrl,
                   textAlign: TextAlign.center,
                   keyboardType: TextInputType.number,
-                  maxLength: 6,
+                  maxLength: 64,
                   obscureText: true,
                   autofocus: true,
                   inputFormatters: [
@@ -108,7 +108,7 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
                     counterText: '',
                   ),
                   onSubmitted: (v) {
-                    if (v.length == 6) Navigator.pop(ctx, v);
+                    if (v.length >= 6) Navigator.pop(ctx, v);
                   },
                 ),
               ),
@@ -121,7 +121,7 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
             ),
             FilledButton(
               onPressed: () {
-                if (ctrl.text.length == 6) Navigator.pop(ctx, ctrl.text);
+                if (ctrl.text.length >= 6) Navigator.pop(ctx, ctrl.text);
               },
               child: const Text('Confirm'),
             ),
