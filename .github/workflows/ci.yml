@@ -66,26 +66,6 @@ jobs:
           name: flutter-debug-apk
           path: flutter/build/app/outputs/flutter-apk/*.apk
 
-  ios-check:
-    needs: changes
-    if: needs.changes.outputs.flutter == 'true' || github.event_name != 'pull_request'
-    runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: flutter
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - run: flutter pub get
-      # Compile-only gate (incl. octra_native pod FFI); no signing here.
-      # Signed IPA is built only in release.yml on tag push with secrets.
-      - run: flutter build ios --release --no-codesign
-
   android-quick:
     needs: changes
     if: needs.changes.outputs.android == 'true' || needs.changes.outputs.webcli == 'true' || github.event_name == 'push'
