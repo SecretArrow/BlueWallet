@@ -17,6 +17,11 @@ import 'package:octopus_wallet/services/wallet_service.dart';
 /// services and no wallet: the oct:// read path needs only RPC (direct
 /// fetch — no local server). Passes when no "Cannot open" error appears
 /// and loading settles.
+///
+/// NOTE: the fixture circle lives on devnet, while a fresh NetworkService
+/// defaults to mainnet — so the test explicitly activates the seeded
+/// devnet profile first. Forgetting this yields "RPC error: not found",
+/// which is correct behavior (wrong network), not a renderer bug.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -24,11 +29,20 @@ void main() {
       'oct://oct99BWHFpV5r54DXKc2FhsBmZEaS6Q8zvCQrHRgXUcK4Fk/index.html';
 
   testWidgets('oct circle renders in the in-app browser', (tester) async {
+    final network = NetworkService();
+    // Wait for default profiles to seed, then use devnet (fixture home).
+    for (var i = 0;
+        i < 30 && !network.profiles.any((p) => p.id == 'devnet');
+        i++) {
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+    await network.setActive('devnet');
+
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider(create: (_) => WalletService()),
-          ChangeNotifierProvider(create: (_) => NetworkService()),
+          ChangeNotifierProvider<NetworkService>.value(value: network),
           ChangeNotifierProvider(create: (_) => AddressBookService()),
           ChangeNotifierProvider(create: (_) => PollingService()),
           ChangeNotifierProvider(create: (_) => TorProxyService.instance),
