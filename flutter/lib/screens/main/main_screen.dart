@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../services/wallet_service.dart';
 import '../../services/network_service.dart';
+import '../dapp/dapp_browser_screen.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/settings_tab.dart';
@@ -59,6 +60,10 @@ class _MainScreenState extends State<MainScreen> {
   static const _tabs = [
     DashboardTab(),
     HistoryTab(),
+    // Browser tab: the in-app DApp browser (window.octra provider). Kept
+    // alive in the IndexedStack like every other tab, so an open dApp
+    // survives tab switches; the provider disconnects only on dispose.
+    DappBrowserScreen(),
     SettingsTab(),
   ];
 
@@ -72,6 +77,11 @@ class _MainScreenState extends State<MainScreen> {
       icon: Icon(Icons.history_outlined),
       selectedIcon: Icon(Icons.history_rounded),
       label: 'History',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.public_outlined),
+      selectedIcon: Icon(Icons.public),
+      label: 'Browser',
     ),
     NavigationDestination(
       icon: Icon(Icons.settings_outlined),
@@ -90,6 +100,11 @@ class _MainScreenState extends State<MainScreen> {
       icon: Icon(Icons.history_outlined),
       selectedIcon: Icon(Icons.history_rounded),
       label: Text('History'),
+    ),
+    NavigationRailDestination(
+      icon: Icon(Icons.public_outlined),
+      selectedIcon: Icon(Icons.public),
+      label: Text('Browser'),
     ),
     NavigationRailDestination(
       icon: Icon(Icons.settings_outlined),
