@@ -1,9 +1,10 @@
 /// Pure helpers for the native `oct://` circle protocol.
 ///
 /// Octra circle URLs look like `oct://<circleId>/<path>` (a bare circle ID
-/// defaults to `/index.html`, mirroring the local web server `/oct/`
-/// gateway). Parsing is manual — never `Uri` — so base58 circle IDs keep
-/// their case. No Flutter, no network: fully unit-testable.
+/// defaults to `/index.html`). Parsing is manual — never `Uri` — so base58
+/// circle IDs keep their case. No Flutter, no network: fully unit-testable.
+///
+/// Pages render via direct RPC fetch in the dApp browser (no local server).
 class OctCircleRef {
   final String circleId;
   final String path;
@@ -14,8 +15,7 @@ class OctUrl {
   static const scheme = 'oct://';
 
   /// Direct-render budget: bigger assets are refused so they can never OOM
-  /// the WebView by buffering fully in RAM. Oversized pages go through the
-  /// localhost gateway (streamed) instead.
+  /// the WebView by buffering fully in RAM.
   static const int maxDirectBytes = 8 * 1024 * 1024;
 
   OctUrl._();
@@ -48,16 +48,6 @@ class OctUrl {
       throw ArgumentError('oct:// URL has no circle ID: "$url"');
     }
     return OctCircleRef(circleId, path);
-  }
-
-  /// Local gateway URL served by the embedded web server.
-  static String gatewayHttpUrl(String circleId, String path,
-      {int port = 8420}) {
-    if (circleId.isEmpty) {
-      throw ArgumentError('circleId must not be empty');
-    }
-    final p = path.isEmpty ? '/index.html' : path;
-    return 'http://127.0.0.1:$port/oct/$circleId$p';
   }
 
   /// MIME types safe to render inline as text in a WebView.

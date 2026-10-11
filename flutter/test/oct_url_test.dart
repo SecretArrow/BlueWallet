@@ -52,16 +52,6 @@ void main() {
     });
   });
 
-  group('gatewayHttpUrl', () {
-    test('builds the local gateway URL', () {
-      expect(OctUrl.gatewayHttpUrl(fieldId, '/index.html'),
-          'http://127.0.0.1:8420/oct/$fieldId/index.html');
-      expect(OctUrl.gatewayHttpUrl('a', '', port: 9000),
-          'http://127.0.0.1:9000/oct/a/index.html');
-      expect(() => OctUrl.gatewayHttpUrl('', '/x'), throwsArgumentError);
-    });
-  });
-
   group('cleanMime / isTextMime', () {
     test('strips parameters and falls back safely', () {
       expect(OctUrl.cleanMime('text/html; charset=utf-8'), 'text/html');

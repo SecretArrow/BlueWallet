@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/recent_sites_service.dart';
 
 /// Settings tab — matches Android MainActivity settings view exactly:
 /// flat rows with 44dp circle icon, title only, bottom divider.
@@ -28,8 +29,6 @@ class SettingsTab extends StatelessWidget {
       _Item('DApp Origins', Icons.language_rounded, '/dapp-origins'),
       if (_isDesktop)
         _Item('Developer Tools', Icons.code_rounded, '/dev-tools'),
-      _Item(
-          'Local Web Server', Icons.dns_rounded, '/local-web-server-settings'),
       _Item('Networks', Icons.public_rounded, '/network-settings'),
       _Item('Polling Settings', Icons.history_rounded, '/polling-settings'),
       _Item('Permissions', Icons.notifications_rounded, '/permissions-center'),
@@ -74,6 +73,9 @@ class SettingsTab extends StatelessWidget {
     for (final k in keys) {
       await prefs.remove(k);
     }
+    // Cache clear also drops Startpage recent sites (privacy: no browsing
+    // history outlives an explicit clear).
+    await RecentSitesService.instance.clearAll();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cache cleared')),

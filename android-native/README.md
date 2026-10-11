@@ -144,16 +144,21 @@ Pre-built APK releases are available from GitHub Actions:
 - **Address book** — Save, edit, search, and pick saved addresses.
 - **Portrait lock** — All activities locked to portrait orientation.
 
-### Local Web Server & dApp Bridge (WebCLI Companion)
+### dApp Browser & Wallet Adapter
 
-- **Localhost HTTP Server (NanoHTTPD)** — Embedded local HTTP service running on `localhost:8420`. By default, it is **off** for safety and can be toggled on/off in the Settings menu. Runs as a sticky Android foreground service (`LocalWebServerService`) displaying an ongoing notification.
-- **Static Assets Servicing** — Packs and directly streams decoupled WebCLI static interface files (`swap.html`, `swap.js`) straight from local Android `assets/webcli/` directory. Zero external dependencies or remote hosting required.
-- **Restricted REST API** — Exposes comprehensive local API endpoints to support client actions (e.g. view balances, token transfers, smart contract queries, wallet unlock, list profiles, rename active wallet). Private keys and seed words are strictly stripped and never exposed via any endpoint.
-- **IPC Smart Contract Bridge** — When the local dApp issues a smart contract transaction (`POST /api/contract/call`), the server blocks the request thread securely using a thread-safe synchronizer (`TxRequestManager` via `CountDownLatch`).
-- **Premium Swap Dialog Prompt** — Launches the foreground activity `DeepLinkBridgeActivity` via custom deep-link scheme `octra-wallet://contract-call` to display a beautiful UI layout:
-  - Formats raw values into human-readable token values (e.g., `20.00 OCT` instead of `20000000000000`).
-  - Displays context-aware visual cues for contract actions: **Confirm Swap (OCT → tUSD)** for `swap_oct_to_token`, **Confirm Swap (tUSD → OCT)** for `swap_token_to_oct`, and **Approve tUSD Spend** for `grant`.
-- **Deep Link Callback Bridge** — User confirmation executes native Ed25519 signing (`signGenericContractCallTx` inside NDK C++ layer) and submits the transaction. The app redirects back via scheme `octra-local://callback`, unblocking the HTTP thread and returning the transaction hash directly to the browser without page reload.
+- **In-app dApp browser** — Loads dApp websites and injects the `window.octra`
+  / `window.wallet` provider (see `DappBrowserActivity`).
+- **Modular wallet adapter** — `WalletAdapter` + `OctraWalletAdapter` +
+  `AdapterRegistry` dispatch provider methods; the `DappJsBridge`
+  exposes only a minimal validated `@JavascriptInterface`.
+  Every sensitive call (connect, send, contract call, network switch)
+  requires explicit user approval; cancel/dismiss always counts as rejection.
+- **Per-origin sessions** — Approvals persist per hostname in `DappOriginStore`
+  and can be revoked in the DApp Origins screen or Permissions Center.
+- **Startpage** — Search + URL bar, quick explorer links, and the last
+  10 visited websites (`RecentVisitsStore`, persisted, deduplicated).
+- **Deep link bridge** — External browsers reach the wallet via the
+  `octra-wallet://` scheme (`DeepLinkBridgeActivity`), signed natively.
 
 ## Screens (33 Activities)
 
@@ -187,8 +192,8 @@ Pre-built APK releases are available from GitHub Actions:
 | `HistoryDetailActivity` | Single transaction detail |
 | `NetworkSettingsActivity` | RPC / explorer settings |
 | `AddNetworkActivity` | Add custom node |
-| `LocalWebServerSettingsActivity` | Settings screen for Local Web Server (enable/disable, view port/url, regenerate auth token, secure connection guidelines) |
-| `DeepLinkBridgeActivity` | Intercepts contract-call deep links, displays premium swap prompt dialog, and routes the signed hash back to local server |
+| `DappBrowserActivity` | In-app dApp browser + Startpage (10 recent visits) |
+| `DeepLinkBridgeActivity` | Intercepts contract-call deep links, displays premium swap prompt dialog, and routes the signed hash back |
 | `ThemePaletteActivity` | Theme picker |
 | `QrScanActivity` | Camera QR scanner |
 | `AutoScanActivity` | Auto-scan interval configuration |
@@ -200,7 +205,7 @@ Pre-built APK releases are available from GitHub Actions:
 
 **Foreground services**: `TxForegroundService` (send / encrypt / decrypt /
 stealth / token_send), `AutoScanService` (periodic balance refresh),
-`StealthClaimService` (stealth output claiming), `LocalWebServerService` (embedded localhost server).
+`StealthClaimService` (stealth output claiming).
 
 ## Project Structure
 
@@ -210,7 +215,6 @@ android/
 │   ├── src/main/
 │   │   ├── java/com/octopus/wallet/   # Java source
 │   │   ├── cpp/                     # Native C++ source
-│   │   ├── assets/webcli/           # Embedded WebCLI static companion files (HTML/JS/CSS)
 │   │   ├── res/                     # Layouts, drawables, values
 │   │   └── AndroidManifest.xml
 │   ├── build.gradle
@@ -339,30 +343,28 @@ adb install octra_wallet-debug.apk
 | `octra_saveAbi` | Upload contract ABI |
 | `octra_verifyContract` | Submit source for verification |
 
-## Local Web Server API (localhost:8420)
+## dApp Provider API (`window.octra` / `window.wallet`)
 
-To support interoperability with localized browsers and web-based dApps, the embedded server provides the following endpoints (with all private keys and sensitive seed material completely stripped to prevent any data exposure):
+The in-app browser injects a provider (no local server required). Sensitive
+methods always ask the user first; unsupported sign-only / FHE-private
+methods are refused explicitly, never simulated.
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| `GET` | `/api/status` | Server version, health, and status (`loaded`, `has_encrypted`). | No |
-| `GET` | `/api/wallet/status` | Identical to `/api/status` for WebCLI frontend compatibility. | No |
-| `POST` | `/api/wallet/unlock` | Accepts PIN in JSON body, unlocks active wallet via native C++ layer. | No |
-| `GET` | `/api/contract/view` | Executes a contract read-only view function via the RPC node. | No |
-| `GET` | `/api/contract/receipt` | Queries the receipt and execution logs for a specific transaction hash. | No |
-| `POST` | `/api/contract/call` | Blocks HTTP thread, triggers the native premium UI swap/contract call dialog, signs and broadcasts, and returns the transaction hash. | No |
-| `GET` | `/api/wallet/info` | Returns general wallet configuration (address, active RPC node URL, etc.). | Yes |
-| `GET` | `/api/wallet` | Alias to `/api/wallet/info`. | Yes |
-| `GET` | `/api/balance` | Returns the raw and formatted balances (public, encrypted, total) + nonce. | Yes |
-| `GET` | `/api/history` | Retrieves paginated standard transaction history. | Yes |
-| `GET` | `/api/token-history` | Retrieves paginated token transfer history (`octra_tokenTransfersByAddress`). | Yes |
-| `GET` | `/api/keys/info` | Returns the base64-encoded public key and address. | Yes |
-| `GET` | `/api/stealth/outputs` | Fetches the raw stealth outputs for in-browser stealth computations. | Yes |
-| `POST` | `/api/wallet/rename` | Renames the active wallet profile matching the active selected ID. | Yes |
-| `GET` | `/api/wallets` | Lists all local wallet profile IDs and the current selected wallet ID. | Yes |
-
-> [!NOTE]
-> Authorization uses a cryptographically secure 32-byte hex Bearer Token generated at runtime using Android's `SecureRandom` class. The token is shown on the **Local Web Server Settings** screen and can be regenerated on demand. Non-API endpoints serve files inside `assets/webcli/` seamlessly.
+| Method | Description |
+|--------|-------------|
+| `connect` / `octra_requestAccounts` / `wallet_connect` | Approval-gated connect, returns address(es) |
+| `octra_accounts` / `wallet_getAccounts` / `wallet_getAddress` | Connected address (session required) |
+| `octra_chainId` / `wallet_getChainId` | Active chain id |
+| `octra_networkInfo` / `wallet_getNetworkInfo` | Network id, name, RPC + explorer URLs |
+| `octra_permissions` / `wallet_getPermissions` | Granted scopes |
+| `octra_getBalance` / `wallet_getBalance` | Node balance for the connected address |
+| `octra_getEncryptedBalance` | Authenticated PVAC cipher for the active wallet |
+| `getPublicKey` | Base64 Ed25519 public key |
+| `octra_sendTransaction` | Approval-gated, natively signed OCT send |
+| `octra_callContract` / `octra_sendContractTransaction` | Approval-gated, natively signed contract call |
+| `octra_callView` | Read-only contract view (no approval) |
+| `octra_switchNetwork` | Honest answer: this wallet follows its configured node |
+| `disconnect` / `wallet_disconnect` | End the origin session |
+| `wallet_ping` | Liveness probe (no wallet access) |
 
 ## Dependencies
 
@@ -372,7 +374,6 @@ To support interoperability with localized browsers and web-based dApps, the emb
 - **Room** — Local SQLite database
 - **AndroidX Biometric** — Fingerprint / face authentication
 - **ZXing** — QR code scanning
-- **NanoHTTPD** — Lightweight embedded HTTP server for localhost API & assets.
 
 ## License
 

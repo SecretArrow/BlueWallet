@@ -27,6 +27,10 @@ public abstract class BaseTxActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         setTheme(ThemeManager.resolveThemeRes(this));
         super.onCreate(savedInstanceState);
+        // Centralized edge-to-edge (plan.txt § System Bars): content draws
+        // behind system bars; layouts with fitsSystemWindows="true" receive
+        // status/navigation/cutout padding automatically, IME via adjustResize.
+        InsetsHelper.enableEdgeToEdge(this);
         // Prevent screenshots and app-switcher thumbnails for all wallet screens
         getWindow().setFlags(
                 WindowManager.LayoutParams.FLAG_SECURE,

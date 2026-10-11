@@ -49,7 +49,6 @@ import '../screens/settings/polling_settings_screen.dart';
 import '../screens/settings/data_usage_screen.dart';
 import '../screens/settings/tor_proxy_settings_screen.dart';
 import '../screens/confirm/confirm_contract_call_screen.dart';
-import '../screens/settings/local_web_server_settings_screen.dart';
 import '../models/tx_record.dart';
 
 class AppRouter {
@@ -219,11 +218,8 @@ class AppRouter {
         path: '/confirm-contract-call',
         builder: (_, state) => ConfirmContractCallScreen(
           requestId: state.uri.queryParameters['id'] ?? '',
+          details: state.extra as Map<String, dynamic>?,
         ),
-      ),
-      GoRoute(
-        path: '/local-web-server-settings',
-        builder: (_, __) => const LocalWebServerSettingsScreen(),
       ),
     ],
   );

@@ -28,6 +28,7 @@ public class PermissionsCenterActivity extends BaseTxActivity {
     private TextView maintenanceTxCount;
     private TextView maintenanceOriginsCount;
     private TextView maintenanceHistoryCount;
+    private TextView maintenanceVisitsCount;
     private boolean maintenanceMode;
     private Runnable pendingMaintenanceAction;
 
@@ -72,6 +73,7 @@ public class PermissionsCenterActivity extends BaseTxActivity {
         maintenanceTxCount = findViewById(R.id.maintenance_tx_count);
         maintenanceOriginsCount = findViewById(R.id.maintenance_origins_count);
         maintenanceHistoryCount = findViewById(R.id.maintenance_history_count);
+        maintenanceVisitsCount = findViewById(R.id.maintenance_visits_count);
 
         findViewById(R.id.permissions_notification_button).setOnClickListener(v -> requestNotificationPermission());
         findViewById(R.id.permissions_files_button).setOnClickListener(v -> requestFilesPermission());
@@ -121,6 +123,20 @@ public class PermissionsCenterActivity extends BaseTxActivity {
                     refreshStatuses();
                 }
             ));
+
+        View visitsButton = findViewById(R.id.maintenance_clear_visits_button);
+        if (visitsButton != null) {
+            visitsButton.setOnClickListener(v ->
+                confirmAndRun(
+                    "Clear Recent Visits",
+                    "This removes the browser Startpage history (last 10 visited websites).",
+                    () -> {
+                        RecentVisitsStore.clearAll(getApplicationContext());
+                        showSuccess("Recent visits cleared");
+                        refreshStatuses();
+                    }
+                ));
+        }
 
         if (maintenanceCard != null) {
             maintenanceCard.setVisibility(maintenanceMode ? View.VISIBLE : View.GONE);
@@ -227,6 +243,10 @@ public class PermissionsCenterActivity extends BaseTxActivity {
         maintenanceTxCount.setText(String.valueOf(TxTaskStore.getAllTasks(getApplicationContext()).size()));
         maintenanceOriginsCount.setText(String.valueOf(DappOriginStore.getAllowedOrigins(getApplicationContext()).size()));
         maintenanceHistoryCount.setText(getSharedPreferences(PREFS_TX_CACHE, MODE_PRIVATE).getAll().isEmpty() ? "0" : "1+");
+        if (maintenanceVisitsCount != null) {
+            maintenanceVisitsCount.setText(
+                    String.valueOf(RecentVisitsStore.getRecent(getApplicationContext()).size()));
+        }
     }
 
     private void confirmAndRun(String title, String message, Runnable action) {

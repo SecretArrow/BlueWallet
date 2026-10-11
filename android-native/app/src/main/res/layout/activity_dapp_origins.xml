@@ -48,7 +48,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="Long press item to remove"
+            android:text="Tap Revoke (or long-press) to remove a site's access"
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
 
