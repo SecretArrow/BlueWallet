@@ -334,7 +334,10 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
 
   // ── Approval dialogs (cancel / dismiss == reject) ──────────────────────
 
-  Future<bool> _guardApproval() async {
+  /// Synchronous re-entrancy guard: only one approval dialog at a time.
+  /// Parallel bridge requests beyond the first are rejected immediately
+  /// (fail-safe) instead of stacking dialogs.
+  bool _guardApproval() {
     if (_approvalOpen) return false;
     _approvalOpen = true;
     return true;
@@ -348,7 +351,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
     String confirmLabel = 'Approve',
   }) async {
     if (!mounted || _disposed) return false;
-    if (!await _guardApproval()) return false;
+    if (!_guardApproval()) return false;
     try {
       final result = await showDialog<bool>(
             context: context,
@@ -382,7 +385,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
     String? extra,
   }) async {
     if (!mounted || _disposed) return false;
-    if (!await _guardApproval()) return false;
+    if (!_guardApproval()) return false;
     try {
       final cs = Theme.of(context).colorScheme;
       final result = await showDialog<bool>(

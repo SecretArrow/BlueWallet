@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/recent_sites_service.dart';
+import '../../../services/recent_sites_service.dart';
 
 /// Settings tab — matches Android MainActivity settings view exactly:
 /// flat rows with 44dp circle icon, title only, bottom divider.

@@ -18,13 +18,13 @@ class StartpageView extends StatelessWidget {
   static String resolveSearchUrl(String input) {
     final t = input.trim();
     if (t.isEmpty) return '';
-    if (t.contains(' ') || !t.contains('.')) {
-      return 'https://duckduckgo.com/?q=${Uri.encodeComponent(t)}';
-    }
     if (t.startsWith('http://') ||
         t.startsWith('https://') ||
         t.startsWith('oct://')) {
       return t;
+    }
+    if (t.contains(' ') || !t.contains('.')) {
+      return 'https://duckduckgo.com/?q=${Uri.encodeComponent(t)}';
     }
     return 'https://$t';
   }
@@ -37,7 +37,7 @@ class StartpageView extends StatelessWidget {
   final Future<void> Function(String url) onDelete;
   final Future<void> Function() onClearAll;
   final Future<void> Function()? onRetry;
-  final void Function(String query)? onSearch;
+  final Future<void> Function(String query)? onSearch;
   final VoidCallback? onBookmarksTap;
 
   const StartpageView({
@@ -179,7 +179,7 @@ class StartpageView extends StatelessWidget {
 }
 
 class _SearchBar extends StatefulWidget {
-  final void Function(String query)? onSearch;
+  final Future<void> Function(String query)? onSearch;
   const _SearchBar({this.onSearch});
 
   @override

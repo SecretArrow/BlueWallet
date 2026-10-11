@@ -56,6 +56,10 @@ class OctraAdapter implements WalletAdapter {
         'wallet_ping',
       };
 
+  @override
+  bool supports(String canonicalMethod) =>
+      supportedMethods.contains(canonicalMethod);
+
   String get _activeAddress => wallets.activeWallet?.address ?? '';
 
   Map<String, dynamic> _networkInfo() {
@@ -155,7 +159,6 @@ class OctraAdapter implements WalletAdapter {
     if (address.isEmpty) {
       throw DappError('No active wallet', DappBridgeProtocol.unauthorized);
     }
-    final requested = DappBridgeProtocol.requestedPermissions(request.params);
     final approved = await ctx.requestApproval(
       title: 'Share Account',
       body: 'This dApp wants to see your Octra address.\n\n'
@@ -283,8 +286,7 @@ class OctraAdapter implements WalletAdapter {
       title: 'Send Transaction',
       to: to,
       amount: amount,
-      extra: (memo != null ? 'Message: $memo\n' : '') +
-          'Origin: ${request.origin}',
+      extra: '${memo != null ? 'Message: $memo\n' : ''}Origin: ${request.origin}',
       origin: request.origin,
     );
     if (!approved) {

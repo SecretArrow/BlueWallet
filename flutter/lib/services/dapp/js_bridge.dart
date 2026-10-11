@@ -277,6 +277,10 @@ class JsBridge {
   }
 
   /// Cancel pending requests for [origin] (navigation away / revoke).
+  ///
+  /// Cancellation completes the tracked future with a user-rejection error,
+  /// which the completion handler delivers to the page — the dApp observes
+  /// a rejection, never a hang. Late results are dropped by the answered-set.
   void cancelForOrigin(String origin, {String reason = 'Page navigated away'}) {
     final key = AdapterValidation.normalizeOrigin(origin);
     final ids = _pending.entries
@@ -290,7 +294,6 @@ class JsBridge {
         p.completer.completeError(DappError(reason,
             DappBridgeProtocol.userRejected));
       }
-      _answered.add('$id');
     }
   }
 
@@ -302,7 +305,6 @@ class JsBridge {
       p.completer.completeError(
           DappError(reason, DappBridgeProtocol.userRejected));
     }
-    _answered.add('$jsId');
   }
 
   /// Cancel everything (tab close / WebView destroy / dispose).
@@ -315,7 +317,6 @@ class JsBridge {
         p.completer.completeError(DappError(reason,
             DappBridgeProtocol.userRejected));
       }
-      _answered.add('$id');
     }
   }
 

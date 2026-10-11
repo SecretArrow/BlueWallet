@@ -9,8 +9,6 @@
 /// the network is unavailable, or the RPC response is invalid.
 library;
 
-import 'dapp_session.dart';
-
 /// Error codes shared with `DappBridgeProtocol` (RFC-O-1).
 class DappError implements Exception {
   final String message;
