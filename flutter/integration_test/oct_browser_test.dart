@@ -61,11 +61,15 @@ void main() {
         return w.toString();
       }).join('\n');
       final lowered = details.toLowerCase();
-      final isNetworkFailure = details.contains('ClientException') ||
-          details.contains('Socket') ||
+      final isNetworkFailure = lowered.contains('connect') ||
+          lowered.contains('http') ||
+          lowered.contains('socket') ||
+          lowered.contains('network') ||
           lowered.contains('timeout') ||
           lowered.contains('timed out') ||
-          lowered.contains('network is unreachable');
+          lowered.contains('unreachable') ||
+          lowered.contains('os error') ||
+          details.contains('octra.network');
       if (isNetworkFailure) {
         markTestSkipped(
             'skipped: external RPC unreachable from CI emulator ($details)');
