@@ -1,13 +1,24 @@
 # Circles bridge: endpoint coverage in the app build
 
+> **2026-10-11 — catatan historis.** Embed local-server beserta circles bridge
+> dihapus (PR #48): `android-native/.../LocalWebServerService.java`,
+> `flutter/lib/services/local_web_server_service.dart`, dan kedua embed
+> `webcli` (termasuk `circles.js`) sudah tidak ada. Inventory di bawah ini
+> adalah catatan historis dari celah terakhir yang terukur dan **tidak lagi
+> diuji terhadap kode** — guard di `sdk/test/circles.test.mjs` kini hanya
+> memastikan bridge tetap terhapus dan tidak ada pengecualian cleartext baru
+> untuk loopback server.
+
 `circles.js` is the largest embedded page (2268 lines) and the only one that
 speaks a *bridge* protocol rather than a wallet protocol. This file records,
 per release, how much of that protocol the **app's local server** actually
-serves — because the page is reachable from the wallet header and a 404 there
-looks like a bug rather than a missing feature.
+served — because the page was reachable from the wallet header and a 404 there
+looked like a bug rather than a missing feature.
 
-Measured by `sdk/test/embed.test.mjs` (`circles bridge endpoint coverage`),
-which recomputes this from the sources on every CI run.
+Previously measured by `sdk/test/circles.test.mjs` (`circles bridge endpoint
+coverage`), which recomputed this from the sources on every CI run. That
+measurement was retired with the embed (PR #48); the numbers below are the
+last recorded values, kept for history.
 
 | Release | Endpoints used by `circles.js` | Served by app local server | Missing |
 |---|---|---|---|
@@ -55,7 +66,7 @@ calls.
 
 ## Full missing list
 
-<!-- generated: sdk/test/embed.test.mjs keeps this in sync -->
+<!-- historic: frozen at retirement (PR #48); no longer kept in sync by tests -->
 - `/api/circle/asset_ciphertext_by_slot`
 - `/api/circle/asset_ciphertext_by_state`
 - `/api/circle/asset_plain`
