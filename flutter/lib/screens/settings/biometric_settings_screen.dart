@@ -139,10 +139,13 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Biometric Unlock'), centerTitle: true),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               child: Card(
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -243,7 +246,8 @@ class _BiometricSettingsScreenState extends State<BiometricSettingsScreen> {
                   ),
                 ),
               ),
-            ),
+              ),
+      ),
     );
   }
 }

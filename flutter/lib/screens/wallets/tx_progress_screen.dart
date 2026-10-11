@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../services/wallet_service.dart';
 import '../../services/network_service.dart';
 import '../../services/polling_service.dart';
+import '../../utils/safe_cast.dart';
 import '../../widgets/tonal_button.dart';
 
 /// Live transaction progress screen.
@@ -37,11 +38,13 @@ class _TxProgressScreenState extends State<TxProgressScreen>
     final ps = context.read<PollingService>();
     final type = widget.txData?['opType']?.toString().toLowerCase() ?? 'send';
     final intervalMs = ps.intervalMs;
+    if (intervalMs <= 0) return 30; // defensive: avoid divide-by-zero
     // Calculate max polls based on total timeout threshold / poll interval
     final thresholdMs = (type == 'send' || type == 'token_send')
         ? ps.thresholdSendMs
         : ps.thresholdAdvancedMs;
-    return (thresholdMs / intervalMs).ceil();
+    if (thresholdMs <= 0) return 30;
+    return (thresholdMs / intervalMs).ceil().clamp(1, 3600);
   }
 
   Duration get _pollInterval {
@@ -93,15 +96,13 @@ class _TxProgressScreenState extends State<TxProgressScreen>
       final result = await ws.lookupTransaction(ns.activeNodeUrl, txHash);
 
       // Android's queryFinalStatus: handle nested {transaction: {...}} wrapper
-      final Map<String, dynamic> txObj = (result.containsKey('transaction') &&
-              result['transaction'] is Map<String, dynamic>)
-          ? result['transaction'] as Map<String, dynamic>
-          : result;
+      // without throwing on Map<dynamic, dynamic> shapes from jsonDecode.
+      final Map<String, dynamic> txObj = unwrapTransactionEnvelope(result);
 
       // Aggregate all possible status fields (mirrors Android extractStatusText)
-      final status = _extractStatusText(txObj);
+      final status = extractStatusText(txObj);
 
-      if (_containsAny(status, [
+      if (containsAny(status, [
         'success',
         'confirmed',
         'final',
@@ -117,7 +118,7 @@ class _TxProgressScreenState extends State<TxProgressScreen>
             _statusMessage = 'Transaction confirmed!';
           });
         }
-      } else if (_containsAny(status, ['reject', 'fail', 'error', 'invalid'])) {
+      } else if (containsAny(status, ['reject', 'fail', 'error', 'invalid'])) {
         _pollTimer?.cancel();
         _spinCtrl.stop();
         String reason = txObj['error']?.toString() ??
@@ -147,21 +148,6 @@ class _TxProgressScreenState extends State<TxProgressScreen>
     }
   }
 
-  /// Aggregates multiple status fields (mirrors Android's extractStatusText).
-  static String _extractStatusText(Map<String, dynamic> tx) {
-    final parts = <String>[
-      tx['status']?.toString() ?? '',
-      tx['tx_status']?.toString() ?? '',
-      tx['state']?.toString() ?? '',
-      tx['final_status']?.toString() ?? '',
-      if (tx['confirmed'] == true) 'confirmed',
-      if (tx['rejected'] == true) 'rejected',
-    ];
-    return parts.where((s) => s.isNotEmpty).join(' | ').toLowerCase();
-  }
-
-  static bool _containsAny(String value, List<String> needles) =>
-      needles.any((n) => value.contains(n));
 
   @override
   void dispose() {
@@ -185,12 +171,13 @@ class _TxProgressScreenState extends State<TxProgressScreen>
         title: const Text('Transaction Status'),
         automaticallyImplyLeading: _status != _TxStatus.pending,
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               // Status icon
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 400),
@@ -314,6 +301,7 @@ class _TxProgressScreenState extends State<TxProgressScreen>
                   onPressed: () => context.pop(),
                 ),
             ],
+          ),
           ),
         ),
       ),

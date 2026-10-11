@@ -26,16 +26,19 @@ class WalletsScreen extends StatelessWidget {
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add Account'),
       ),
-      body: ws.wallets.isEmpty
-          ? Center(
-              child: Text(
-                'No wallets found',
-                style: TextStyle(color: cs.onSurfaceVariant),
-              ),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              itemCount: ws.wallets.length,
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: ws.wallets.isEmpty
+            ? Center(
+                child: Text(
+                  'No wallets found',
+                  style: TextStyle(color: cs.onSurfaceVariant),
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                itemCount: ws.wallets.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (_, i) {
                 final w = ws.wallets[i];
@@ -52,6 +55,7 @@ class WalletsScreen extends StatelessWidget {
                 );
               },
             ),
+      ),
     );
   }
 

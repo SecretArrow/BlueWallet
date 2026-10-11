@@ -44,6 +44,7 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   Future<void> _generate() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -100,6 +101,7 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
 
       // Check if we got a valid result
       if (phrase == null || kp == null) {
+        if (!mounted) return;
         setState(() {
           _error =
               'Failed to generate valid wallet after multiple attempts. Please try again.';
@@ -109,13 +111,24 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
       }
 
       // We have a valid wallet at this point
+      final address = kp['address']?.toString() ?? '';
+      if (address.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _error = 'Generation produced an empty address. Please try again.';
+          _loading = false;
+        });
+        return;
+      }
+      if (!mounted) return;
       setState(() {
-        _mnemonic = phrase!;
-        _previewAddress = kp!['address']!;
+        _mnemonic = phrase;
+        _previewAddress = address;
         _loading = false;
       });
     } catch (e) {
       // This should never happen, but just in case
+      if (!mounted) return;
       setState(() {
         _error = 'Generation failed: $e';
         _loading = false;
@@ -153,6 +166,7 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
         context.pop();
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString().replaceFirst('Exception: ', '');
         _creating = false;
@@ -192,8 +206,11 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Create with Mnemonic')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -343,6 +360,7 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
                 ),
             ],
           ],
+        ),
         ),
       ),
     );

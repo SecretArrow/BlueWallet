@@ -58,6 +58,8 @@ public class WalletsMenuActivity extends AppCompatActivity {
         setTheme(ThemeManager.resolveThemeRes(this));
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_wallets);
+        // Centralized edge-to-edge + system-bar insets (status/nav/cutout/IME). Idempotent; see InsetsHelper.
+        InsetsHelper.applyToActivity(this);
 
         MaterialToolbar toolbar = findViewById(R.id.wallets_toolbar);
         setSupportActionBar(toolbar);

@@ -9,6 +9,7 @@ import '../../services/biometric_service.dart';
 import '../../services/network_service.dart';
 import '../../services/pin_service.dart';
 import '../../services/wallet_service.dart';
+import '../../utils/safe_cast.dart';
 import '../../widgets/adaptive_body.dart';
 import '../../widgets/octopus_card.dart';
 import '../../widgets/tonal_button.dart';
@@ -101,16 +102,21 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
       final ns = context.read<NetworkService>();
       List<dynamic> parsedArgs = [];
       try {
-        parsedArgs = jsonDecode(req['params'] as String) as List<dynamic>;
+        final rawParams = req['params']?.toString() ?? '[]';
+        final decoded = jsonDecode(rawParams);
+        if (decoded is! List) {
+          throw Exception('params must be a JSON array');
+        }
+        parsedArgs = decoded;
       } catch (_) {
         throw Exception('Invalid transaction parameters format');
       }
       final hash = await ws.sendContractCall(
         nodeUrl: ns.activeNodeUrl,
-        contractAddress: req['address'] as String,
-        functionName: req['method'] as String,
+        contractAddress: safeMapString(req, 'address'),
+        functionName: safeMapString(req, 'method'),
         args: parsedArgs,
-        ou: req['ou'] as String,
+        ou: safeMapString(req, 'ou', '1000'),
       );
       unawaited(ws.refresh(ns.activeNodeUrl).then((_) {}).catchError((_) {}));
       if (!mounted) return;
@@ -283,7 +289,7 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                                 style: TextStyle(
                                     fontWeight: FontWeight.bold, fontSize: 14)),
                             Text(
-                              (req['origin'] as String).isEmpty
+                              safeMapString(req, 'origin').isEmpty
                                   ? 'A dApp is requesting a smart contract call.'
                                   : 'Origin: ${req['origin']}',
                               style: TextStyle(
@@ -307,7 +313,7 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.0)),
                       const SizedBox(height: 4),
-                      SelectableText(req['address'] as String,
+                      SelectableText(safeMapString(req, 'address'),
                           style: const TextStyle(
                               fontFamily: 'monospace',
                               fontSize: 13,
@@ -326,7 +332,7 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                           color: cs.primary.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(req['method'] as String,
+                        child: Text(safeMapString(req, 'method'),
                             style: TextStyle(
                                 fontSize: 14,
                                 fontFamily: 'monospace',
@@ -350,7 +356,7 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                         constraints: const BoxConstraints(maxHeight: 180),
                         child: SingleChildScrollView(
                           child: SelectableText(
-                            _formatParams(req['params'] as String),
+                            _formatParams(req['params']?.toString() ?? '[]'),
                             style: TextStyle(
                                 fontFamily: 'monospace',
                                 fontSize: 11,
@@ -388,7 +394,7 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
                                         fontWeight: FontWeight.bold,
                                         letterSpacing: 1.0)),
                                 const SizedBox(height: 2),
-                                Text(req['ou'] as String,
+                                Text(safeMapString(req, 'ou', '1000'),
                                     style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 15)),

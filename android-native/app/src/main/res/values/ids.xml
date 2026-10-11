@@ -2,4 +2,9 @@
 <resources>
     <!-- Tag key used by BalanceAnimator to store a ValueAnimator on a TextView -->
     <item name="balance_animator_tag" type="id" />
+    <!-- Tag keys used by InsetsHelper to store a view's original padding (idempotent insets) -->
+    <item name="insets_init_left" type="id" />
+    <item name="insets_init_top" type="id" />
+    <item name="insets_init_right" type="id" />
+    <item name="insets_init_bottom" type="id" />
 </resources>

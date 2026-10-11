@@ -24,8 +24,6 @@ import androidx.core.view.WindowInsetsCompat;
  */
 public final class InsetsHelper {
 
-    private static final int TAG_APPLIED = 0x7f0b0001;
-
     private InsetsHelper() {
     }
 
@@ -50,10 +48,20 @@ public final class InsetsHelper {
 
     public static void applySystemBars(View root, boolean applyIme) {
         if (root == null) return;
-        final int initLeft = root.getPaddingLeft();
-        final int initTop = root.getPaddingTop();
-        final int initRight = root.getPaddingRight();
-        final int initBottom = root.getPaddingBottom();
+        // Remember the view's ORIGINAL padding once (in view tags) so that
+        // re-invocation after rotation / resize / keyboard show-hide never
+        // accumulates padding. A second call must reuse the stored values,
+        // not the already-padded ones.
+        if (root.getTag(R.id.insets_init_left) == null) {
+            root.setTag(R.id.insets_init_left, root.getPaddingLeft());
+            root.setTag(R.id.insets_init_top, root.getPaddingTop());
+            root.setTag(R.id.insets_init_right, root.getPaddingRight());
+            root.setTag(R.id.insets_init_bottom, root.getPaddingBottom());
+        }
+        final int initLeft = (int) root.getTag(R.id.insets_init_left);
+        final int initTop = (int) root.getTag(R.id.insets_init_top);
+        final int initRight = (int) root.getTag(R.id.insets_init_right);
+        final int initBottom = (int) root.getTag(R.id.insets_init_bottom);
         ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
             Insets bars = insets.getInsets(
                     WindowInsetsCompat.Type.systemBars()

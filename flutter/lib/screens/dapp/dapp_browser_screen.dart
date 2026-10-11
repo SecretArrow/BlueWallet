@@ -262,7 +262,11 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       currentOrigin: () => _originOf(_currentUrl),
     );
     try {
-      final result = await _registry!.dispatch(request, ctx);
+      final registry = _registry;
+      if (registry == null) {
+        throw const DappError('Browser not ready yet');
+      }
+      final result = await registry.dispatch(request, ctx);
       if (_disposed || completer.isCompleted) return;
       // Grant / clear per-origin sessions for session methods.
       if (request.method == 'octra_requestAccounts' ||
@@ -500,7 +504,17 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       _urlCtrl.text = url;
       _isLoading = true;
     });
-    unawaited(_controller.loadRequest(Uri.parse(url)));
+    final target = Uri.tryParse(url);
+    if (target == null) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid URL')),
+        );
+      }
+      return;
+    }
+    unawaited(_controller.loadRequest(target));
   }
 
   void _navigateTo(String raw) => _openUrl(raw);
@@ -520,7 +534,11 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       final ns = context.read<NetworkService>();
       final asset = await ws
           .rpcCall(ns.activeNodeUrl, 'circle_asset', [ref.circleId, ref.path]);
-      final map = (asset as Map?)?.cast<String, dynamic>() ?? {};
+      final map = asset is Map<String, dynamic>
+          ? asset
+          : asset is Map
+              ? Map<String, dynamic>.from(asset)
+              : <String, dynamic>{};
       if (map.containsKey('error')) {
         throw Exception(map['error'].toString());
       }
@@ -640,8 +658,13 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
               : const SizedBox(height: 3),
         ),
       ),
-      body: Column(
-        children: [
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        left: false,
+        right: false,
+        child: Column(
+          children: [
           Container(
             color: cs.surfaceContainerHighest,
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
@@ -737,7 +760,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
                   )
                 : WebViewWidget(controller: _controller),
           ),
-        ],
+          ],
+        ),
       ),
       floatingActionButton: _showingStartpage
           ? null
@@ -754,6 +778,8 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
     final shortcuts = _bookmarks.isEmpty ? _defaultShortcuts : _bookmarks;
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,

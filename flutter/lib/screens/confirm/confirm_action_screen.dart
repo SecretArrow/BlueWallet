@@ -20,11 +20,11 @@ class ConfirmActionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final title = (data?['title'] as String?) ?? 'Confirm';
-    final message = (data?['message'] as String?) ?? 'Are you sure?';
-    final confirmLabel = (data?['confirm'] as String?) ?? 'Confirm';
-    final cancelLabel = (data?['cancel'] as String?) ?? 'Cancel';
-    final danger = (data?['danger'] as bool?) ?? false;
+    final title = data?['title']?.toString() ?? 'Confirm';
+    final message = data?['message']?.toString() ?? 'Are you sure?';
+    final confirmLabel = data?['confirm']?.toString() ?? 'Confirm';
+    final cancelLabel = data?['cancel']?.toString() ?? 'Cancel';
+    final danger = data?['danger'] == true;
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),

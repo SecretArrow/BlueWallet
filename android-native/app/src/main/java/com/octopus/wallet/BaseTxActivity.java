@@ -7,8 +7,6 @@ import android.view.WindowManager;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.appbar.MaterialToolbar;
 
@@ -28,8 +26,10 @@ public abstract class BaseTxActivity extends AppCompatActivity {
         setTheme(ThemeManager.resolveThemeRes(this));
         super.onCreate(savedInstanceState);
         // Centralized edge-to-edge (plan.txt § System Bars): content draws
-        // behind system bars; layouts with fitsSystemWindows="true" receive
-        // status/navigation/cutout padding automatically, IME via adjustResize.
+        // behind system bars; WindowInsets are applied centrally in
+        // onContentChanged() via InsetsHelper (status/navigation/cutout),
+        // IME via adjustResize. Layouts must NOT use fitsSystemWindows —
+        // it would stack a second padding on top of the helper's.
         InsetsHelper.enableEdgeToEdge(this);
         // Prevent screenshots and app-switcher thumbnails for all wallet screens
         getWindow().setFlags(
@@ -47,6 +47,31 @@ public abstract class BaseTxActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         SessionLockActivity.recordActivity(this);
+    }
+
+    /**
+     * After every {@code setContentView()}, apply the centralized system-bar
+     * policy to the window content root: status bar (top), navigation bar /
+     * gesture strip (bottom) and display cutout become padding — exactly once
+     * (see {@link InsetsHelper}, idempotent via stored initial padding).
+     *
+     * <p>IME (keyboard) is deliberately NOT added here: every form screen
+     * uses {@code adjustResize} + a {@code ScrollView} with its submit button
+     * inside the scrollable area, so the window resize already keeps inputs
+     * visible. Adding IME padding on top of the resize would double-shift the
+     * content. Dialogs with inputs (which own a separate window without
+     * {@code adjustResize}) call {@code InsetsHelper.applySystemBars(view)}
+     * with IME enabled explicitly.
+     */
+    @Override
+    public void onContentChanged() {
+        super.onContentChanged();
+        try {
+            View content = findViewById(android.R.id.content);
+            if (content != null) InsetsHelper.applySystemBars(content, false);
+        } catch (Exception ignored) {
+            // Never crash layout for insets.
+        }
     }
 
     @Override
@@ -72,25 +97,14 @@ public abstract class BaseTxActivity extends AppCompatActivity {
      * Applies system bar insets to {@code rootView} so content is never
      * hidden behind the status bar (top) or navigation bar / gesture strip (bottom).
      *
-     * Call this in {@code onCreate()} after {@code setContentView()} if the
-     * screen uses edge-to-edge drawing. BaseTxActivity subclasses can call
-     * {@code applySystemBarInsets(findViewById(android.R.id.content))} or
-     * provide their own root view.
+     * <p>Delegates to the centralized {@link InsetsHelper} policy
+     * (system bars + display cutout, original padding preserved, idempotent).
+     * Prefer relying on the automatic application in {@link #onContentChanged};
+     * call this only for a custom root view that needs insets instead of —
+     * or in addition to — the window content root.
      */
     protected void applySystemBarInsets(View rootView) {
-        if (rootView == null) return;
-        ViewCompat.setOnApplyWindowInsetsListener(rootView, (view, insets) -> {
-            androidx.core.graphics.Insets navBars =
-                    insets.getInsets(WindowInsetsCompat.Type.navigationBars());
-            androidx.core.graphics.Insets statusBars =
-                    insets.getInsets(WindowInsetsCompat.Type.statusBars());
-            view.setPadding(
-                    view.getPaddingLeft(),
-                    statusBars.top,
-                    view.getPaddingRight(),
-                    navBars.bottom);
-            return insets;
-        });
+        InsetsHelper.applySystemBars(rootView, false);
     }
 
     // ─── Repository ────────────────────────────────────────────────────────

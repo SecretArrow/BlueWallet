@@ -82,19 +82,24 @@ class _StealthScanScreenState extends State<StealthScanScreen> {
               ),
               const SizedBox(height: 20),
               if (_error != null) ...[
-                OctopusCard(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      Icon(Icons.error_rounded, color: cs.error, size: 20),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(_error!,
-                            style: TextStyle(color: cs.error, fontSize: 13)),
-                      ),
-                    ],
-                  ),
-                ),
+                Builder(builder: (_) {
+                  final err = _error;
+                  if (err == null) return const SizedBox.shrink();
+                  return OctopusCard(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_rounded, color: cs.error, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(err,
+                              style:
+                                  TextStyle(color: cs.error, fontSize: 13)),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
                 const SizedBox(height: 16),
               ],
               OctopusCard(

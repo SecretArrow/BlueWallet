@@ -284,8 +284,9 @@ public class TxProgressActivity extends BaseTxActivity {
     }
 
     private void showTimeoutPrompt(String message) {
-        // Only show if not already finished
-        if (isFinished) return;
+        // Only show if not already finished. Guard the host state first:
+        // showing a dialog after finish/destroy leaks the window and throws.
+        if (isFinished || isFinishing() || isDestroyed()) return;
         
         new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                 .setTitle("Transaction Timeout")

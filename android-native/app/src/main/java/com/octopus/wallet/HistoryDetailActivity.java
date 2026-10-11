@@ -51,6 +51,8 @@ public class HistoryDetailActivity extends AppCompatActivity {
         setTheme(ThemeManager.resolveThemeRes(this));
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_history_detail);
+        // Centralized edge-to-edge + system-bar insets (status/nav/cutout/IME). Idempotent; see InsetsHelper.
+        InsetsHelper.applyToActivity(this);
 
         androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.detail_toolbar);
         setSupportActionBar(toolbar);

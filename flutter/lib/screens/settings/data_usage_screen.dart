@@ -25,12 +25,16 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
       final totalUsage = await _service.getTotalUsage();
+      if (!mounted) return;
       final sessionUsage = await _service.getSessionUsage();
+      if (!mounted) return;
       final history = await _service.getUsageHistoryList();
+      if (!mounted) return;
 
       setState(() {
         _totalUsage = totalUsage;
@@ -38,11 +42,12 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
         _history = history;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading data: $e')),
+          const SnackBar(content: Text('Error loading usage data')),
         );
       }
     }
@@ -93,9 +98,12 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
               onRefresh: _loadData,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -177,6 +185,7 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
                 ),
               ),
             ),
+      ),
     );
   }
 

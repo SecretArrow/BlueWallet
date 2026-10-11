@@ -246,6 +246,7 @@ public class CreateMnemonicActivity extends BaseTxActivity {
     }
 
     private void showPinSetupDialog(final Runnable onPinSet) {
+        if (isFinishing() || isDestroyed()) return;
         android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
         builder.setTitle("Set 6-Digit PIN");
         builder.setMessage("Please set a PIN (minimal 6 digit) to secure your wallet.");
@@ -279,7 +280,11 @@ public class CreateMnemonicActivity extends BaseTxActivity {
         builder.setPositiveButton("Set PIN", null); // Set to null first to override default dismiss behavior on click
         builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
 
+        // Keep the PIN inputs above the navigation / gesture bar and keyboard.
+        InsetsHelper.applySystemBars(layout);
+
         final android.app.AlertDialog dialog = builder.create();
+        if (isFinishing() || isDestroyed()) return;
         dialog.show();
 
         dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {

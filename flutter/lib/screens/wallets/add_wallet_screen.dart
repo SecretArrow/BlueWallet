@@ -46,10 +46,15 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
       if (!mounted) return;
       final ws = context.read<WalletService>();
       final name = 'Wallet ${ws.wallets.length + 1}';
+      final address = kp['address']?.toString() ?? '';
+      final sk = kp['sk']?.toString() ?? '';
+      if (address.isEmpty || sk.isEmpty) {
+        throw Exception('Key generation returned empty data');
+      }
       await ws.addWalletRaw(
         name: name,
-        address: kp['address']!,
-        skBase64: kp['sk']!,
+        address: address,
+        skBase64: sk,
       );
       if (mounted) {
         setState(() {
@@ -60,6 +65,7 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
         if (mounted) context.pop();
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _error = e.toString().replaceFirst('Exception: ', '');
@@ -95,6 +101,7 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
         if (mounted) context.pop();
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _error = 'Invalid key: ${e.toString().replaceFirst('Exception: ', '')}';
@@ -112,23 +119,32 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
       final path = result.files.first.path;
       if (path == null) return;
       final content = await File(path).readAsString();
+      if (!mounted) return;
       // Try to parse as JSON backup
       try {
-        final json = jsonDecode(content.trim()) as Map<String, dynamic>;
-        final pk =
-            json['private_key']?.toString() ?? json['sk']?.toString() ?? '';
-        final name = json['name']?.toString() ?? 'Imported Wallet';
-        _nameCtrl.text = name;
-        _pkCtrl.text = pk;
+        final decoded = jsonDecode(content.trim());
+        if (decoded is Map) {
+          final json = Map<String, dynamic>.from(decoded);
+          final pk =
+              json['private_key']?.toString() ?? json['sk']?.toString() ?? '';
+          final name = json['name']?.toString() ?? 'Imported Wallet';
+          _nameCtrl.text = name;
+          _pkCtrl.text = pk;
+        } else {
+          // Plain text key
+          _pkCtrl.text = content.trim();
+        }
       } catch (_) {
         // Plain text key
         _pkCtrl.text = content.trim();
       }
+      if (!mounted) return;
       setState(() {
         _mode = _AddMode.importKey;
         _error = null;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = 'Failed to read file: $e');
     }
   }
@@ -139,15 +155,19 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
     final tt = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(title: const Text('Add Account')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: switch (_mode) {
-            _AddMode.none => [_buildChoice(cs, tt)],
-            _AddMode.importKey => [_buildImportKey(cs, tt)],
-            _AddMode.importFile => [_buildImportKey(cs, tt)],
-          },
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: switch (_mode) {
+              _AddMode.none => [_buildChoice(cs, tt)],
+              _AddMode.importKey => [_buildImportKey(cs, tt)],
+              _AddMode.importFile => [_buildImportKey(cs, tt)],
+            },
+          ),
         ),
       ),
     );

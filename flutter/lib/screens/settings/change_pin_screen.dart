@@ -76,11 +76,14 @@ class _ChangePinScreenState extends State<ChangePinScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Change PIN')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             Text('Update your security PIN',
                 style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
             const SizedBox(height: 24),
@@ -104,6 +107,7 @@ class _ChangePinScreenState extends State<ChangePinScreen> {
               onPressed: _loading ? null : _changePin,
             ),
           ],
+        ),
         ),
       ),
     );

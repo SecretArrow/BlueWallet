@@ -53,7 +53,8 @@ class _StartupScreenState extends State<StartupScreen> {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: cs.surface,
-      body: Center(
+      body: SafeArea(
+        child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -79,6 +80,7 @@ class _StartupScreenState extends State<StartupScreen> {
             const SizedBox(height: 32),
             CircularProgressIndicator(color: cs.primary),
           ],
+        ),
         ),
       ),
     );

@@ -188,6 +188,11 @@ public class MainActivity extends AppCompatActivity {
                 WindowManager.LayoutParams.FLAG_SECURE,
                 WindowManager.LayoutParams.FLAG_SECURE);
         setContentView(R.layout.activity_main);
+        // Centralized edge-to-edge: content draws behind system bars and the
+        // listeners in setupInsets() apply status/cutout (top) and
+        // navigation/cutout (bottom) padding back. Must be enabled — without
+        // this the bar paddings below stack on top of the default fit.
+        InsetsHelper.enableEdgeToEdge(this);
         walletRepository = new WalletRepository(this);
         initViews();
         handleDeepLinkIntent(getIntent());
@@ -311,12 +316,21 @@ public class MainActivity extends AppCompatActivity {
         final int bottomBaseBottom = bottomBar.getPaddingBottom();
         final int bottomExtraPx = (int) (8 * getResources().getDisplayMetrics().density);
         ViewCompat.setOnApplyWindowInsetsListener(topBar, (view, insets) -> {
-            int top = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            int top = Math.max(
+                    insets.getInsets(WindowInsetsCompat.Type.statusBars()).top,
+                    insets.getInsets(WindowInsetsCompat.Type.displayCutout()).top);
             view.setPadding(topBaseLeft, topBaseTop + top, topBaseRight, topBaseBottom);
             return insets;
         });
         ViewCompat.setOnApplyWindowInsetsListener(bottomBar, (view, insets) -> {
-            int bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            // Navigation bar on 3-button devices, gesture strip otherwise;
+            // cutout or-ed in for landscape/foldable edge cases. IME is NOT
+            // added here: the dashboard/history/settings panes scroll and the
+            // window uses adjustResize, which already moves content above the
+            // keyboard — adding IME padding would double-shift it.
+            int bottom = Math.max(
+                    insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom,
+                    insets.getInsets(WindowInsetsCompat.Type.displayCutout()).bottom);
             view.setPadding(bottomBaseLeft, bottomBaseTop, bottomBaseRight, bottomBaseBottom + bottom + bottomExtraPx);
             return insets;
         });

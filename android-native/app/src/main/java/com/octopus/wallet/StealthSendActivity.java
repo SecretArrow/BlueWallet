@@ -23,6 +23,9 @@ public class StealthSendActivity extends BaseTxActivity {
     private View stealthFabTasksLabel;
     private boolean stealthFabMenuOpen = false;
     private long recommendedFee = 5000L;
+    /** Last submit tap (uptime ms) — double-tap debounce (the queue disable/enable
+     * cycle is synchronous, so it alone cannot stop two rapid taps). */
+    private long lastSubmitMs = 0L;
 
     private final ActivityResultLauncher<Intent> qrScanLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -77,6 +80,10 @@ public class StealthSendActivity extends BaseTxActivity {
         setupStealthFabMenu();
 
         findViewById(R.id.stealth_submit_button).setOnClickListener(v -> {
+            // Double-submit guard: ignore taps within 2s of the previous one.
+            long now = android.os.SystemClock.uptimeMillis();
+            if (now - lastSubmitMs < 2000L) return;
+            lastSubmitMs = now;
             String to = toInput.getText().toString().replaceAll("\\s+", "").trim();
             String amountText = amountInput.getText().toString().trim();
             String message = messageInput.getText().toString().trim();

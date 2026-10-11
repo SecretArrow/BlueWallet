@@ -13,15 +13,18 @@ class ThemePaletteScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Theme')),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 1.6,
-        ),
-        itemCount: AppPalette.all.length,
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: GridView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.6,
+          ),
+          itemCount: AppPalette.all.length,
         itemBuilder: (_, i) {
           final p = AppPalette.all[i];
           final isSelected = tm.paletteId == p.id;
@@ -89,6 +92,7 @@ class ThemePaletteScreen extends StatelessWidget {
             ),
           );
         },
+        ),
       ),
     );
   }

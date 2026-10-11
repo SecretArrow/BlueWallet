@@ -72,16 +72,28 @@ class _SetupScreenState extends State<SetupScreen> {
     });
     try {
       final kp = await CryptoService.importFromPrivateKey(pk);
+      if (!mounted) return;
+      final address = kp['address']?.toString() ?? '';
+      final sk = kp['sk']?.toString() ?? '';
+      if (address.isEmpty || sk.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _error = 'Invalid private key: empty key data';
+          _loading = false;
+        });
+        return;
+      }
       setState(() {
-        _pendingAddress = kp['address']!;
-        _pendingSkBase64 = kp['sk']!;
+        _pendingAddress = address;
+        _pendingSkBase64 = sk;
         _pendingName = 'My Wallet';
         _view = _SetupView.pinSetup;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = 'Invalid private key: $e');
     }
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _doSetPin() async {
@@ -107,14 +119,25 @@ class _SetupScreenState extends State<SetupScreen> {
     try {
       await PinService.setPin(pin1);
       if (!mounted) return;
+      final pendingName = _pendingName;
+      final pendingAddress = _pendingAddress;
+      final pendingSk = _pendingSkBase64;
+      if (pendingName == null || pendingAddress == null || pendingSk == null) {
+        setState(() {
+          _error = 'Wallet data missing. Please re-import your key.';
+          _loading = false;
+        });
+        return;
+      }
       final ws = context.read<WalletService>();
       await ws.addWalletRaw(
-        name: _pendingName!,
-        address: _pendingAddress!,
-        skBase64: _pendingSkBase64!,
+        name: pendingName,
+        address: pendingAddress,
+        skBase64: pendingSk,
       );
       if (mounted) context.go('/home');
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString().replaceFirst('Exception: ', '');
         _loading = false;

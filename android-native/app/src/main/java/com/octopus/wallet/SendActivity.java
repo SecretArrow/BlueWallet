@@ -187,6 +187,9 @@ public class SendActivity extends BaseTxActivity {
         });
 
         findViewById(R.id.send_submit_button).setOnClickListener(v -> {
+            // Double-submit guard: ignore taps while a confirmation is open.
+            // The guard clears in confirmLauncher below (both OK and cancel).
+            if (pendingSendAction != null) return;
             String to = toInput.getText().toString().replaceAll("\\s+", "").trim();
             String amountText = amountInput.getText().toString().trim();
             String message = messageInput.getText().toString().trim();
@@ -350,8 +353,8 @@ public class SendActivity extends BaseTxActivity {
      * Used for auto-refresh after successful transactions.
      */
     private void refreshBalanceSilent() {
-        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
-        executor.execute(() -> {
+        // Use the shared pool: a per-call executor here would leak a thread per send.
+        ioExecutor().execute(() -> {
             try {
                 // Fetch balance silently via WalletRepository
                 String rpcUrl = getCurrentRpcUrl();

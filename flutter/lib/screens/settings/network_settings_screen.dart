@@ -85,6 +85,9 @@ class NetworkSettingsScreen extends StatelessWidget {
         },
       ),
     );
+    nameCtrl.dispose();
+    rpcCtrl.dispose();
+    explorerCtrl.dispose();
   }
 
   Future<void> _showEditDialog(
@@ -114,6 +117,9 @@ class NetworkSettingsScreen extends StatelessWidget {
         },
       ),
     );
+    nameCtrl.dispose();
+    rpcCtrl.dispose();
+    explorerCtrl.dispose();
   }
 
   void _confirmDelete(
@@ -155,38 +161,42 @@ class NetworkSettingsScreen extends StatelessWidget {
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add Network'),
       ),
-      body: OctopusCard(
-        padding: EdgeInsets.zero,
-        radius: 20,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Networks',
-                    style: Theme.of(context).textTheme.headlineSmall),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: OctopusCard(
+          padding: EdgeInsets.zero,
+          radius: 20,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Networks',
+                      style: Theme.of(context).textTheme.headlineSmall),
+                ),
               ),
-            ),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.all(8),
-                itemCount: ns.profiles.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (_, i) {
-                  final p = ns.profiles[i];
-                  return _NetworkTile(
-                    profile: p,
-                    onSetActive: () => ns.setActive(p.id),
-                    onEdit: () => _showEditDialog(context, p),
-                    onDelete: ns.profiles.length > 1
-                        ? () => _confirmDelete(context, ns, p)
-                        : null,
-                  );
-                },
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
+                  itemCount: ns.profiles.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final p = ns.profiles[i];
+                    return _NetworkTile(
+                      profile: p,
+                      onSetActive: () => ns.setActive(p.id),
+                      onEdit: () => _showEditDialog(context, p),
+                      onDelete: ns.profiles.length > 1
+                          ? () => _confirmDelete(context, ns, p)
+                          : null,
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -241,7 +251,7 @@ class _NetworkFormDialogState extends State<_NetworkFormDialog> {
   }
 
   void _trySave() {
-    if (!widget.formKey.currentState!.validate()) return;
+    if (!(widget.formKey.currentState?.validate() ?? false)) return;
 
     final name = widget.nameCtrl.text.trim();
     final rpc = widget.normaliseRpc(widget.rpcCtrl.text.trim());
@@ -284,8 +294,15 @@ class _NetworkFormDialogState extends State<_NetworkFormDialog> {
       ),
     );
     if (ok == true && mounted) {
-      widget.onSave(_pendingName!, _pendingRpc!, _pendingExplorer!);
-      Navigator.pop(context);
+      final name = _pendingName;
+      final rpc = _pendingRpc;
+      final explorer = _pendingExplorer;
+      if (name != null && rpc != null && explorer != null) {
+        widget.onSave(name, rpc, explorer);
+        if (mounted) Navigator.pop(context);
+      } else if (mounted) {
+        Navigator.pop(context);
+      }
     }
   }
 

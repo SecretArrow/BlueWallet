@@ -73,13 +73,20 @@ class _DeriveChildWalletScreenState extends State<DeriveChildWalletScreen> {
     if (index == null) return;
 
     final ws = context.read<WalletService>();
-    final parent = ws.wallets.firstWhere(
-      (w) => w.id == widget.parentId,
-      orElse: () => throw Exception('Parent wallet not found'),
-    );
+    WalletProfile? parent;
+    try {
+      parent = ws.wallets.firstWhere((w) => w.id == widget.parentId);
+    } catch (_) {
+      parent = null;
+    }
+    if (parent == null) {
+      if (mounted) setState(() => _error = 'Parent wallet not found.');
+      return;
+    }
     final mnemonicId = parent.parentId ?? parent.id;
     final mnemonic = await ws.getMnemonic(mnemonicId);
-    if (mnemonic == null) {
+    if (!mounted) return;
+    if (mnemonic == null || mnemonic.isEmpty) {
       setState(() => _error = 'Mnemonic not found for this wallet.');
       return;
     }
@@ -92,11 +99,13 @@ class _DeriveChildWalletScreenState extends State<DeriveChildWalletScreen> {
     });
     try {
       final kp = MnemonicService.deriveKeypair(mnemonic: mnemonic, path: path);
+      if (!mounted) return;
       setState(() {
-        _previewAddress = kp['address'];
+        _previewAddress = kp['address']?.toString();
         _previewing = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = 'Preview failed: $e';
         _previewing = false;
@@ -131,6 +140,7 @@ class _DeriveChildWalletScreenState extends State<DeriveChildWalletScreen> {
         context.pop();
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString().replaceFirst('Exception: ', '');
         _creating = false;
@@ -152,11 +162,14 @@ class _DeriveChildWalletScreenState extends State<DeriveChildWalletScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Derive Child Wallet')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             // ── Info ───────────────────────────────────────────────────
             Container(
               padding: const EdgeInsets.all(14),
@@ -308,6 +321,7 @@ class _DeriveChildWalletScreenState extends State<DeriveChildWalletScreen> {
               onPressed: (_previewing || _creating) ? null : _doCreate,
             ),
           ],
+        ),
         ),
       ),
     );

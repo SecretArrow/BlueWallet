@@ -120,18 +120,29 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
               FilledButton(
                 onPressed: () {
                   if (formKey.currentState?.validate() ?? false) {
+                    final port = int.tryParse(portCtrl.text.trim());
+                    if (port == null || port < 1 || port > 65535) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text(
+                                'Port must be between 1 and 65535')),
+                      );
+                      return;
+                    }
                     final tor = context.read<TorProxyService>();
                     tor.addProxyServer(ProxyConfig(
                       name: nameCtrl.text.trim(),
                       host: hostCtrl.text.trim(),
-                      port: int.parse(portCtrl.text.trim()),
+                      port: port,
                       type: type,
                     ));
                     Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Proxy server added successfully')),
-                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Proxy server added successfully')),
+                      );
+                    }
                   }
                 },
                 child: const Text('Save'),
@@ -140,7 +151,11 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
           );
         },
       ),
-    );
+    ).then((_) {
+      nameCtrl.dispose();
+      hostCtrl.dispose();
+      portCtrl.dispose();
+    });
   }
 
   void _confirmDelete(BuildContext context, ProxyConfig server) {
@@ -188,11 +203,14 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add Proxy'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Status Card
             OctopusCard(
               padding: const EdgeInsets.all(16.0),
@@ -458,6 +476,7 @@ class _TorProxySettingsScreenState extends State<TorProxySettingsScreen> {
             ),
             const SizedBox(height: 80), // extra padding for fab
           ],
+        ),
         ),
       ),
     );

@@ -27,8 +27,11 @@ class _TransactionsManagerScreenState extends State<TransactionsManagerScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Transaction Manager')),
-      body: pending.isEmpty
-          ? Center(
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: pending.isEmpty
+            ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -39,11 +42,12 @@ class _TransactionsManagerScreenState extends State<TransactionsManagerScreen> {
                 ],
               ),
             )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: pending.length,
-              itemBuilder: (ctx, i) => _PendingTxCard(tx: pending[i]),
-            ),
+            : ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                itemCount: pending.length,
+                itemBuilder: (ctx, i) => _PendingTxCard(tx: pending[i]),
+              ),
+      ),
     );
   }
 }

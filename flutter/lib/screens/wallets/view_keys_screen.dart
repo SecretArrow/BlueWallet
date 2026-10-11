@@ -25,11 +25,16 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
   bool _loadingMnemonic = false;
 
   Future<void> _revealKey() async {
+    if (!mounted) return;
     setState(() => _loading = true);
     final ws = context.read<WalletService>();
     final id = widget.walletId ?? ws.activeWallet?.id;
-    if (id == null) return;
+    if (id == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     final pk = await ws.getPrivateKey(id);
+    if (!mounted) return;
     setState(() {
       _privateKey = pk ?? 'Key not found';
       _revealed = true;
@@ -48,13 +53,14 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
         ? ws.wallets.where((w) => w.id == widget.walletId).firstOrNull
         : ws.activeWallet;
     if (wallet == null) {
-      setState(() => _loadingMnemonic = false);
+      if (mounted) setState(() => _loadingMnemonic = false);
       return;
     }
 
     // For child wallets, read mnemonic from the parent
     final mnemonicId = wallet.parentId ?? wallet.id;
     final m = await ws.getMnemonic(mnemonicId);
+    if (!mounted) return;
     setState(() {
       _mnemonic = m;
       _mnemonicRevealed = true;
@@ -76,47 +82,50 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
     final controller = TextEditingController(text: wallet.name);
     final ws = context.read<WalletService>();
 
-    showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename Wallet'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Wallet Name',
-            hintText: 'Enter new name',
+    try {
+      await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          title: const Text('Rename Wallet'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              labelText: 'Wallet Name',
+              hintText: 'Enter new name',
+            ),
+            autofocus: true,
           ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final navigator = Navigator.of(context);
-              final messenger = ScaffoldMessenger.of(context);
-              final newName = controller.text.trim();
-              if (newName.isNotEmpty) {
-                final ok = await ws.renameWallet(wallet.id, newName);
-                if (ok) {
-                  if (mounted) navigator.pop(true);
-                } else {
-                  if (mounted) {
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final navigator = Navigator.of(dialogCtx);
+                final messenger = ScaffoldMessenger.of(context);
+                final newName = controller.text.trim();
+                if (newName.isNotEmpty) {
+                  final ok = await ws.renameWallet(wallet.id, newName);
+                  if (!mounted) return;
+                  if (ok) {
+                    navigator.pop(true);
+                  } else {
                     messenger.showSnackBar(
                       const SnackBar(
                           content: Text('Name already exists or invalid')),
                     );
                   }
                 }
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   @override
@@ -132,8 +141,11 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('View Keys')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -239,7 +251,7 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
                                       fontSize: 12)),
                               if (wallet?.derivationPath != null) ...[
                                 const SizedBox(height: 2),
-                                Text(wallet!.derivationPath!,
+                                Text(wallet?.derivationPath ?? '',
                                     style: TextStyle(
                                         fontFamily: 'monospace',
                                         fontSize: 10,
@@ -265,8 +277,12 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
                         if (_mnemonic != null)
                           IconButton(
                             icon: Icon(Icons.copy, size: 18, color: cs.primary),
-                            onPressed: () =>
-                                _copy(context, _mnemonic!, 'Seed phrase'),
+                            onPressed: () {
+                              final m = _mnemonic;
+                              if (m != null && m.isNotEmpty) {
+                                _copy(context, m, 'Seed phrase');
+                              }
+                            },
                             tooltip: 'Copy seed phrase',
                           ),
                       ],
@@ -280,7 +296,13 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
                         onPressed: _loadingMnemonic ? null : _revealMnemonic,
                       ),
                     ] else ...[
-                      _MnemonicGrid(words: _mnemonic!.split(' ')),
+                      Builder(builder: (_) {
+                        final m = _mnemonic;
+                        if (m == null || m.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return _MnemonicGrid(words: m.split(' '));
+                      }),
                     ],
                   ],
                 ),
@@ -291,11 +313,14 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
                 label: const Text('Derive Child Wallet'),
                 onPressed: () {
                   final id = wallet?.id ?? '';
-                  context.push('/derive-child-wallet', extra: id);
+                  if (id.isNotEmpty) {
+                    context.push('/derive-child-wallet', extra: id);
+                  }
                 },
               ),
             ],
           ],
+        ),
         ),
       ),
     );

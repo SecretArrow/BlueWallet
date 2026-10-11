@@ -53,9 +53,9 @@ class _AddressBookEntryScreenState extends State<AddressBookEntryScreen> {
     }
     setState(() => _loading = true);
     final abs = context.read<AddressBookService>();
-    if (widget.editId != null) {
-      await abs.update(
-          AddressEntry(id: widget.editId!, label: label, address: addr));
+    final editId = widget.editId;
+    if (editId != null) {
+      await abs.update(AddressEntry(id: editId, label: label, address: addr));
     } else {
       await abs.add(AddressEntry(
         id: 'addr_${DateTime.now().millisecondsSinceEpoch}',
@@ -73,11 +73,14 @@ class _AddressBookEntryScreenState extends State<AddressBookEntryScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(isEdit ? 'Edit Address' : 'Add Address')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             if (_error != null) ...[
               Container(
                 padding: const EdgeInsets.all(12),
@@ -122,6 +125,7 @@ class _AddressBookEntryScreenState extends State<AddressBookEntryScreen> {
               onPressed: _loading ? null : _save,
             ),
           ],
+        ),
         ),
       ),
     );

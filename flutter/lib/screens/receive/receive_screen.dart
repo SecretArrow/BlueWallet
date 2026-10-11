@@ -33,13 +33,19 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
   }
 
   Future<void> _shareQr(String address) async {
+    if (!mounted) return;
     setState(() => _sharing = true);
     try {
-      final boundary =
-          _qrKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      final image = await boundary.toImage(pixelRatio: 3.0);
+      final ctx = _qrKey.currentContext;
+      if (ctx == null) throw Exception('QR code not ready yet');
+      final renderObject = ctx.findRenderObject();
+      if (renderObject is! RenderRepaintBoundary) {
+        throw Exception('QR code not ready yet');
+      }
+      final image = await renderObject.toImage(pixelRatio: 3.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      final bytes = byteData!.buffer.asUint8List();
+      if (byteData == null) throw Exception('Failed to capture QR image');
+      final bytes = byteData.buffer.asUint8List();
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/octra_qr.png');
       await file.writeAsBytes(bytes);
@@ -67,11 +73,14 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Receive')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -149,6 +158,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
               ],
             ),
           ),
+        ),
         ),
       ),
     );

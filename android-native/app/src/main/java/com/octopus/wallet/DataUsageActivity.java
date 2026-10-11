@@ -39,6 +39,8 @@ public class DataUsageActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_data_usage);
+        // Centralized edge-to-edge + system-bar insets (status/nav/cutout/IME). Idempotent; see InsetsHelper.
+        InsetsHelper.applyToActivity(this);
 
         tracker = new DataUsageTracker(this);
 

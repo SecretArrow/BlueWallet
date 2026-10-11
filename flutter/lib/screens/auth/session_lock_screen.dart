@@ -29,6 +29,7 @@ class _SessionLockScreenState extends State<SessionLockScreen> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final val = prefs.getInt(_prefKey) ?? 5;
+    if (!mounted) return;
     setState(() {
       _selectedMinutes = val;
       _loading = false;
@@ -36,9 +37,15 @@ class _SessionLockScreenState extends State<SessionLockScreen> {
   }
 
   Future<void> _select(int minutes) async {
+    if (!mounted) return;
     setState(() => _selectedMinutes = minutes);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_prefKey, minutes);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_prefKey, minutes);
+    } catch (_) {
+      // Persist failure keeps the in-memory selection; a retry happens
+      // on the next tap.
+    }
   }
 
   String _label(int minutes) {
@@ -57,9 +64,12 @@ class _SessionLockScreenState extends State<SessionLockScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Card(
+          : SafeArea(
+              top: false,
+              bottom: true,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Card(
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -107,7 +117,8 @@ class _SessionLockScreenState extends State<SessionLockScreen> {
                   ),
                 ),
               ),
-            ),
+              ),
+      ),
     );
   }
 }

@@ -79,14 +79,17 @@ class _PollingSettingsScreenState extends State<PollingSettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Polling Settings')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: OctopusCard(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: OctopusCard(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
                 'Polling Interval (seconds)',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
@@ -155,6 +158,7 @@ class _PollingSettingsScreenState extends State<PollingSettingsScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

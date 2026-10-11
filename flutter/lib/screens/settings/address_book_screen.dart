@@ -21,27 +21,32 @@ class AddressBookScreen extends StatelessWidget {
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add Address'),
       ),
-      body: abs.entries.isEmpty
-          ? Center(
-              child: Text(
-                'No saved addresses',
-                style: TextStyle(color: cs.onSurfaceVariant),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: abs.entries.isEmpty
+            ? Center(
+                child: Text(
+                  'No saved addresses',
+                  style: TextStyle(color: cs.onSurfaceVariant),
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                itemCount: abs.entries.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (_, i) {
+                  final e = abs.entries[i];
+                  return _AddressCard(
+                    entry: e,
+                    onEdit: () =>
+                        context.push('/address-book-entry?id=${e.id}'),
+                    onDelete: () => abs.remove(e.id),
+                    onSend: () => context.push('/send?to=${e.address}'),
+                  );
+                },
               ),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: abs.entries.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final e = abs.entries[i];
-                return _AddressCard(
-                  entry: e,
-                  onEdit: () => context.push('/address-book-entry?id=${e.id}'),
-                  onDelete: () => abs.remove(e.id),
-                  onSend: () => context.push('/send?to=${e.address}'),
-                );
-              },
-            ),
+      ),
     );
   }
 }

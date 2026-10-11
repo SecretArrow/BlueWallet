@@ -25,6 +25,11 @@ class AdaptiveBody extends StatelessWidget {
     if (padding != null) {
       body = Padding(padding: padding!, child: body);
     }
-    return body;
+    // Edge-to-edge (SystemChrome.edgeToEdge in main.dart) draws the system
+    // gesture bar over the Scaffold body on pushed routes. AppBar already
+    // consumes the top inset, so only the bottom needs guarding here.
+    // Nested SafeAreas are idempotent (inner sees zero padding), so wrapping
+    // screens that already use SafeArea does not double-pad.
+    return SafeArea(top: false, bottom: true, child: body);
   }
 }

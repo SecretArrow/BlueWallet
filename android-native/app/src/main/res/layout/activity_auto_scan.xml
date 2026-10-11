@@ -4,8 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="?android:colorBackground"
-    android:fitsSystemWindows="true">
+    android:background="?android:colorBackground">
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/auto_scan_toolbar"

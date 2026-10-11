@@ -31,6 +31,8 @@ public class SetupActivity extends AppCompatActivity {
         setTheme(resolveThemeRes());
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_setup);
+        // Centralized edge-to-edge + system-bar insets (status/nav/cutout/IME). Idempotent; see InsetsHelper.
+        InsetsHelper.applyToActivity(this);
         
         initViews();
     }
