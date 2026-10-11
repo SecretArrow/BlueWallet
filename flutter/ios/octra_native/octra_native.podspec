@@ -8,17 +8,19 @@ Pod::Spec.new do |s|
   s.platform         = :ios, '13.0'
   s.static_framework = true
 
-  # Paths relative to this podspec: ios/octra_native/octra_native.podspec
-  # Go up 3 levels (octra_native → ios → flutter → blue_wallet) to reach webcli
+  # NOTE: CocoaPods requires source_files to be RELATIVE (absolute paths from
+  # File.expand_path fail validation). Both targets below are relative to
+  # this podspec: ios/octra_native/octra_native.podspec.
+  # Absolute paths are still fine for HEADER_SEARCH_PATHS (build-time only).
   WEBCLI      = File.expand_path('../../../webcli',                    __FILE__)
   ANDROID_CPP = File.expand_path('../../android/app/src/main/cpp', __FILE__)
 
   s.source = { :path => '.' }
   s.source_files = [
-    "#{ANDROID_CPP}/octra_ffi.cpp",
-    "#{WEBCLI}/lib/tweetnacl.c",
-    "#{WEBCLI}/lib/randombytes.c",
-    "#{WEBCLI}/pvac/pvac_c_api.cpp",
+    '../../android/app/src/main/cpp/octra_ffi.cpp',
+    '../../../webcli/lib/tweetnacl.c',
+    '../../../webcli/lib/randombytes.c',
+    '../../../webcli/pvac/pvac_c_api.cpp',
   ]
   s.public_header_files = []
 
