@@ -1,28 +1,38 @@
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import '../../services/wallet_service.dart';
-import '../../services/network_service.dart';
-import '../../services/local_web_server_service.dart';
-import '../../services/oct_url.dart';
-import '../../services/dapp_bridge_protocol.dart';
 
-/// In-app DApp browser with an embedded WebView and a `window.octra` provider.
+import '../../services/dapp/adapter_registry.dart';
+import '../../services/dapp/dapp_session_store.dart';
+import '../../services/dapp/js_bridge.dart';
+import '../../services/dapp/octra_adapter.dart';
+import '../../services/dapp/wallet_adapter.dart';
+import '../../services/dapp_bridge_protocol.dart';
+import '../../services/network_service.dart';
+import '../../services/oct_url.dart';
+import '../../services/recent_sites_service.dart';
+import '../../services/wallet_service.dart';
+import '../../widgets/startpage_view.dart';
+
+/// In-app dApp browser: embedded WebView + modular `window.octra` provider.
 ///
-/// The wallet bridge works via a JavaScript channel named `OctraWalletBridge`.
-/// The injected provider script (see [_octraProviderJs]) calls
-/// `OctraWalletBridge.postMessage(JSON.stringify({type, id, ...}))` and the
-/// Flutter side responds with `window.__octra_response(id, resultJson, error)`.
+/// Architecture:
+/// - [JsBridge] owns the `OctraWalletBridge` channel: pending ids, timeouts,
+///   duplicates, cancellation (navigation / tab close / WebView destroy),
+///   origin + payload validation, and error-code mapping.
+/// - [AdapterRegistry] + [OctraAdapter] serve methods over real wallet/RPC
+///   data. Sensitive calls open an approval dialog; dismiss == reject.
+/// - [DappSessionStore] grants per-origin sessions, revocable from the
+///   dApp origins / permissions screens.
+/// - [RecentSitesService] feeds the Startpage (last 10, deduped, persisted).
 ///
-/// Supported wallet methods:
-/// - `connect`                 → returns {address}
-/// - `octra_accounts`          → [address]
-/// - `octra_chainId`           → 'octra-devnet-1'
-/// - `octra_getBalance`        → {balance, encryptedBalance, raw, encryptedRaw}
-/// - `octra_callView`          → params: [contractAddr, function, args]
-/// - `octra_sendTransaction`   → params: [{to, amount, memo?}]  (requires confirmation)
-/// - `octra_callContract`      → params: [contractAddr, fn, args, amount]  (requires confirmation)
+/// No local web server: `oct://` pages render via direct RPC fetch
+/// (read-only; pages over 8 MB are refused with a clear message instead of
+/// OOMing the WebView).
 class DappBrowserScreen extends StatefulWidget {
   final String? initialUrl;
   const DappBrowserScreen({super.key, this.initialUrl});
@@ -34,94 +44,117 @@ class DappBrowserScreen extends StatefulWidget {
 class _DappBrowserScreenState extends State<DappBrowserScreen> {
   late final WebViewController _controller;
   final TextEditingController _urlCtrl = TextEditingController();
+  final RecentSitesService _recent = RecentSitesService.instance;
+  final DappSessionStore _sessions = DappSessionStore.instance;
 
-  bool _isLoading = true;
+  JsBridge? _bridge;
+  AdapterRegistry? _registry;
+
+  bool _isLoading = false;
   int _loadingProgress = 0;
   String _pageTitle = '';
   bool _canGoBack = false;
   bool _canGoForward = false;
-  String? _connectedAddress;
+  String _currentUrl = 'about:blank';
+  bool _showingStartpage = true;
+  bool _privateMode = false;
+  bool _approvalOpen = false;
+  bool _disposed = false;
+  List<Map<String, String>> _bookmarks = [];
 
-  /// Scopes granted at the last approval, echoed back by `octra_permissions`.
-  /// This wallet approves all-or-nothing, so the list is what the page asked
-  /// for — never more. Defaults to `['accounts']`.
-  List<String> _grantedPermissions = ['accounts'];
+  static const String _kBookmarks = 'browser_bookmarks';
 
-  // Default DApp shortcuts
-  static const List<Map<String, String>> _devnetShortcuts = [
-    {
-      'name': 'Octra DEX',
-      'url': 'http://localhost:3000',
-      'description': 'Swap, Bridge & Liquidity',
-      'icon': '🔄',
-    },
-    {
-      'name': 'Octra Bridge',
-      'url': 'http://localhost:3000/bridge',
-      'description': 'oAVAX ↔ AVAX Cross-chain',
-      'icon': '🌉',
-    },
+  static const List<Map<String, String>> _defaultShortcuts = [
     {
       'name': 'Devnet Explorer',
       'url': 'https://devnet.octrascan.io',
-      'description': 'Block Explorer (Devnet)',
-      'icon': '🔍',
     },
     {
       'name': 'Mainnet Explorer',
       'url': 'https://octrascan.io',
-      'description': 'Block Explorer (Mainnet)',
-      'icon': '🔍',
     },
   ];
-
-  List<Map<String, String>> get _dappShortcuts => _devnetShortcuts;
 
   @override
   void initState() {
     super.initState();
-    final startUrl = widget.initialUrl ?? 'http://localhost:3000';
-    _urlCtrl.text = startUrl;
+    final startUrl = widget.initialUrl?.trim() ?? '';
+    _showingStartpage =
+        startUrl.isEmpty || startUrl.toLowerCase() == 'about:blank';
+    _currentUrl = _showingStartpage ? 'about:blank' : startUrl;
+    _urlCtrl.text = _showingStartpage ? '' : startUrl;
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.transparent)
       ..setNavigationDelegate(NavigationDelegate(
-        onProgress: (p) => setState(() => _loadingProgress = p),
-        onPageStarted: (url) => setState(() {
-          _isLoading = true;
-          _urlCtrl.text = url;
-          _pageTitle = '';
-        }),
-        onPageFinished: (url) async {
-          final title = await _controller.getTitle();
-          final canBack = await _controller.canGoBack();
-          final canFwd = await _controller.canGoForward();
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-              _urlCtrl.text = url;
-              _pageTitle = title ?? '';
-              _canGoBack = canBack;
-              _canGoForward = canFwd;
-            });
-          }
-          // Inject the wallet provider on every page load.
+        onProgress: (p) {
+          if (mounted) setState(() => _loadingProgress = p);
+        },
+        onPageStarted: (url) {
           if (!mounted) return;
-          final ns = context.read<NetworkService>();
-          await _controller.runJavaScript(
-              _octraProviderJs.replaceAll('__CHAIN_ID__', ns.activeChainId));
+          final prevOrigin = _originOf(_currentUrl);
+          final nextOrigin = _originOf(url);
+          if (prevOrigin != nextOrigin) {
+            // Navigation away cancels pending approvals for the old origin —
+            // a page must never be answered after it is gone.
+            _bridge?.cancelForOrigin(prevOrigin);
+          }
+          setState(() {
+            _isLoading = true;
+            _currentUrl = url;
+            _urlCtrl.text = url == 'about:blank' ? '' : url;
+            _pageTitle = '';
+          });
+        },
+        onPageFinished: (url) async {
+          String? title;
+          bool back = false;
+          bool fwd = false;
+          try {
+            title = await _controller.getTitle();
+            back = await _controller.canGoBack();
+            fwd = await _controller.canGoForward();
+          } catch (_) {
+            // WebView gone mid-query — keep previous state.
+          }
+          if (!mounted || _disposed) return;
+          setState(() {
+            _isLoading = false;
+            _currentUrl = url;
+            if (url != 'about:blank') _urlCtrl.text = url;
+            _pageTitle = title ?? '';
+            _canGoBack = back;
+            _canGoForward = fwd;
+          });
+          if (!mounted || _disposed) return;
+          try {
+            final ns = context.read<NetworkService>();
+            await _controller.runJavaScript(JsBridge.providerJs
+                .replaceAll('__CHAIN_ID__', ns.activeChainId));
+          } catch (_) {
+            // Injection failure leaves the page without a provider; the
+            // page observes no provider (honest) rather than a broken one.
+          }
+          // Record successful navigations for the Startpage (skips filtered
+          // URLs internally; private mode skips entirely).
+          if (url != 'about:blank') {
+            unawaited(
+                _recent.record(url, title: title ?? '', private: _privateMode));
+          }
         },
         onUrlChange: (change) {
           if (change.url != null && mounted) {
-            setState(() => _urlCtrl.text = change.url!);
+            setState(() {
+              _currentUrl = change.url!;
+              if (change.url != 'about:blank') {
+                _urlCtrl.text = change.url!;
+              }
+            });
           }
         },
         onNavigationRequest: (request) {
-          // Native oct:// protocol — resolve circle URLs ourselves since
-          // webview_flutter cannot intercept subresources. Top-level
-          // navigations are rendered via gateway or direct RPC fetch.
-          if (_isOctUrl(request.url)) {
+          if (OctUrl.isOctUrl(request.url)) {
             _loadOctUrl(request.url);
             return NavigationDecision.prevent;
           }
@@ -130,575 +163,220 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
         onWebResourceError: (error) {
           if (mounted) setState(() => _isLoading = false);
         },
-      ))
-      ..addJavaScriptChannel(
-        'OctraWalletBridge',
-        onMessageReceived: (msg) => _handleBridgeMessage(msg.message),
-      )
-      ..loadRequest(Uri.parse(startUrl));
+      ));
+
+    // Bridge wiring needs context-read services; defer one frame so
+    // Provider ancestors exist.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _disposed) return;
+      _initBridge();
+      _loadExtras();
+      if (!_showingStartpage) {
+        _openUrl(_currentUrl);
+      }
+    });
   }
 
-  @override
-  void dispose() {
-    _urlCtrl.dispose();
-    super.dispose();
-  }
-
-  // ── Bridge message handler ───────────────────────────────────────────────
-
-  void _handleBridgeMessage(String raw) async {
-    Map<String, dynamic> msg;
-    try {
-      msg = jsonDecode(raw) as Map<String, dynamic>;
-    } catch (_) {
-      return;
-    }
-    final type = msg['type'] as String? ?? '';
-    final id = (msg['id'] as num?)?.toInt() ?? 0;
-
-    switch (type) {
-      case 'connect':
-        await _handleConnect(id);
-        break;
-      case 'request':
-        // Third-party adapters (0xio) send a single object, not an array —
-        // dropping a Map here used to silently empty every object-form call.
-        final rawParams = msg['params'];
-        final List<dynamic> params;
-        if (rawParams is List) {
-          params = rawParams.cast<dynamic>();
-        } else if (rawParams is Map) {
-          params = [rawParams];
-        } else {
-          params = [];
-        }
-        await _handleRequest(
-          id,
-          DappBridgeProtocol.canonicalize(msg['method'] as String? ?? ''),
-          params,
-        );
-        break;
-      default:
-        _bridgeError(id, 'Unknown bridge message type: $type',
-            DappBridgeProtocol.unsupportedMethod);
-    }
-  }
-
-  Future<void> _handleConnect(int id) async {
+  void _initBridge() {
     final ws = context.read<WalletService>();
-    final address = ws.activeWallet?.address;
-    if (address == null || address.isEmpty) {
-      _bridgeError(id, 'No active wallet');
+    final ns = context.read<NetworkService>();
+    final registry = AdapterRegistry([OctraAdapter(wallets: ws, networks: ns)]);
+    _registry = registry;
+    final bridge = JsBridge(
+      registry: registry,
+      sessions: _sessions,
+      respond: (jsId, resultJson, error, code) {
+        if (_disposed) return;
+        try {
+          final rid = jsonEncode(jsId);
+          final res = resultJson == null ? 'null' : jsonEncode(resultJson);
+          final err = error == null ? 'null' : jsonEncode(error);
+          unawaited(_controller.runJavaScript(
+              '${JsBridge.responseFn}($rid, $res, $err, $code)'));
+        } catch (_) {
+          // WebView destroyed — drop the answer.
+        }
+      },
+      currentOrigin: () => _originOf(_currentUrl),
+    );
+    bridge.setDispatchHook((request, completer) {
+      unawaited(_dispatch(request, completer, ws, ns));
+    });
+    bridge.setConnectHook((jsId, completer) async {
+      await _handleLegacyConnect(completer);
+    });
+    _bridge = bridge;
+    _controller.addJavaScriptChannel(
+      JsBridge.channelName,
+      onMessageReceived: (msg) => unawaited(bridge.onMessage(msg.message)),
+    );
+    unawaited(_sessions.load());
+  }
+
+  Future<void> _loadExtras() async {
+    await _recent.load();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kBookmarks);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          _bookmarks = decoded
+              .whereType<Map>()
+              .map((m) => {
+                    'name': m['name']?.toString() ?? '',
+                    'url': m['url']?.toString() ?? '',
+                  })
+              .where((m) => (m['url'] ?? '').isNotEmpty)
+              .toList();
+        }
+      }
+    } catch (_) {
+      _bookmarks = [];
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _dispatch(
+      DappRequest request,
+      Completer<AdapterResult> completer,
+      WalletService ws,
+      NetworkService ns) async {
+    if (_disposed) return;
+    final ctx = AdapterContext(
+      requestApproval: (
+              {required String title,
+              required String body,
+              required String confirmLabel,
+              String? origin}) =>
+          _showApprovalDialog(
+              title: title, body: body, confirmLabel: confirmLabel),
+      requestTxApproval: (
+              {required String title,
+              required String to,
+              required String amount,
+              String? extra,
+              String? origin}) =>
+          _showTxConfirmDialog(
+              title: title, to: to, amount: amount, extra: extra),
+      currentOrigin: () => _originOf(_currentUrl),
+    );
+    try {
+      final result = await _registry!.dispatch(request, ctx);
+      if (_disposed || completer.isCompleted) return;
+      // Grant / clear per-origin sessions for session methods.
+      if (request.method == 'octra_requestAccounts' ||
+          request.method == 'wallet_connect') {
+        final addr =
+            result is List && result.isNotEmpty ? result.first.toString() : '';
+        if (addr.isNotEmpty) {
+          await _sessions.grant(request.origin,
+              address: addr,
+              scopes: DappBridgeProtocol.requestedPermissions(request.params));
+        }
+      } else if (request.method == 'disconnect' ||
+          request.method == 'wallet_disconnect') {
+        await _sessions.revoke(request.origin);
+        if (mounted) setState(() {});
+      }
+      if (!completer.isCompleted) completer.complete(result);
+    } catch (e) {
+      if (!completer.isCompleted) {
+        if (e is DappError) {
+          completer.completeError(e);
+        } else {
+          completer.completeError(DappError(_shortErr(e)));
+        }
+      }
+    }
+  }
+
+  Future<void> _handleLegacyConnect(Completer<String?> completer) async {
+    if (_disposed) {
+      if (!completer.isCompleted) completer.complete(null);
       return;
     }
-    // Show connection-approval dialog.
+    late final WalletService ws;
+    try {
+      ws = context.read<WalletService>();
+    } catch (_) {
+      if (!completer.isCompleted) {
+        completer.completeError(const DappError(
+            'No active wallet', DappBridgeProtocol.unauthorized));
+      }
+      return;
+    }
+    final address = ws.activeWallet?.address ?? '';
+    if (address.isEmpty) {
+      if (!completer.isCompleted) {
+        completer.completeError(const DappError(
+            'No active wallet', DappBridgeProtocol.unauthorized));
+      }
+      return;
+    }
+    final origin = _originOf(_currentUrl);
     final approved = await _showApprovalDialog(
       title: 'Connect Wallet',
-      body: 'This DApp wants to connect to your wallet.\n\n'
+      body: 'This dApp wants to connect to your wallet.\n\n'
+          'Origin: $origin\n'
           'Address: ${_shortAddr(address)}',
       confirmLabel: 'Connect',
     );
+    if (_disposed || completer.isCompleted) return;
     if (approved) {
-      setState(() => _connectedAddress = address);
-      _bridgeResult(id, jsonEncode({'address': address, 'ok': true}));
+      await _sessions.grant(origin, address: address);
+      completer.complete(address);
+      if (mounted) setState(() {});
     } else {
-      _bridgeError(
-          id, 'User rejected connection', DappBridgeProtocol.userRejected);
+      completer.completeError(const DappError(
+          'User rejected connection', DappBridgeProtocol.userRejected));
     }
   }
 
-  /// RFC-O-1 requestAccounts: approval-gated account list. Reuses the
-  /// connect approval UI but answers with a plain address array.
-  Future<void> _handleRequestAccounts(int id, List params) async {
-    final requested = DappBridgeProtocol.requestedPermissions(params);
-    final ws = context.read<WalletService>();
-    final address = ws.activeWallet?.address;
-    if (address == null || address.isEmpty) {
-      _bridgeError(id, 'No active wallet', DappBridgeProtocol.unauthorized);
-      return;
-    }
-    final approved = await _showApprovalDialog(
-      title: 'Share Account',
-      body: 'This DApp wants to see your Octra address.\n\n'
-          'Address: ${_shortAddr(address)}',
-      confirmLabel: 'Share',
-    );
-    if (approved) {
-      setState(() {
-        _connectedAddress = address;
-        _grantedPermissions = requested;
-      });
-      _bridgeResult(id, jsonEncode([address]));
-    } else {
-      _bridgeError(
-          id, 'User rejected connection', DappBridgeProtocol.userRejected);
-    }
+  // ── Approval dialogs (cancel / dismiss == reject) ──────────────────────
+
+  /// Synchronous re-entrancy guard: only one approval dialog at a time.
+  /// Parallel bridge requests beyond the first are rejected immediately
+  /// (fail-safe) instead of stacking dialogs.
+  bool _guardApproval() {
+    if (_approvalOpen) return false;
+    _approvalOpen = true;
+    return true;
   }
 
-  /// RFC-O-1 encrypted balance: cached PVAC cipher for the active wallet.
-  Future<void> _handleGetEncryptedBalance(int id) async {
-    final ws = context.read<WalletService>();
-    final wallet = ws.activeWallet;
-    if (wallet == null) {
-      _bridgeError(id, 'No active wallet', DappBridgeProtocol.unauthorized);
-      return;
-    }
-    final cipher = ws.encryptedBalanceCipher;
-    if (cipher == null || cipher.isEmpty) {
-      _bridgeError(
-          id, 'Encrypted balance unavailable — refresh the wallet first');
-      return;
-    }
-    _bridgeResult(
-        id, jsonEncode({'address': wallet.address, 'cipher': cipher}));
-  }
-
-  Future<void> _handleRequest(int id, String method, List params) async {
-    final ws = context.read<WalletService>();
-    final ns = context.read<NetworkService>();
-    // Pre-connect reads (mirrors the JS provider + Android gate). `disconnect`
-    // is always allowed: clearing an empty session must never throw.
-    const preConnect = {
-      'octra_accounts',
-      'octra_chainId',
-      'octra_requestAccounts',
-      'disconnect',
-    };
-    if (_connectedAddress == null && !preConnect.contains(method)) {
-      _bridgeError(id, 'Not connected', DappBridgeProtocol.unauthorized);
-      return;
-    }
-    try {
-      switch (method) {
-        case 'octra_accounts':
-          final addr = ws.activeWallet?.address ?? '';
-          _bridgeResult(id, jsonEncode([addr]));
-          break;
-
-        case 'octra_requestAccounts':
-          await _handleRequestAccounts(id, params);
-          break;
-
-        case 'octra_getEncryptedBalance':
-          await _handleGetEncryptedBalance(id);
-          break;
-
-        case 'octra_chainId':
-          final ns = context.read<NetworkService>();
-          _bridgeResult(id, jsonEncode(ns.activeChainId));
-          break;
-
-        case 'octra_getBalance':
-          _bridgeResult(
-              id,
-              jsonEncode({
-                'balance': ws.publicBalance,
-                'encryptedBalance': ws.encryptedBalance,
-                'raw': ws.balanceRaw,
-                'encryptedRaw': ws.encryptedBalanceRaw,
-              }));
-          break;
-
-        case 'getBalance':
-          // 0xio provider path: the adapter reads `balance` (decimal OCT)
-          // and defaults a missing `privateBalance` to 0.
-          _bridgeResult(
-              id,
-              jsonEncode({
-                'balance': ws.publicBalance,
-                'privateBalance': ws.encryptedBalance,
-              }));
-          break;
-
-        case 'octra_networkInfo':
-          _bridgeResult(id, jsonEncode(_networkInfo(ns)));
-          break;
-
-        case 'octra_permissions':
-          _bridgeResult(id, jsonEncode(_grantedPermissions));
-          break;
-
-        case 'disconnect':
-        case 'wallet_disconnect':
-          setState(() {
-            _connectedAddress = null;
-            _grantedPermissions = ['accounts'];
-          });
-          _bridgeResult(id, jsonEncode({'success': true}));
-          break;
-
-        // `window.wallet` facade (Orion-style high-level reads).
-        case 'wallet_connect':
-          await _handleRequestAccounts(id, params);
-          break;
-
-        case 'wallet_getAccounts':
-          _bridgeResult(id, jsonEncode([_connectedAddress ?? '']));
-          break;
-
-        case 'wallet_getAddress':
-          _bridgeResult(id, jsonEncode(_connectedAddress ?? ''));
-          break;
-
-        case 'wallet_getBalance':
-          _bridgeResult(
-              id,
-              jsonEncode({
-                'balance': ws.publicBalance,
-                'encryptedBalance': ws.encryptedBalance,
-                'raw': ws.balanceRaw,
-                'encryptedRaw': ws.encryptedBalanceRaw,
-              }));
-          break;
-
-        case 'wallet_getNetwork':
-          _bridgeResult(
-              id,
-              jsonEncode(
-                  DappBridgeProtocol.networkIdForChain(ns.activeChainId)));
-          break;
-
-        case 'wallet_getNetworkInfo':
-          _bridgeResult(id, jsonEncode(_networkInfo(ns)));
-          break;
-
-        case 'wallet_getNetworks':
-          _bridgeResult(id, jsonEncode([_networkInfo(ns)]));
-          break;
-
-        case 'wallet_getChainId':
-          _bridgeResult(id, jsonEncode(ns.activeChainId));
-          break;
-
-        case 'wallet_getPermissions':
-          _bridgeResult(id, jsonEncode(_grantedPermissions));
-          break;
-
-        case 'wallet_ping':
-          final pingAddr = _connectedAddress ?? ws.activeWallet?.address ?? '';
-          _bridgeResult(
-              id,
-              jsonEncode(DappBridgeProtocol.buildPing(
-                connected: _connectedAddress != null,
-                locked: pingAddr.isEmpty,
-                origin: Uri.tryParse(_urlCtrl.text)?.host ?? '',
-                tsMs: DateTime.now().millisecondsSinceEpoch,
-              )));
-          break;
-
-        case 'getPublicKey':
-          _bridgeError(id, 'No public key available for the active wallet');
-          break;
-
-        case 'octra_switchNetwork':
-          await _handleSwitchNetwork(id, params, ns);
-          break;
-
-        case 'octra_callView':
-          // params: [contractAddr, functionName, args, caller?]
-          if (params.length < 2) {
-            _bridgeError(id,
-                'octra_callView requires [contractAddr, functionName, args]');
-            return;
-          }
-          final addr = params[0] as String;
-          final fn = params[1] as String;
-          final args = params.length > 2 ? params[2] as List : [];
-          final caller = params.length > 3
-              ? params[3] as String
-              : (ws.activeWallet?.address ?? '');
-          final result = await ws.rpcCall(
-              ns.activeNodeUrl, 'contract_call', [addr, fn, args, caller]);
-          _bridgeResult(id, jsonEncode(result));
-          break;
-
-        case 'octra_sendTransaction':
-          await _handleSend(id, params, ws, ns);
-          break;
-
-        case 'octra_sendContractTransaction':
-          // 0xio state-changing call: {contract, method, params, amount?, ou?}.
-          await _handleContractTransaction(id, params, ws, ns);
-          break;
-
-        case 'octra_callContract':
-          // Legacy array form always submits (existing behaviour). The object
-          // form is a view when it carries no value, a submission otherwise.
-          if (params.isNotEmpty &&
-              params[0] is Map &&
-              DappBridgeProtocol.isViewCall(
-                  Map<String, dynamic>.from(params[0] as Map))) {
-            await _handleViewObject(id, params[0] as Map, ws, ns);
-            return;
-          }
-          if (params.isEmpty) {
-            _bridgeError(id, 'octra_callContract requires params');
-            return;
-          }
-          final contractAddr = params[0] as String;
-          final fn = params[1] as String;
-          final callArgs = params.length > 2 ? (params[2] as List) : [];
-          final callAmount = (params.length > 3 ? params[3] : '0').toString();
-          await _submitContractCall(
-              id, contractAddr, fn, callArgs, callAmount, ws, ns);
-          break;
-
-        default:
-          if (DappBridgeProtocol.isKnownUnsupported(method)) {
-            _bridgeError(
-                id,
-                '$method is not supported by this wallet (sign-only '
-                'submission split, message signing and FHE-private '
-                'primitives stay in the wallet UI)',
-                DappBridgeProtocol.unsupportedMethod);
-          } else {
-            _bridgeError(id, 'Unsupported method: $method',
-                DappBridgeProtocol.unsupportedMethod);
-          }
-      }
-    } catch (e) {
-      _bridgeError(id, e.toString().replaceFirst('Exception: ', ''));
-    }
-  }
-
-  /// Network record for third-party adapters: stable id + display fields.
-  Map<String, dynamic> _networkInfo(NetworkService ns) {
-    final mainnet = ns.activeChainId.contains('mainnet');
-    return {
-      'id': mainnet ? 'mainnet' : 'devnet',
-      'name': mainnet ? 'Octra Mainnet' : 'Octra Devnet',
-      'chainId': ns.activeChainId,
-      'rpcUrl': ns.activeNodeUrl,
-      'explorerUrl': ns.activeExplorerUrl,
-      'isTestnet': !mainnet,
-    };
-  }
-
-  /// Network switch: the wallet follows its own configured node, so a page
-  /// can never move it. Answered honestly — `switched` is true only when
-  /// already there.
-  Future<void> _handleSwitchNetwork(
-      int id, List params, NetworkService ns) async {
-    var wanted = '';
-    try {
-      final o = DappBridgeProtocol.txObject(params);
-      wanted = (o['networkId'] ?? o['network'] ?? '').toString().trim();
-    } catch (_) {
-      // Fall through with empty wanted (answered below, never throws).
-    }
-    final current = ns.activeChainId.contains('mainnet') ? 'mainnet' : 'devnet';
-    final same = wanted.isNotEmpty &&
-        (wanted.toLowerCase() == current ||
-            wanted.toLowerCase() == ns.activeChainId.toLowerCase());
-    _bridgeResult(id, jsonEncode({'network': current, 'switched': same}));
-  }
-
-  /// Approval-gated native transfer. Accepts the legacy `[{to, amount, memo?}]`
-  /// and the third-party object form `{to, amount, amountOct?, message?, ...}`.
-  Future<void> _handleSend(
-      int id, List params, WalletService ws, NetworkService ns) async {
-    late final Map<String, dynamic> tx;
-    try {
-      tx = DappBridgeProtocol.txObject(params);
-    } catch (e) {
-      _bridgeError(id, 'Invalid params: $e');
-      return;
-    }
-    if (tx['isPrivate'] == true) {
-      _bridgeError(
-          id,
-          'Private transfers are not served over the provider — '
-          'use the wallet UI',
-          DappBridgeProtocol.unsupportedMethod);
-      return;
-    }
-    final to = (tx['to'] ?? '').toString().trim();
-    if (to.isEmpty) {
-      _bridgeError(id, 'Invalid params: missing recipient address');
-      return;
-    }
-    late final String amount;
-    try {
-      amount = DappBridgeProtocol.resolveTxAmount(tx);
-    } catch (e) {
-      _bridgeError(id, 'Invalid params: $e');
-      return;
-    }
-    if (amount == '0') {
-      _bridgeError(id, 'Invalid params: amount must be greater than 0');
-      return;
-    }
-    var memo = (tx['message'] ?? tx['memo'])?.toString().trim();
-    if (memo != null) {
-      if (memo.isEmpty) {
-        memo = null;
-      } else if (memo.length > 1000) {
-        _bridgeError(id, 'Invalid params: message over 1000 chars');
-        return;
-      }
-    }
-    final approved = await _showTxConfirmDialog(
-      title: 'Send Transaction',
-      to: to,
-      amount: amount,
-      extra: memo != null ? 'Message: $memo' : null,
-    );
-    if (!approved) {
-      _bridgeError(id, 'User rejected transaction');
-      return;
-    }
-    final hash = await ws.sendTransaction(
-      nodeUrl: ns.activeNodeUrl,
-      toAddress: to,
-      amount: amount,
-      memo: memo,
-    );
-    // `hash` + `accepted` for third-party adapters; raw `tx_hash` preserved.
-    _bridgeResult(
-        id,
-        jsonEncode({
-          'tx_hash': hash,
-          'hash': hash,
-          'accepted': true,
-          'success': true,
-          'ok': true
-        }));
-  }
-
-  /// Approval-gated contract submit from the object form
-  /// `{contract, method, params?, amount?, ou?}`.
-  Future<void> _handleContractTransaction(
-      int id, List params, WalletService ws, NetworkService ns) async {
-    late final Map<String, dynamic> o;
-    try {
-      o = DappBridgeProtocol.txObject(params);
-    } catch (e) {
-      _bridgeError(id, 'Invalid params: $e');
-      return;
-    }
-    final contract = (o['contract'] ?? '').toString().trim();
-    final fn = (o['method'] ?? '').toString().trim();
-    if (contract.isEmpty || fn.isEmpty) {
-      _bridgeError(id, 'Invalid params: call needs contract + method');
-      return;
-    }
-    final args = o['params'] is List ? (o['params'] as List) : [];
-    late final String amount;
-    try {
-      amount = o.containsKey('amount') && o['amount'] != null
-          ? DappBridgeProtocol.resolveTxAmount(o)
-          : '0';
-    } catch (e) {
-      _bridgeError(id, 'Invalid params: $e');
-      return;
-    }
-    await _submitContractCall(id, contract, fn, args, amount, ws, ns);
-  }
-
-  /// Read-only view from the object form (no unlock, no approval).
-  Future<void> _handleViewObject(
-      int id, Map view, WalletService ws, NetworkService ns) async {
-    final contract = (view['contract'] ?? '').toString().trim();
-    final fn = (view['method'] ?? '').toString().trim();
-    if (contract.isEmpty || fn.isEmpty) {
-      _bridgeError(id, 'Invalid params: view needs contract + method');
-      return;
-    }
-    final args = view['params'] is List ? (view['params'] as List) : [];
-    final caller =
-        (view['caller'] ?? ws.activeWallet?.address ?? '').toString();
-    final result = await ws.rpcCall(
-        ns.activeNodeUrl, 'contract_call', [contract, fn, args, caller]);
-    _bridgeResult(id, jsonEncode(result));
-  }
-
-  /// Shared approval + submit for contract calls (both param shapes).
-  Future<void> _submitContractCall(
-      int id,
-      String contractAddr,
-      String fn,
-      List callArgs,
-      String callAmount,
-      WalletService ws,
-      NetworkService ns) async {
-    final approved = await _showTxConfirmDialog(
-      title: 'Contract Call',
-      to: contractAddr,
-      amount: callAmount,
-      extra: 'Function: $fn',
-    );
-    if (!approved) {
-      _bridgeError(id, 'User rejected contract call');
-      return;
-    }
-    String txHash;
-    if (callAmount != '0' && callAmount.isNotEmpty) {
-      txHash = await ws.sendContractCallTx(
-        nodeUrl: ns.activeNodeUrl,
-        tokenAddress: contractAddr,
-        toAddress: contractAddr,
-        amount: callAmount,
-      );
-    } else {
-      txHash = await ws.sendContractCall(
-        nodeUrl: ns.activeNodeUrl,
-        contractAddress: contractAddr,
-        functionName: fn,
-        args: callArgs,
-      );
-    }
-    _bridgeResult(
-        id,
-        jsonEncode({
-          'tx_hash': txHash,
-          'hash': txHash,
-          'accepted': true,
-          'success': true,
-          'ok': true
-        }));
-  }
-
-  /// Sends a successful result back to the injected JS provider.
-  void _bridgeResult(int id, String resultJson) {
-    _controller.runJavaScript(
-      'window.__octra_response($id, ${jsonEncode(resultJson)}, null, 0)',
-    );
-  }
-
-  /// Sends an error back to the injected JS provider. The numeric RFC-O-1
-  /// code travels as the 4th argument (old dApps ignore extras).
-  void _bridgeError(int id, String error, [int code = 0]) {
-    _controller.runJavaScript(
-      'window.__octra_response($id, null, ${jsonEncode(error)}, $code)',
-    );
-  }
-
-  // ── Dialogs ──────────────────────────────────────────────────────────────
+  void _releaseApproval() => _approvalOpen = false;
 
   Future<bool> _showApprovalDialog({
     required String title,
     required String body,
     String confirmLabel = 'Approve',
   }) async {
-    if (!mounted) return false;
-    return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(title),
-            content: Text(body),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Reject'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text(confirmLabel),
-              ),
-            ],
-          ),
-        ) ??
-        false;
+    if (!mounted || _disposed) return false;
+    if (!_guardApproval()) return false;
+    try {
+      final result = await showDialog<bool>(
+            context: context,
+            barrierDismissible: true,
+            builder: (ctx) => AlertDialog(
+              title: Text(title),
+              content: Text(body),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Reject'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: Text(confirmLabel),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      return result;
+    } finally {
+      _releaseApproval();
+    }
   }
 
   Future<bool> _showTxConfirmDialog({
@@ -707,147 +385,158 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
     required String amount,
     String? extra,
   }) async {
-    if (!mounted) return false;
-    final cs = Theme.of(context).colorScheme;
-    return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(title),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _TxDetailRow(label: 'To', value: to, mono: true),
-                const SizedBox(height: 8),
-                _TxDetailRow(label: 'Amount', value: '$amount OCT'),
-                if (extra != null) ...[
+    if (!mounted || _disposed) return false;
+    if (!_guardApproval()) return false;
+    try {
+      final cs = Theme.of(context).colorScheme;
+      final result = await showDialog<bool>(
+            context: context,
+            barrierDismissible: true,
+            builder: (ctx) => AlertDialog(
+              title: Text(title),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _TxDetailRow(label: 'To', value: to, mono: true),
                   const SizedBox(height: 8),
-                  _TxDetailRow(label: 'Info', value: extra),
-                ],
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: cs.errorContainer.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning_amber_rounded,
-                          size: 16, color: cs.error),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Review carefully. Blockchain transactions cannot be reversed.',
-                          style: TextStyle(
-                              fontSize: 12, color: cs.onErrorContainer),
+                  _TxDetailRow(label: 'Amount', value: '$amount OCT'),
+                  if (extra != null) ...[
+                    const SizedBox(height: 8),
+                    _TxDetailRow(label: 'Info', value: extra),
+                  ],
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: cs.errorContainer.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded,
+                            size: 16, color: cs.error),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Review carefully. Blockchain transactions cannot be reversed.',
+                            style: TextStyle(
+                                fontSize: 12, color: cs.onErrorContainer),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Reject'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Confirm'),
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Reject'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Confirm'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
+          ) ??
+          false;
+      return result;
+    } finally {
+      _releaseApproval();
+    }
   }
 
-  // ── Navigation helpers ───────────────────────────────────────────────────
+  // ── Navigation ─────────────────────────────────────────────────────────
 
-  void _navigateTo(String raw) {
+  String _originOf(String url) {
+    final t = url.trim();
+    if (t.isEmpty || t.toLowerCase() == 'about:blank') return 'about:blank';
+    if (OctUrl.isOctUrl(t)) {
+      try {
+        return AdapterValidation.normalizeOrigin(t);
+      } catch (_) {
+        return t;
+      }
+    }
+    try {
+      final uri = Uri.parse(t);
+      if ((uri.scheme == 'http' || uri.scheme == 'https') &&
+          uri.host.isNotEmpty) {
+        return AdapterValidation.normalizeOrigin(t);
+      }
+    } catch (_) {}
+    return t;
+  }
+
+  void _openUrl(String raw) {
     var url = raw.trim();
     if (url.isEmpty) return;
-    // oct:// circle URLs and about:blank pass through untouched.
-    if (_isOctUrl(url)) {
+    if (OctUrl.isOctUrl(url)) {
       _loadOctUrl(url);
       return;
     }
-    if (url == 'about:blank') {
-      _urlCtrl.text = url;
-      _controller.loadRequest(Uri.parse(url));
+    if (url.toLowerCase() == 'about:blank') {
+      if (!mounted) return;
+      setState(() {
+        _showingStartpage = true;
+        _currentUrl = 'about:blank';
+        _urlCtrl.text = '';
+        _isLoading = false;
+      });
+      unawaited(_controller.loadRequest(Uri.parse('about:blank')));
       return;
     }
-    // Auto-prefix scheme
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    if (!url.startsWith('http://') &&
+        !url.startsWith('https://') &&
+        !url.startsWith('oct://')) {
       url = 'https://$url';
     }
-    _urlCtrl.text = url;
-    _controller.loadRequest(Uri.parse(url));
+    if (!mounted) return;
+    setState(() {
+      _showingStartpage = false;
+      _currentUrl = url;
+      _urlCtrl.text = url;
+      _isLoading = true;
+    });
+    unawaited(_controller.loadRequest(Uri.parse(url)));
   }
 
-  // ── oct:// protocol support ──────────────────────────────────────────
-  //
-  // Octra circle URLs look like oct://<circleId>/<path> (bare circle ID
-  // defaults to /index.html). If the local web server is running, pages load
-  // through its /oct/ gateway with full subresource + /api support.
-  // Otherwise content is fetched directly over JSON-RPC (read-only render).
-
-  bool _isOctUrl(String url) => OctUrl.isOctUrl(url);
-
-  /// Split oct://circleId/path into [circleId, path], preserving base58 case.
-  List<String> _parseOctUrl(String url) {
-    final ref = OctUrl.parse(url);
-    return [ref.circleId, ref.path];
-  }
-
-  bool _isTextMime(String mime) => OctUrl.isTextMime(mime);
+  void _navigateTo(String raw) => _openUrl(raw);
 
   Future<void> _loadOctUrl(String octUrl) async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
+      _showingStartpage = false;
+      _currentUrl = octUrl;
       _urlCtrl.text = octUrl;
     });
     try {
-      final parts = _parseOctUrl(octUrl);
-      if (parts[0].isEmpty) throw Exception('circle_id required');
-      final server = LocalWebServerService.instance;
-      if (server.enabled && server.isRunning) {
-        // Full gateway: subresources + interactive /api/* work.
-        await _controller.loadRequest(Uri.parse(OctUrl.gatewayHttpUrl(
-            parts[0], parts[1],
-            port: LocalWebServerService.port)));
-        return;
-      }
-      // Direct RPC fetch (read-only render, no server needed).
+      final ref = OctUrl.parse(octUrl);
+      if (ref.circleId.isEmpty) throw Exception('circle_id required');
       final ws = context.read<WalletService>();
       final ns = context.read<NetworkService>();
       final asset = await ws
-          .rpcCall(ns.activeNodeUrl, 'circle_asset', [parts[0], parts[1]]);
+          .rpcCall(ns.activeNodeUrl, 'circle_asset', [ref.circleId, ref.path]);
       final map = (asset as Map?)?.cast<String, dynamic>() ?? {};
       if (map.containsKey('error')) {
         throw Exception(map['error'].toString());
       }
       final mime = OctUrl.cleanMime(map['content_type']?.toString());
       final raw = base64Decode(map['body_b64']?.toString() ?? '');
-      if (!mounted) return;
+      if (!mounted || _disposed) return;
       if (OctUrl.exceedsDirectLimit(raw.lengthInBytes)) {
-        if (server.enabled && server.isRunning) {
-          await _controller.loadRequest(Uri.parse(OctUrl.gatewayHttpUrl(
-              parts[0], parts[1],
-              port: LocalWebServerService.port)));
-        } else {
-          setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Page too large to render directly. '
-                    'Enable Local Web Server in Settings for large circle pages.')),
-          );
-        }
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Page too large to render directly '
+                  '(over 8 MB). Only the direct-render path is supported.')),
+        );
         return;
       }
-      if (_isTextMime(mime)) {
+      if (OctUrl.isTextMime(mime)) {
         await _controller.loadHtmlString(
           utf8.decode(raw, allowMalformed: true),
           baseUrl: octUrl,
@@ -861,7 +550,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Cannot open $octUrl: $e')),
+        SnackBar(content: Text('Cannot open $octUrl: ${_shortErr(e)}')),
       );
     }
   }
@@ -870,45 +559,69 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       ? '${addr.substring(0, 8)}…${addr.substring(addr.length - 6)}'
       : addr;
 
-  // ── Build ────────────────────────────────────────────────────────────────
+  static String _shortErr(Object e) {
+    final s = e.toString().replaceFirst('Exception: ', '');
+    return s.length > 220 ? '${s.substring(0, 220)}…' : s;
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _bridge?.dispose();
+    _bridge = null;
+    _urlCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final connected =
+        _sessions.isConnected(_originOf(_currentUrl)) && !_showingStartpage;
 
     return Scaffold(
       appBar: AppBar(
-        // Page title (truncated) or "DApp Browser" fallback
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _pageTitle.isEmpty ? 'DApp Browser' : _pageTitle,
+              _showingStartpage
+                  ? 'Browser'
+                  : (_pageTitle.isEmpty ? 'DApp Browser' : _pageTitle),
               style: theme.textTheme.titleMedium,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            if (_connectedAddress != null)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                        color: Colors.green, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Connected · ${_shortAddr(_connectedAddress!)}',
-                    style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
-                  ),
-                ],
-              ),
+            if (connected)
+              Text(
+                'Connected · ${_originOf(_currentUrl)}${_privateMode ? ' · Private' : ''}',
+                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              )
+            else if (_privateMode && !_showingStartpage)
+              Text('Private mode',
+                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.home_outlined),
+            tooltip: 'Home',
+            onPressed: () {
+              if (!mounted) return;
+              setState(() {
+                _showingStartpage = true;
+                _currentUrl = 'about:blank';
+                _urlCtrl.text = '';
+                _isLoading = false;
+              });
+              unawaited(_controller.loadRequest(Uri.parse('about:blank')));
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.more_vert),
             tooltip: 'Options',
@@ -929,48 +642,46 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       ),
       body: Column(
         children: [
-          // ── URL bar + navigation controls ──────────────────────────────
           Container(
             color: cs.surfaceContainerHighest,
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
             child: Row(
               children: [
-                // Back
                 IconButton(
                   icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                  onPressed: _canGoBack ? () => _controller.goBack() : null,
+                  onPressed: _canGoBack && !_showingStartpage
+                      ? () => unawaited(_controller.goBack())
+                      : null,
                   constraints:
                       const BoxConstraints(minWidth: 36, minHeight: 36),
                   padding: EdgeInsets.zero,
                 ),
-                // Forward
                 IconButton(
                   icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
-                  onPressed:
-                      _canGoForward ? () => _controller.goForward() : null,
+                  onPressed: _canGoForward && !_showingStartpage
+                      ? () => unawaited(_controller.goForward())
+                      : null,
                   constraints:
                       const BoxConstraints(minWidth: 36, minHeight: 36),
                   padding: EdgeInsets.zero,
                 ),
-                // Reload / stop
                 IconButton(
                   icon: Icon(
                     _isLoading ? Icons.close_rounded : Icons.refresh_rounded,
                     size: 18,
                   ),
-                  onPressed: _isLoading
-                      ? () => _controller.reload()
-                      : () => _controller.reload(),
+                  onPressed: _showingStartpage
+                      ? null
+                      : () => unawaited(_controller.reload()),
                   constraints:
                       const BoxConstraints(minWidth: 36, minHeight: 36),
                   padding: EdgeInsets.zero,
                 ),
-                // URL field
                 Expanded(
                   child: TextField(
                     controller: _urlCtrl,
                     decoration: InputDecoration(
-                      hintText: 'Enter URL or DApp address…',
+                      hintText: 'Enter URL or search…',
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
@@ -1003,23 +714,44 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
               ],
             ),
           ),
-
-          // ── WebView ───────────────────────────────────────────────────
-          Expanded(child: WebViewWidget(controller: _controller)),
+          Expanded(
+            child: _showingStartpage
+                ? ListenableBuilder(
+                    listenable: Listenable.merge([_recent, _sessions]),
+                    builder: (_, __) => StartpageView(
+                      isLoading: !_recent.isLoaded,
+                      error: null,
+                      pages: _recent.pages,
+                      bookmarks:
+                          _bookmarks.isEmpty ? _defaultShortcuts : _bookmarks,
+                      onOpen: (url, target) async {
+                        // "New tab" is approximated by opening in place: the
+                        // in-app browser is single-view. Documented in README.
+                        _openUrl(url);
+                      },
+                      onDelete: (url) async => _recent.remove(url),
+                      onClearAll: () async => _recent.clearAll(),
+                      onRetry: () async => _recent.load(),
+                      onSearch: (resolved) async => _openUrl(resolved),
+                    ),
+                  )
+                : WebViewWidget(controller: _controller),
+          ),
         ],
       ),
-
-      // ── Shortcut speed-dial ──────────────────────────────────────────
-      floatingActionButton: FloatingActionButton.small(
-        tooltip: 'DApp shortcuts',
-        onPressed: _showShortcuts,
-        child: const Icon(Icons.apps_rounded),
-      ),
+      floatingActionButton: _showingStartpage
+          ? null
+          : FloatingActionButton.small(
+              tooltip: 'DApp shortcuts',
+              onPressed: _showShortcuts,
+              child: const Icon(Icons.apps_rounded),
+            ),
     );
   }
 
   void _showShortcuts() {
     final cs = Theme.of(context).colorScheme;
+    final shortcuts = _bookmarks.isEmpty ? _defaultShortcuts : _bookmarks;
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -1033,12 +765,12 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
                   style: Theme.of(ctx).textTheme.titleMedium),
             ),
             const Divider(height: 1),
-            ..._dappShortcuts.map(
+            ...shortcuts.map(
               (d) => ListTile(
-                leading: Text(d['icon'] ?? '🌐',
-                    style: const TextStyle(fontSize: 24)),
-                title: Text(d['name'] ?? ''),
-                subtitle: Text(d['description'] ?? ''),
+                leading: _FaviconMini(url: d['url'] ?? ''),
+                title: Text(d['name'] ?? d['url'] ?? ''),
+                subtitle: Text(d['url'] ?? '',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
                 trailing: Icon(Icons.open_in_browser_rounded,
                     size: 18, color: cs.primary),
                 onTap: () {
@@ -1055,61 +787,109 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
   }
 
   void _showOptionsMenu() async {
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final RenderBox overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        button.localToGlobal(Offset.zero, ancestor: overlay),
-        button.localToGlobal(button.size.bottomRight(Offset.zero),
-            ancestor: overlay),
-      ),
-      Offset.zero & overlay.size,
-    );
-
     final choice = await showMenu<String>(
       context: context,
-      position: position,
+      position: RelativeRect.fromLTRB(
+          MediaQuery.sizeOf(context).width - 40, kToolbarHeight + 60, 8, 0),
       items: [
         const PopupMenuItem(value: 'copy_url', child: Text('Copy URL')),
         const PopupMenuItem(
-            value: 'disconnect', child: Text('Disconnect wallet')),
+            value: 'bookmark', child: Text('Bookmark this page')),
+        PopupMenuItem(
+            value: 'private',
+            child: Text(_privateMode
+                ? 'Exit private mode'
+                : 'Private mode (no history)')),
+        const PopupMenuItem(
+            value: 'disconnect', child: Text('Disconnect this site')),
         const PopupMenuItem(value: 'reload', child: Text('Reload page')),
-        const PopupMenuItem(value: 'clear', child: Text('Back to home')),
+        const PopupMenuItem(value: 'home', child: Text('Back to home')),
       ],
     );
-
+    if (!mounted) return;
     switch (choice) {
       case 'copy_url':
-        // ignore: use_build_context_synchronously
         await _copyUrl();
         break;
+      case 'bookmark':
+        await _addBookmark();
+        break;
+      case 'private':
+        setState(() => _privateMode = !_privateMode);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(_privateMode
+                  ? 'Private mode on — visits are not recorded'
+                  : 'Private mode off')));
+        }
+        break;
       case 'disconnect':
-        setState(() => _connectedAddress = null);
-        _controller.runJavaScript(
-            '(function(){ if(window.octra) { window.octra.disconnect(); } })()');
+        await _sessions.revoke(_originOf(_currentUrl));
+        if (mounted) {
+          setState(() {});
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Site disconnected')));
+        }
+        try {
+          await _controller.runJavaScript(
+              '(function(){ if(window.octra) { window.octra.disconnect(); } })()');
+        } catch (_) {}
         break;
       case 'reload':
-        _controller.reload();
+        if (!_showingStartpage) unawaited(_controller.reload());
         break;
-      case 'clear':
-        _navigateTo('about:blank');
+      case 'home':
+        setState(() {
+          _showingStartpage = true;
+          _currentUrl = 'about:blank';
+          _urlCtrl.text = '';
+          _isLoading = false;
+        });
+        unawaited(_controller.loadRequest(Uri.parse('about:blank')));
         break;
     }
   }
 
   Future<void> _copyUrl() async {
-    final url = await _controller.currentUrl() ?? '';
+    String url = '';
+    try {
+      url = await _controller.currentUrl() ?? _currentUrl;
+    } catch (_) {
+      url = _currentUrl;
+    }
     if (!mounted) return;
-    // ignore: use_build_context_synchronously
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text('Copied: $url')));
   }
-}
 
-// ────────────────────────────────────────────────────────────────────────────
-//  Small helper widget for transaction confirm dialog rows
-// ────────────────────────────────────────────────────────────────────────────
+  Future<void> _addBookmark() async {
+    if (_showingStartpage || _currentUrl == 'about:blank') return;
+    final exists = _bookmarks.any((b) => b['url'] == _currentUrl);
+    if (exists) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Already bookmarked')));
+      }
+      return;
+    }
+    final updated = [
+      ..._bookmarks,
+      {
+        'name': _pageTitle.isEmpty ? _currentUrl : _pageTitle,
+        'url': _currentUrl
+      }
+    ];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kBookmarks, jsonEncode(updated));
+    } catch (_) {}
+    if (mounted) {
+      setState(() => _bookmarks = updated);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Bookmarked')));
+    }
+  }
+}
 
 class _TxDetailRow extends StatelessWidget {
   final String label;
@@ -1146,288 +926,21 @@ class _TxDetailRow extends StatelessWidget {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-//  window.octra provider script — injected on every page load
-// ────────────────────────────────────────────────────────────────────────────
+class _FaviconMini extends StatelessWidget {
+  final String url;
+  const _FaviconMini({required this.url});
 
-/// The JavaScript provider that DApps interact with via `window.octra`.
-/// This mirrors the Chrome extension's inject.js API surface so DApps built
-/// for the extension work seamlessly inside the in-app browser.
-const String _octraProviderJs = r'''
-(function() {
-  'use strict';
-  if (window.octra) return;
-
-  let _requestId = 0;
-  const _pending = new Map();
-  const _listeners = {};
-  let _connected = false;
-  let _accounts = [];
-
-  function _emit(event, data) {
-    for (const cb of (_listeners[event] || [])) {
-      try { cb(data); } catch (_) {}
-    }
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(Icons.language_rounded, size: 18, color: cs.primary),
+    );
   }
-
-  // Called by Flutter: window.__octra_response(id, resultJson, error, code)
-  // RFC-O-1: the 4th argument carries the numeric error code (0 = none).
-  window.__octra_response = function(id, resultJson, error, code) {
-    const p = _pending.get(id);
-    if (!p) return;
-    _pending.delete(id);
-    if (error) {
-      const err = new Error(error);
-      if (code) err.code = code;
-      p.reject(err);
-    } else {
-      try {
-        p.resolve(resultJson !== null ? JSON.parse(resultJson) : null);
-      } catch(e) {
-        p.resolve(resultJson);
-      }
-    }
-  };
-
-  function _send(msg) {
-    return new Promise((resolve, reject) => {
-      _pending.set(msg.id, { resolve, reject });
-      OctraWalletBridge.postMessage(JSON.stringify(msg));
-    });
-  }
-
-  const octraProvider = {
-    isOctra: true,
-    chainId: '__CHAIN_ID__',
-    get accounts() { return [..._accounts]; },
-    get isConnected() { return _connected; },
-
-    async connect() {
-      const r = await _send({ type: 'connect', id: ++_requestId });
-      _connected = true;
-      _accounts = [r.address];
-      _emit('connect', r);
-      _emit('accountsChanged', _accounts);
-      return r;
-    },
-
-    async disconnect() {
-      _connected = false;
-      _accounts = [];
-      _emit('disconnect', {});
-      _emit('accountsChanged', []);
-      return { ok: true };
-    },
-
-    async request({ method, params = [] }) {
-      if (!_connected && method !== 'octra_accounts' && method !== 'octra_chainId'
-          && method !== 'disconnect') {
-        throw new Error('Wallet not connected. Call window.octra.connect() first.');
-      }
-      return _send({ type: 'request', id: ++_requestId, method, params }).then(r => {
-        // Third-party adapters drive request() directly (never the helpers
-        // above) — keep the local session flags in sync so the pre-connect
-        // gate and .isConnected stay truthful.
-        if (method === 'octra_requestAccounts' && Array.isArray(r)) {
-          _connected = true;
-          _accounts = r;
-          _emit('connect', { address: r[0] });
-          _emit('accountsChanged', _accounts);
-        }
-        if (method === 'disconnect') {
-          _connected = false;
-          _accounts = [];
-          _emit('disconnect', {});
-          _emit('accountsChanged', []);
-        }
-        return r;
-      });
-    },
-
-    // Convenience helpers
-    async getBalance() {
-      return this.request({ method: 'octra_getBalance', params: [] });
-    },
-    // RFC-O-1 aliases (dual-stack with the legacy dialect above).
-    async requestAccounts() {
-      const accounts = await this.request({ method: 'octra_requestAccounts' });
-      _connected = true;
-      _accounts = accounts;
-      _emit('connect', { address: accounts[0] });
-      _emit('accountsChanged', _accounts);
-      return accounts;
-    },
-    async getEncryptedBalance() {
-      return this.request({ method: 'octra_getEncryptedBalance' });
-    },
-    async sendTransaction(to, amount, memo) {
-      return this.request({
-        method: 'octra_sendTransaction',
-        params: [{ to, amount: String(amount), memo }]
-      });
-    },
-    async callContract(address, method, params = [], amount = '0') {
-      return this.request({
-        method: 'octra_callContract',
-        params: [address, method, params, String(amount)]
-      });
-    },
-    async callView(address, method, params = []) {
-      return this.request({
-        method: 'octra_callView',
-        params: [address, method, params]
-      });
-    },
-
-    on(event, cb) {
-      if (!_listeners[event]) _listeners[event] = [];
-      _listeners[event].push(cb);
-      return this;
-    },
-    off(event, cb) {
-      if (_listeners[event]) {
-        _listeners[event] = _listeners[event].filter(c => c !== cb);
-      }
-      return this;
-    },
-  };
-
-  // window.wallet: Orion-style high-level facade over the same bridge.
-  // Only reads + session calls are served; every sign method throws
-  // METHOD_FORBIDDEN locally (approvals submit here — payloads are
-  // never handed out). Deliberately writable+configurable so a dApp
-  // bundling its own injector neither crashes nor silently loses.
-  const _walletListeners = {};
-  function _wemit(event, data) {
-    for (const cb of (_walletListeners[event] || [])) {
-      try { cb(data); } catch (_) {}
-    }
-  }
-  function _wforbidden(method) {
-    const err = new Error(method + ' is sign-only and not served by this wallet');
-    err.code = 'METHOD_FORBIDDEN';
-    throw err;
-  }
-  async function _walletConnectResult(address) {
-    let publicKey = '';
-    try {
-      const pk = await octraProvider.request({method:'getPublicKey'});
-      publicKey = (pk && pk.publicKey) || '';
-    } catch (e) { publicKey = ''; }
-    const networkInfo = await octraProvider.request({method:'octra_networkInfo'});
-    const chainId = await octraProvider.request({method:'octra_chainId'});
-    const permissions = await octraProvider.request({method:'octra_permissions'});
-    return { address, publicKey, accounts: [{address}],
-      network: networkInfo.id, networkInfo, chainId,
-      capabilities: ['ping','events'] };
-  }
-  const walletProvider = {
-    async connect() {
-      const accounts = await octraProvider.request({method:'octra_requestAccounts', params:[]});
-      const address = accounts[0];
-      if (!address) throw new Error('Connect did not yield an address');
-      const result = await _walletConnectResult(address);
-      _wemit('connect', result);
-      _wemit('accountChanged', {address});
-      return result;
-    },
-    async disconnect() {
-      await octraProvider.request({method:'disconnect'});
-      _wemit('disconnect', {reason:'user disconnect'});
-      return undefined;
-    },
-    isConnected() { return octraProvider.isConnected; },
-    async getAccounts() {
-      const a = await octraProvider.request({method:'octra_accounts'});
-      return a.filter(x => !!x).map(address => ({address}));
-    },
-    async getAddress() {
-      const a = await octraProvider.request({method:'octra_accounts'});
-      return a[0] || '';
-    },
-    async getPublicKey() {
-      const r = await octraProvider.request({method:'getPublicKey'});
-      return r.publicKey;
-    },
-    async getBalance() {
-      const r = await octraProvider.request({method:'octra_getBalance'});
-      const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-      return { balance: String(r.balance ?? r.public ?? ''),
-        balanceRaw: String(r.balance_raw ?? r.raw ?? ''),
-        nonce: num(r.nonce ?? r.pending_nonce) };
-    },
-    async getNetwork() {
-      const n = await octraProvider.request({method:'octra_networkInfo'});
-      return n.id;
-    },
-    async getNetworkInfo() {
-      return octraProvider.request({method:'octra_networkInfo'});
-    },
-    async getNetworks() {
-      const n = await octraProvider.request({method:'octra_networkInfo'});
-      return [n];
-    },
-    async getChainId() {
-      return octraProvider.request({method:'octra_chainId'});
-    },
-    async getPermissions() {
-      return octraProvider.request({method:'octra_permissions'});
-    },
-    async signMessage() { _wforbidden('wallet_signMessage'); },
-    async signTypedData() { _wforbidden('wallet_signTypedData'); },
-    async approveContract() { _wforbidden('wallet_approveContract'); },
-    async signContract() { _wforbidden('wallet_signContract'); },
-    async signTransfer() { _wforbidden('wallet_signTransfer'); },
-    async ping() {
-      return { pong: true, v: 1, connected: octraProvider.isConnected,
-        locked: !octraProvider.isConnected, capabilities: ['ping','events'],
-        origin: window.location.origin, ts: Date.now() };
-    },
-    async isAlive() { return octraProvider.isConnected; },
-    async request(method, params) {
-      const m = String(method == null ? '' : method);
-      const low = m.trim().toLowerCase();
-      const canon = low.startsWith('orion_wallet_') ? 'wallet_' + low.slice(13) : low;
-      if (/^(wallet_)?(signmessage|signtypeddata|approvecontract|signcontract|signtransfer|signtransaction|submittransaction|sendtransaction|broadcasttransaction|transfer|swap|bridge)$/.test(canon)
-          || /(sendtransaction|broadcast|(^|_)transfer$|(^|_)swap$|(^|_)bridge$)/.test(canon)) {
-        const err = new Error(canon + ' is prohibited: this wallet never broadcasts through the SDK');
-        err.code = 'METHOD_FORBIDDEN';
-        throw err;
-      }
-      return octraProvider.request({method: m, params});
-    },
-    on(event, cb) {
-      if (!_walletListeners[event]) _walletListeners[event] = [];
-      _walletListeners[event].push(cb);
-      return this;
-    },
-    off(event, cb) {
-      if (_walletListeners[event]) {
-        _walletListeners[event] = _walletListeners[event].filter(c => c !== cb);
-      }
-      return this;
-    },
-    once(event, cb) {
-      const self = this;
-      const wrap = (d) => { self.off(event, wrap); cb(d); };
-      return this.on(event, wrap);
-    },
-  };
-  try {
-    if (!window.wallet) {
-      Object.defineProperty(window, 'wallet', {
-        value: Object.freeze(walletProvider), writable: true, configurable: true });
-    }
-  } catch (e) { /* another provider won the race; window.octra above still serves */ }
-  window.dispatchEvent(new CustomEvent('octra:wallet#initialized',
-    {detail: {provider: window.wallet || walletProvider}}));
-
-  Object.defineProperty(window, 'octra', {
-    value: Object.freeze(octraProvider),
-    writable: false,
-    configurable: false,
-  });
-  window.dispatchEvent(new Event('octra#initialized'));
-  console.log('[Octra] window.octra provider injected');
-})();
-''';
+}

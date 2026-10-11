@@ -73,6 +73,8 @@ public class ConfirmBottomSheet extends BottomSheetDialogFragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        // Keep sheet content above the navigation / gesture bar.
+        InsetsHelper.applySystemBars(view, false);
 
         Bundle args = getArguments();
         String title    = args != null ? args.getString(ARG_TITLE, "Confirm") : "Confirm";

@@ -2,16 +2,17 @@ name: E2E
 
 on:
   workflow_dispatch:
-  # The adapter page tests are hermetic (loopback only, no devnet), so they can
-  # run on any change that could affect the served pages or their modules —
-  # nightly alone would hide a MIME/import regression for a week.
+  # Browser/dapp adapter E2E covers the in-app browser and its JS bridges, so it
+  # runs on any change that could affect the browser UI or its modules —
+  # nightly alone would hide a regression for a week.
   pull_request:
     paths:
       - 'flutter/integration_test/**'
-      - 'flutter/assets/webcli/**'
-      - 'flutter/lib/services/local_web_server_service.dart'
-      - 'android-native/app/src/main/assets/webcli/**'
-      - 'android-native/app/src/main/java/com/octopus/wallet/LocalWebServerService.java'
+      - 'flutter/lib/services/dapp/**'
+      - 'flutter/lib/services/recent_sites_service.dart'
+      - 'android-native/app/src/main/java/com/octopus/wallet/OctraWalletAdapter.java'
+      - 'android-native/app/src/main/java/com/octopus/wallet/DappJsBridge.java'
+      - 'android-native/app/src/main/java/com/octopus/wallet/RecentVisitsStore.java'
       - 'sdk/src/**'
       - '.github/workflows/e2e.yml'
   schedule:
@@ -49,4 +50,4 @@ jobs:
           profile: pixel_7
           force-avd-creation: false
           disable-animations: true
-          script: cd flutter && if [ "${{ github.event_name }}" = "pull_request" ]; then flutter test integration_test/smoke_test.dart integration_test/oct_circle_test.dart integration_test/oct_browser_test.dart integration_test/adapter_http_test.dart; else flutter test integration_test; fi
+          script: cd flutter && if [ "${{ github.event_name }}" = "pull_request" ]; then flutter test integration_test/smoke_test.dart integration_test/oct_circle_test.dart integration_test/oct_browser_test.dart; else flutter test integration_test; fi

@@ -15,9 +15,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * dApp origin allowlist: add hosts, revoke access per site. Revoking removes
+ * the persisted permission immediately; the in-app browser re-checks the
+ * allowlist on every request, so live sessions for a revoked origin stop
+ * working without restarting the app.
+ */
 public class DappOriginsActivity extends BaseTxActivity {
 
     private RecyclerView originsRecyclerView;
+    private TextView emptyView;
+    private final DappSessionManager sessions = new DappSessionManager();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,10 +56,14 @@ public class DappOriginsActivity extends BaseTxActivity {
     private void renderOrigins() {
         List<String> origins = new ArrayList<>(DappOriginStore.getAllowedOrigins(this));
         Collections.sort(origins);
-        if (origins.isEmpty()) {
-            origins.add("No origins yet");
-        }
         originsRecyclerView.setAdapter(new OriginsAdapter(origins));
+    }
+
+    private void revoke(String host) {
+        if (host == null || host.trim().isEmpty()) return;
+        sessions.revoke(this, host);
+        renderOrigins();
+        showSuccess("Access revoked: " + host);
     }
 
     private final class OriginsAdapter extends RecyclerView.Adapter<OriginsAdapter.VH> {
@@ -65,21 +77,17 @@ public class DappOriginsActivity extends BaseTxActivity {
         @Override
         public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             View view = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.spinner_item_wallet, parent, false);
+                    .inflate(R.layout.item_dapp_origin, parent, false);
             return new VH(view);
         }
 
         @Override
         public void onBindViewHolder(@NonNull VH holder, int position) {
             String host = items.get(position);
-            holder.text.setText(host);
+            holder.host.setText(host);
+            holder.revoke.setOnClickListener(v -> revoke(host));
             holder.itemView.setOnLongClickListener(v -> {
-                if (host.trim().isEmpty() || "No origins yet".equals(host)) {
-                    return true;
-                }
-                DappOriginStore.removeOrigin(DappOriginsActivity.this, host);
-                renderOrigins();
-                showSuccess("Origin removed: " + host);
+                revoke(host);
                 return true;
             });
         }
@@ -90,15 +98,13 @@ public class DappOriginsActivity extends BaseTxActivity {
         }
 
         final class VH extends RecyclerView.ViewHolder {
-            final TextView text;
+            final TextView host;
+            final View revoke;
+
             VH(View itemView) {
                 super(itemView);
-                // spinner_item_wallet uses android:id/text1
-                if (itemView instanceof TextView) {
-                    text = (TextView) itemView;
-                } else {
-                    text = itemView.findViewById(android.R.id.text1);
-                }
+                host = itemView.findViewById(R.id.origin_host);
+                revoke = itemView.findViewById(R.id.origin_revoke);
             }
         }
     }

@@ -116,7 +116,14 @@ Desktop-gated developer tools for smart contract interaction:
   Ed25519 signatures.
 - **PVAC pubkey auto-registration** — Automatically registers the PVAC public
   key on-chain before encrypt/decrypt/stealth operations.
-- **dApp origin allowlist** — Manage permitted dApp hostnames.
+- **dApp wallet adapter (no local server)** — Websites talk to the wallet
+  through an isolated `OctraWalletBridge` JavaScript channel (no
+  `http://127.0.0.1` server). See [dApp bridge](#dapp-bridge).
+- **Per-site connection sessions** — Approving `connect` / `requestAccounts`
+  grants that origin (and only that origin) a session; revoke anytime from
+  Connected Sites (`/dapp-origins`) or Permissions Center.
+- **Browser Startpage** — Search/URL field, bookmarks, and the last 10
+  visited sites (deduped, persisted, private-mode aware).
 
 ### Network
 
@@ -186,7 +193,32 @@ Desktop-gated developer tools for smart contract interaction:
 | `/biometric-settings` | BiometricSettingsScreen | Settings |
 | `/address-book` | AddressBookScreen | Settings |
 | `/address-book-entry` | AddressBookEntryScreen | Settings |
-| `/dapp-origins` | DappOriginsScreen | Settings |
+| `/dapp-origins` | DappOriginsScreen (Connected Sites) | Settings |
+
+## dApp Bridge
+
+Modular adapter in `lib/services/dapp/`:
+
+| File | Role |
+|------|------|
+| `wallet_adapter.dart` | `WalletAdapter` interface, `DappError`, origin/payload validation |
+| `octra_adapter.dart` | Octra-chain methods over real wallet + RPC data |
+| `adapter_registry.dart` | Canonical-method dispatch (`DappBridgeProtocol`) |
+| `js_bridge.dart` | `OctraWalletBridge` channel: pending ids, 30 s reads / 5 min approval timeouts, duplicate + oversize rejection, cancel on navigation/tab-close/WebView-destroy, error-code mapping, `window.octra` provider JS |
+| `dapp_session_store.dart` | Per-origin sessions (SharedPreferences), revocable |
+
+Rules: every sensitive call opens an approval dialog showing the origin;
+dismiss == reject. No mock providers — unsupported methods throw
+`unsupportedMethod (4200)`. `oct://` pages render by direct RPC fetch
+(read-only, 8 MB cap); pages over the cap are refused with a message.
+
+Known limitations (honest, not silently mocked):
+
+- "Open in new tab" opens in place — the in-app browser is single-view.
+- No `http://127.0.0.1` server anymore: external WebCLI/extension clients
+  and the old `assets/webcli/` pages were removed with it.
+- Private transfers, message signing, and FHE-private primitives stay in
+  the wallet UI and are explicitly rejected over the provider.
 | `/permissions-center` | PermissionsCenterScreen | Settings |
 | `/dev-tools` | DevToolsScreen | DevTools |
 | `/dev-deploy` | DevDeployScreen | DevTools |

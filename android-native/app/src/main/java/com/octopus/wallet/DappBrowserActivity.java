@@ -4,11 +4,11 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
-import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -22,32 +22,39 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 /**
- * In-app DApp browser with window.octra provider injection.
- * <p>
- * Loads DApp URLs in a WebView and injects the Octra wallet provider,
- * allowing DApps to interact with the native wallet for signing, balance
- * queries, and contract calls — just like the Chrome extension.
- * <p>
- * Origin validation uses {@link DappOriginStore}.
+ * In-app dApp browser with Startpage + modular {@code window.octra} provider.
+ *
+ * <p>Provider calls enter through {@link DappJsBridge} (minimal, validated
+ * {@code @JavascriptInterface}) and dispatch to {@link AdapterRegistry}
+ * adapters — currently {@link OctraWalletAdapter}. Sensitive actions require
+ * explicit approval via {@link ConfirmActionActivity}; dismissal or cancel
+ * always counts as rejection, never approval.
  */
-public class DappBrowserActivity extends AppCompatActivity {
+public class DappBrowserActivity extends AppCompatActivity implements DappJsBridge.Host {
 
-    private static final String DEFAULT_URL = "http://localhost:3000";
+    private static final String TAG = "DappBrowser";
+    private static final long NAV_DEBOUNCE_MS = 600L;
 
     private WebView webView;
     private EditText urlInput;
@@ -55,66 +62,116 @@ public class DappBrowserActivity extends AppCompatActivity {
     private LinearLayout connectionStatus;
     private TextView connectionText;
 
-    private boolean isConnected = false;
-    private String connectedAddress = null;
-    /**
-     * Scopes granted at the last approval, echoed back by
-     * {@code octra_permissions}. Third-party adapters (0xio) negotiate these;
-     * this wallet approves all-or-nothing, so the list is what the page asked
-     * for — never more. Defaults to {@code ["accounts"]}.
-     */
-    private List<String> connectedPermissions =
-            new ArrayList<>(Collections.singletonList("accounts"));
+    private View startpageRoot;
+    private RecyclerView recentList;
+    private View recentEmpty;
+    private View recentError;
+    private RecentVisitsAdapter recentAdapter;
+
+    private final DappSessionManager sessions = new DappSessionManager();
+    private DappJsBridge bridge;
+    private boolean destroyed = false;
+    private boolean privateMode = false;
+    private String currentHost = "";
+    private String lastPageTitle = "";
+    private long lastNavAt = 0L;
+
+    // ─── Approval queue (one dialog at a time; cancel == deny) ────────────
+
+    private static final class ApprovalJob {
+        final String title;
+        final String message;
+        final WalletAdapterContext.ApprovalCallback callback;
+
+        ApprovalJob(String title, String message, WalletAdapterContext.ApprovalCallback callback) {
+            this.title = title;
+            this.message = message;
+            this.callback = callback;
+        }
+    }
+
+    private final Deque<ApprovalJob> approvalQueue = new ArrayDeque<>();
+    private boolean approvalShowing = false;
+
+    private final ActivityResultLauncher<Intent> confirmLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                approvalShowing = false;
+                ApprovalJob done = approvalQueue.poll();
+                boolean approved = result.getResultCode() == RESULT_OK
+                        && result.getData() != null
+                        && result.getData().getBooleanExtra(
+                                ConfirmActionActivity.EXTRA_CONFIRMED, false);
+                if (done != null && done.callback != null) {
+                    try {
+                        done.callback.onDecision(approved);
+                    } catch (Exception e) {
+                        Log.w(TAG, "Approval callback failed: " + e.getMessage());
+                    }
+                }
+                pumpApprovals();
+            });
 
     // ─── Lifecycle ─────────────────────────────────────────────────────
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        setTheme(ThemeManager.resolveThemeRes(this));
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_dapp_browser);
+        // Edge-to-edge after content exists so the insets listener attaches.
+        InsetsHelper.applyToActivity(this);
+
+        privateMode = getIntent().getBooleanExtra("private_mode", false);
 
         webView = findViewById(R.id.webView);
         urlInput = findViewById(R.id.urlInput);
         progressBar = findViewById(R.id.progressBar);
         connectionStatus = findViewById(R.id.connectionStatus);
         connectionText = findViewById(R.id.connectionText);
+        startpageRoot = findViewById(R.id.startpageRoot);
+        recentList = findViewById(R.id.recentList);
+        recentEmpty = findViewById(R.id.recentEmpty);
+        recentError = findViewById(R.id.recentError);
 
         ImageButton btnBack = findViewById(R.id.btnBack);
+        ImageButton btnHome = findViewById(R.id.btnHome);
         ImageButton btnGo = findViewById(R.id.btnGo);
         ImageButton btnClose = findViewById(R.id.btnClose);
 
-        // URL bar actions
-        btnBack.setOnClickListener(v -> { if (webView.canGoBack()) webView.goBack(); });
+        btnBack.setOnClickListener(v -> {
+            if (webView != null && webView.canGoBack()) {
+                webView.goBack();
+            }
+        });
+        btnHome.setOnClickListener(v -> showStartpage());
         btnGo.setOnClickListener(v -> navigateToUrl());
         btnClose.setOnClickListener(v -> finish());
 
         urlInput.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_GO ||
-                (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
+            if (actionId == EditorInfo.IME_ACTION_GO
+                    || (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
                 navigateToUrl();
                 return true;
             }
             return false;
         });
 
-        // Configure WebView
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
-        // Add JavaScript interface for native wallet bridge
-        webView.addJavascriptInterface(new OctraWalletBridge(), "OctraWalletBridge");
+        bridge = new DappJsBridge(this, sessions);
+        webView.addJavascriptInterface(bridge, "OctraWalletBridge");
 
-        // WebView clients
         webView.setWebViewClient(new DappWebViewClient());
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
+                if (destroyed) return;
                 if (newProgress < 100) {
                     progressBar.setVisibility(View.VISIBLE);
                     progressBar.setProgress(newProgress);
@@ -122,18 +179,68 @@ public class DappBrowserActivity extends AppCompatActivity {
                     progressBar.setVisibility(View.GONE);
                 }
             }
+
+            @Override
+            public void onReceivedTitle(WebView view, String title) {
+                if (title != null && !title.trim().isEmpty()) {
+                    lastPageTitle = title.trim();
+                }
+            }
         });
 
-        // Load from intent or default
+        recentAdapter = new RecentVisitsAdapter(new RecentVisitsAdapter.Listener() {
+            @Override
+            public void onOpen(RecentVisitsStore.Entry entry) {
+                openInCurrentTab(entry.url);
+            }
+
+            @Override
+            public void onOpenNewTab(RecentVisitsStore.Entry entry) {
+                RecentVisitsAdapter.openNewTab(DappBrowserActivity.this, entry.url);
+            }
+
+            @Override
+            public void onDelete(RecentVisitsStore.Entry entry) {
+                RecentVisitsStore.remove(DappBrowserActivity.this, entry.url);
+                refreshRecent();
+            }
+        });
+        recentList.setLayoutManager(new LinearLayoutManager(this));
+        recentList.setAdapter(recentAdapter);
+
+        View clearAll = findViewById(R.id.clearVisitsButton);
+        if (clearAll != null) {
+            clearAll.setOnClickListener(v -> {
+                RecentVisitsStore.clearAll(this);
+                refreshRecent();
+                Toast.makeText(this, "Browsing history cleared", Toast.LENGTH_SHORT).show();
+            });
+        }
+        View quickDevnet = findViewById(R.id.quickDevnet);
+        if (quickDevnet != null) {
+            quickDevnet.setOnClickListener(v ->
+                    openInCurrentTab(UrlSecurityValidator.DEVNET_EXPLORER));
+        }
+        View quickMainnet = findViewById(R.id.quickMainnet);
+        if (quickMainnet != null) {
+            quickMainnet.setOnClickListener(v ->
+                    openInCurrentTab(UrlSecurityValidator.MAINNET_EXPLORER));
+        }
+
         String intentUrl = getIntent().getStringExtra("url");
-        String url = (intentUrl != null && !intentUrl.isEmpty()) ? intentUrl : DEFAULT_URL;
-        urlInput.setText(url);
-        webView.loadUrl(url);
+        if (intentUrl != null && !intentUrl.trim().isEmpty()) {
+            urlInput.setText(intentUrl.trim());
+            hideStartpage();
+            webView.loadUrl(intentUrl.trim());
+        } else {
+            showStartpage();
+        }
     }
 
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) {
+        if (webView != null && webView.canGoBack()
+                && startpageRoot != null && startpageRoot.getVisibility() != View.VISIBLE) {
             webView.goBack();
         } else {
             super.onBackPressed();
@@ -142,35 +249,68 @@ public class DappBrowserActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        destroyed = true;
+        // Pending approvals must never resolve after the host is gone:
+        // deny everything outstanding so no request hangs, none approves.
+        approvalQueue.clear();
+        approvalShowing = false;
+        if (bridge != null) {
+            try {
+                bridge.cancelAll(null);
+                bridge.destroy();
+            } catch (Exception e) {
+                Log.w(TAG, "Bridge destroy failed: " + e.getMessage());
+            }
+        }
         if (webView != null) {
-            webView.removeJavascriptInterface("OctraWalletBridge");
-            webView.destroy();
+            try {
+                webView.removeJavascriptInterface("OctraWalletBridge");
+                webView.stopLoading();
+                webView.destroy();
+            } catch (Exception e) {
+                Log.w(TAG, "WebView destroy failed: " + e.getMessage());
+            }
+            webView = null;
         }
         super.onDestroy();
     }
 
-    // ─── Navigation ────────────────────────────────────────────────────
+    // ─── DappJsBridge.Host ─────────────────────────────────────────────
 
-    private void navigateToUrl() {
-        String url = urlInput.getText().toString().trim();
-        if (url.isEmpty()) return;
-        if (isOctUrl(url)) {
-            loadOctUrl(url);
-            return;
+    @Override
+    public String currentUrl() {
+        try {
+            if (webView != null && webView.getUrl() != null) return webView.getUrl();
+        } catch (Exception ignored) {
+            // WebView may throw once destroyed — fall through to "".
         }
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            url = "https://" + url;
-        }
-        webView.loadUrl(url);
+        return "";
     }
 
-    // ─── Origin validation ─────────────────────────────────────────────
+    @Override
+    public boolean isConnected() {
+        String url = currentUrl();
+        if (url.isEmpty() || !isOriginAllowed(url)) return false;
+        return sessions.isConnected(url);
+    }
 
-    private boolean isOriginAllowed(String url) {
+    @Override
+    public String getConnectedAddress() {
+        String url = currentUrl();
+        if (url.isEmpty()) return "";
+        return sessions.addressFor(url);
+    }
+
+    @Override
+    public String getOrigin() {
+        return currentUrl();
+    }
+
+    @Override
+    public boolean isOriginAllowed(String url) {
         try {
-            Uri uri = Uri.parse(url);
-            String host = uri.getHost();
-            if (host == null) return false;
+            String host = DappSessionManager.hostOf(url);
+            if (host.isEmpty()) return false;
             Set<String> allowed = DappOriginStore.getAllowedOrigins(this);
             return allowed.contains(DappOriginStore.normalizeHost(host));
         } catch (Exception e) {
@@ -178,42 +318,439 @@ public class DappBrowserActivity extends AppCompatActivity {
         }
     }
 
-    // ─── Provider injection ────────────────────────────────────────────
-
-    /**
-     * Injects the window.octra provider into the page, mirroring the
-     * Chrome extension's inject.js API surface.
-     */
-    private void injectProvider() {
-        String js = getOctraProviderScript();
-        webView.evaluateJavascript(js, null);
+    @Override
+    public List<String> getPermissions() {
+        return sessions.permissionsFor(currentUrl());
     }
 
-    /**
-     * Determine the chain ID from the active network profile.
-     * Returns 'octra-mainnet-1' for mainnet, 'octra-devnet-1' for devnet.
-     */
+    @Override
+    public void setSessionConnected(String address, List<String> permissions) {
+        String url = currentUrl();
+        if (url.isEmpty() || address == null || address.isEmpty()) return;
+        String host = DappSessionManager.hostOf(url);
+        if (!host.isEmpty()) {
+            try {
+                DappOriginStore.addOrigin(this, host);
+            } catch (Exception e) {
+                Log.w(TAG, "Persisting origin failed: " + e.getMessage());
+            }
+        }
+        sessions.connect(url, address, permissions);
+        runOnUiThread(this::updateConnectionUi);
+    }
+
+    @Override
+    public void clearSession() {
+        sessions.disconnect(currentUrl());
+        runOnUiThread(this::updateConnectionUi);
+    }
+
+    @Override
+    public void sendResult(int requestId, String resultJson) {
+        if (destroyed || webView == null) return;
+        final String payload = resultJson == null ? "null" : resultJson;
+        runOnUiThread(() -> {
+            if (destroyed || webView == null) return;
+            try {
+                String js = "window.__octra_response(" + requestId + ", '"
+                        + payload.replace("\\", "\\\\").replace("'", "\\'") + "', null, 0);";
+                webView.evaluateJavascript(js, null);
+            } catch (Exception e) {
+                Log.w(TAG, "sendResult failed: " + e.getMessage());
+            }
+        });
+    }
+
+    @Override
+    public void sendError(int requestId, String error, int code) {
+        if (destroyed || webView == null) return;
+        final String safe = error == null ? "Unknown error" : error;
+        final int c = code;
+        runOnUiThread(() -> {
+            if (destroyed || webView == null) return;
+            try {
+                String js = "window.__octra_response(" + requestId + ", null, '"
+                        + safe.replace("\\", "\\\\").replace("'", "\\'") + "', " + c + ");";
+                webView.evaluateJavascript(js, null);
+            } catch (Exception e) {
+                Log.w(TAG, "sendError failed: " + e.getMessage());
+            }
+        });
+    }
+
+    @Override
+    public boolean isCancelled(int requestId) {
+        return destroyed || bridge == null || !bridge.isPending(requestId);
+    }
+
+    @Override
+    public boolean isAlive() {
+        return !destroyed && !isFinishing() && !isDestroyed();
+    }
+
+    @Override
+    public ExecutorService io() {
+        return ((OctraWalletApplication) getApplication()).getIoExecutor();
+    }
+
+    @Override
+    public void requestApproval(String title, String message,
+                                WalletAdapterContext.ApprovalCallback callback) {
+        if (destroyed || callback == null) return;
+        runOnUiThread(() -> {
+            if (destroyed) {
+                callback.onDecision(false);
+                return;
+            }
+            approvalQueue.offer(new ApprovalJob(
+                    title == null ? "Please Confirm" : title,
+                    message == null ? "" : message,
+                    callback));
+            pumpApprovals();
+        });
+    }
+
+    private void pumpApprovals() {
+        if (destroyed || approvalShowing) return;
+        ApprovalJob job = approvalQueue.peek();
+        if (job == null) return;
+        approvalShowing = true;
+        try {
+            Intent intent = new Intent(this, ConfirmActionActivity.class);
+            intent.putExtra(ConfirmActionActivity.EXTRA_TITLE, job.title);
+            intent.putExtra(ConfirmActionActivity.EXTRA_MESSAGE, job.message);
+            intent.putExtra(ConfirmActionActivity.EXTRA_POSITIVE, "Allow");
+            intent.putExtra(ConfirmActionActivity.EXTRA_NEGATIVE, "Deny");
+            intent.putExtra(ConfirmActionActivity.EXTRA_REQUIRE_EXPLICIT, true);
+            confirmLauncher.launch(intent);
+        } catch (Exception e) {
+            Log.w(TAG, "Approval launch failed: " + e.getMessage());
+            approvalShowing = false;
+            approvalQueue.poll();
+            try {
+                job.callback.onDecision(false);
+            } catch (Exception ignored) {
+                // Callback failure here must not break the queue.
+            }
+            pumpApprovals();
+        }
+    }
+
+    // ─── Wallet access (real data only) ────────────────────────────────
+
+    @Override
+    public String getWalletAddress() {
+        String addr = getIntent().getStringExtra("walletAddress");
+        if (addr != null && !addr.trim().isEmpty()) return addr.trim();
+        try {
+            String raw = OctraNative.getInstance().getWalletInfo();
+            if (raw != null && !raw.isEmpty()) {
+                return new JSONObject(raw).optString("address", "").trim();
+            }
+        } catch (Exception ignored) {
+            // Fall through to prefs below.
+        }
+        return getSharedPreferences("wallet_prefs", MODE_PRIVATE)
+                .getString("active_address", "");
+    }
+
+    @Override
+    public String getWalletPublicKeyB64() {
+        String pk = getIntent().getStringExtra("walletPublicKey");
+        if (pk != null && !pk.trim().isEmpty()) return pk.trim();
+        try {
+            String raw = OctraNative.getInstance().getWalletInfo();
+            if (raw != null && !raw.isEmpty()) {
+                JSONObject info = new JSONObject(raw);
+                String v = info.optString("public_key", "").trim();
+                if (!v.isEmpty()) return v;
+            }
+        } catch (Exception ignored) {
+            // Fall through to prefs below.
+        }
+        return getSharedPreferences("wallet_prefs", MODE_PRIVATE)
+                .getString("active_public_key", "");
+    }
+
+    @Override
+    public String getRpcUrl() {
+        try {
+            String raw = OctraNative.getInstance().getWalletInfo();
+            if (raw != null && !raw.isEmpty()) {
+                String rpc = new JSONObject(raw).optString("rpc_url", "").trim();
+                if (!rpc.isEmpty()) return rpc;
+            }
+        } catch (Exception ignored) {
+            // Fall through to default below.
+        }
+        return UrlSecurityValidator.DEFAULT_RPC;
+    }
+
+    @Override
+    public String getChainId() {
+        return getActiveChainId();
+    }
+
+    @Override
+    public JSONObject getNetworkInfo() {
+        String chainId = getActiveChainId();
+        boolean mainnet = chainId.contains("mainnet");
+        JSONObject o = new JSONObject();
+        try {
+            o.put("id", mainnet ? "mainnet" : "devnet");
+            o.put("name", mainnet ? "Octra Mainnet" : "Octra Devnet");
+            o.put("chainId", chainId);
+            o.put("rpcUrl", getRpcUrl());
+            o.put("explorerUrl", getActiveExplorerUrl());
+            o.put("isTestnet", !mainnet);
+        } catch (JSONException e) {
+            Log.w(TAG, "networkInfo build failed: " + e.getMessage());
+        }
+        return o;
+    }
+
     private String getActiveChainId() {
-        String rpc = getNodeRpcUrl();
+        String rpc = getRpcUrl();
         if (rpc != null && rpc.contains("rpc.octrascan.io")) {
             return "octra-mainnet-1";
         }
         return "octra-devnet-1";
     }
 
-    /**
-     * Return the explorer URL for the active network.
-     */
     private String getActiveExplorerUrl() {
         try {
             String raw = OctraNative.getInstance().getWalletInfo();
             if (raw != null && !raw.isEmpty()) {
-                JSONObject info = new JSONObject(raw);
-                String explorer = info.optString("explorer_url", "").trim();
+                String explorer = new JSONObject(raw).optString("explorer_url", "").trim();
                 if (!explorer.isEmpty()) return explorer;
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+            // Fall through to default below.
+        }
         return UrlSecurityValidator.DEFAULT_EXPLORER;
+    }
+
+    // ─── Navigation + Startpage ────────────────────────────────────────
+
+    private void navigateToUrl() {
+        if (destroyed || webView == null) return;
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastNavAt < NAV_DEBOUNCE_MS) return;
+        lastNavAt = now;
+        String input = urlInput.getText() == null ? "" : urlInput.getText().toString().trim();
+        if (input.isEmpty()) return;
+        openInCurrentTab(input);
+    }
+
+    private void openInCurrentTab(String input) {
+        if (destroyed || webView == null || input == null) return;
+        String trimmed = input.trim();
+        if (trimmed.isEmpty()) return;
+        if (isOctUrl(trimmed)) {
+            hideStartpage();
+            loadOctUrl(trimmed);
+            return;
+        }
+        String url = toWebUrl(trimmed);
+        if (url == null) {
+            Toast.makeText(this, "Invalid address", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        hideStartpage();
+        urlInput.setText(url);
+        webView.loadUrl(url);
+    }
+
+    /**
+     * Search-or-URL: bare words become a privacy-friendly search, anything
+     * host-like becomes https. Never returns internal schemes.
+     */
+    String toWebUrl(String input) {
+        if (input == null) return null;
+        String t = input.trim();
+        if (t.isEmpty()) return null;
+        String low = t.toLowerCase(java.util.Locale.US);
+        if (low.startsWith("about:") || low.startsWith("javascript:")
+                || low.startsWith("file://") || low.startsWith("data:")) {
+            return null;
+        }
+        if (t.contains(" ") && !t.startsWith("http://") && !t.startsWith("https://")) {
+            try {
+                return "https://duckduckgo.com/?q=" + Uri.encode(t);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        if (!t.startsWith("http://") && !t.startsWith("https://")) {
+            t = "https://" + t;
+        }
+        try {
+            Uri parsed = Uri.parse(t);
+            if (parsed.getHost() == null || parsed.getHost().isEmpty()) return null;
+            return parsed.toString();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void showStartpage() {
+        if (startpageRoot == null) return;
+        if (webView != null) {
+            try {
+                webView.stopLoading();
+            } catch (Exception e) {
+                Log.w(TAG, "stopLoading failed: " + e.getMessage());
+            }
+            webView.setVisibility(View.INVISIBLE);
+        }
+        startpageRoot.setVisibility(View.VISIBLE);
+        refreshRecent();
+    }
+
+    private void hideStartpage() {
+        if (startpageRoot == null) return;
+        startpageRoot.setVisibility(View.GONE);
+        if (webView != null) webView.setVisibility(View.VISIBLE);
+    }
+
+    private void refreshRecent() {
+        if (recentList == null || recentAdapter == null) return;
+        try {
+            List<RecentVisitsStore.Entry> entries = privateMode
+                    ? new ArrayList<>()
+                    : RecentVisitsStore.getRecent(this);
+            recentAdapter.submit(entries);
+            boolean empty = entries.isEmpty();
+            if (recentEmpty != null) recentEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
+            if (recentError != null) recentError.setVisibility(View.GONE);
+            recentList.setVisibility(empty ? View.GONE : View.VISIBLE);
+        } catch (Exception e) {
+            Log.w(TAG, "Recent refresh failed: " + e.getMessage());
+            recentList.setVisibility(View.GONE);
+            if (recentEmpty != null) recentEmpty.setVisibility(View.GONE);
+            if (recentError != null) recentError.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void updateConnectionUi() {
+        if (destroyed || connectionStatus == null) return;
+        if (isConnected()) {
+            String addr = getConnectedAddress();
+            String shortAddr = (addr != null && addr.length() > 10)
+                    ? addr.substring(0, 10) + "..." : addr;
+            connectionStatus.setVisibility(View.VISIBLE);
+            String host = currentHost.isEmpty() ? "dApp" : currentHost;
+            connectionText.setText("Connected to " + host + ": " + shortAddr);
+        } else {
+            connectionStatus.setVisibility(View.GONE);
+        }
+    }
+
+    // ─── WebView Client ────────────────────────────────────────────────
+
+    private class DappWebViewClient extends WebViewClient {
+        @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            super.onPageStarted(view, url, favicon);
+            if (destroyed) return;
+            String newHost = DappSessionManager.hostOf(url == null ? "" : url);
+            if (!newHost.equals(currentHost)) {
+                currentHost = newHost;
+                // A cross-origin navigation must not leave the previous page's
+                // approvals or reads hanging: fail them loudly, keep sessions.
+                if (bridge != null) bridge.cancelAll("Navigation cancelled request");
+                approvalQueue.clear();
+                approvalShowing = false;
+            }
+            updateConnectionUi();
+        }
+
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            super.onPageFinished(view, url);
+            if (destroyed) return;
+            hideStartpage();
+            if (url != null) urlInput.setText(url);
+            currentHost = DappSessionManager.hostOf(url == null ? "" : url);
+            injectProvider();
+            updateConnectionUi();
+            if (!privateMode && url != null && RecentVisitsStore.isRecordable(url)) {
+                String title = lastPageTitle.isEmpty() ? url : lastPageTitle;
+                RecentVisitsStore.recordVisit(DappBrowserActivity.this, url, title);
+                refreshRecent();
+            }
+        }
+
+        @Override
+        public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) {
+            super.onReceivedError(view, request, error);
+            if (destroyed || request == null || !request.isForMainFrame()) return;
+            String url = request.getUrl() == null ? "" : request.getUrl().toString();
+            Log.w(TAG, "Page error for " + url + ": " + error);
+            Toast.makeText(DappBrowserActivity.this,
+                    "Failed to load page — check your connection and try again.",
+                    Toast.LENGTH_SHORT).show();
+        }
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            if (request == null || request.getUrl() == null) return false;
+            String url = request.getUrl().toString();
+            if (isOctUrl(url)) {
+                loadOctUrl(url);
+                return true;
+            }
+            if (url.startsWith("http://") || url.startsWith("https://")) {
+                return false;
+            }
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            } catch (Exception e) {
+                Log.w(TAG, "External URL blocked: " + e.getMessage());
+            }
+            return true;
+        }
+
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            if (request != null && request.getUrl() != null) {
+                String url = request.getUrl().toString();
+                if (isOctUrl(url)) {
+                    return fetchOctResource(url);
+                }
+            }
+            return super.shouldInterceptRequest(view, request);
+        }
+
+        @Override
+        public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+            progressBar.setVisibility(View.GONE);
+            boolean crashed = detail != null && detail.didCrash();
+            Log.w(TAG, "Renderer gone (crashed=" + crashed + "), offering reload");
+            if (destroyed) return true;
+            new AlertDialog.Builder(DappBrowserActivity.this)
+                    .setTitle(crashed ? "Page crashed" : "Page stopped")
+                    .setMessage("The browser engine ran out of resources. "
+                            + "Reload the page to try again.")
+                    .setPositiveButton("Reload", (d, w) -> {
+                        if (!destroyed && view != null) view.reload();
+                    })
+                    .setNegativeButton("Close", (d, w) -> finish())
+                    .setCancelable(false)
+                    .show();
+            return true;
+        }
+    }
+
+    // ─── Provider injection ────────────────────────────────────────────
+
+    private void injectProvider() {
+        if (destroyed || webView == null) return;
+        try {
+            webView.evaluateJavascript(getOctraProviderScript(), null);
+        } catch (Exception e) {
+            Log.w(TAG, "Provider injection failed: " + e.getMessage());
+        }
     }
 
     private String getOctraProviderScript() {
@@ -279,9 +816,6 @@ public class DappBrowserActivity extends AppCompatActivity {
             "        _pending.set(id, {resolve, reject});\n" +
             "        OctraWalletBridge.request(id, method, JSON.stringify(params));\n" +
             "      }).then(r => {\n" +
-            "        // Third-party adapters drive request() directly (never the\n" +
-            "        // helpers above) — keep the local session flags in sync so\n" +
-            "        // the pre-connect gate and .isConnected stay truthful.\n" +
             "        if (method === 'octra_requestAccounts' && Array.isArray(r)) {\n" +
             "          _connected = true; _accounts = r;\n" +
             "          _emit('connect', {address: r[0]}); _emit('accountsChanged', _accounts);\n" +
@@ -304,7 +838,6 @@ public class DappBrowserActivity extends AppCompatActivity {
             "      return this.request({method:'octra_callView', params:[address,method,params]});\n" +
             "    },\n" +
             "    async getBalance() { return this.request({method:'octra_getBalance'}); },\n" +
-            "    // RFC-O-1 aliases (dual-stack with the legacy dialect above).\n" +
             "    async requestAccounts() {\n" +
             "      const accounts = await this.request({method:'octra_requestAccounts'});\n" +
             "      _connected = true; _accounts = accounts;\n" +
@@ -323,11 +856,6 @@ public class DappBrowserActivity extends AppCompatActivity {
             "    off(event, cb) { if (_listeners[event]) _listeners[event]=_listeners[event].filter(c=>c!==cb); return this; },\n" +
             "  };\n" +
             "\n" +
-            "  // window.wallet: Orion-style high-level facade over the same bridge.\n" +
-            "  // Only reads + session calls are served; every sign method throws\n" +
-            "  // METHOD_FORBIDDEN locally (approvals submit here — payloads are\n" +
-            "  // never handed out). Deliberately writable+configurable so a dApp\n" +
-            "  // bundling its own injector neither crashes nor silently loses.\n" +
             "  const _walletListeners = {};\n" +
             "  function _wemit(event, data) {\n" +
             "    for (const cb of _walletListeners[event] || []) { try { cb(data); } catch {} }\n" +
@@ -434,7 +962,7 @@ public class DappBrowserActivity extends AppCompatActivity {
             "      Object.defineProperty(window, 'wallet', {\n" +
             "        value: Object.freeze(walletProvider), writable: true, configurable: true });\n" +
             "    }\n" +
-            "  } catch (e) { /* another provider won the race; window.octra above still serves */ }\n" +
+            "  } catch (e) { }\n" +
             "  window.dispatchEvent(new CustomEvent('octra:wallet#initialized',\n" +
             "    {detail: {provider: window.wallet || walletProvider}}));\n" +
             "\n" +
@@ -446,75 +974,7 @@ public class DappBrowserActivity extends AppCompatActivity {
             "})();";
     }
 
-    // ─── WebView Client ────────────────────────────────────────────────
-
-    private class DappWebViewClient extends WebViewClient {
-        @Override
-        public void onPageFinished(WebView view, String url) {
-            super.onPageFinished(view, url);
-            urlInput.setText(url);
-            injectProvider();
-        }
-
-        @Override
-        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-            String url = request.getUrl().toString();
-            // Native oct:// protocol — render circle content directly.
-            if (isOctUrl(url)) {
-                loadOctUrl(url);
-                return true;
-            }
-            // Allow http/https, block others
-            if (url.startsWith("http://") || url.startsWith("https://")) {
-                return false; // let WebView handle it
-            }
-            // Open external intents for non-web URLs
-            try {
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-            } catch (Exception e) {
-                // ignore
-            }
-            return true;
-        }
-
-        @Override
-        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-            String url = request.getUrl().toString();
-            // Serve oct:// subresources (CSS/JS/images/fonts) straight from the node.
-            if (isOctUrl(url)) {
-                return fetchOctResource(url);
-            }
-            return super.shouldInterceptRequest(view, request);
-        }
-
-        @Override
-        public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
-            // Never die with the renderer (e.g. OOM under memory pressure):
-            // keep the activity alive and offer an explicit reload instead.
-            progressBar.setVisibility(View.GONE);
-            boolean crashed = detail.didCrash();
-            Log.w("DappBrowser",
-                    "Renderer gone (crashed=" + crashed + "), offering reload");
-            new AlertDialog.Builder(DappBrowserActivity.this)
-                    .setTitle(crashed ? "Page crashed" : "Page stopped")
-                    .setMessage("The browser engine ran out of resources. "
-                            + "Reload the page to try again.")
-                    .setPositiveButton("Reload", (d, w) -> view.reload())
-                    .setNegativeButton("Close", (d, w) -> finish())
-                    .setCancelable(false)
-                    .show();
-            return true;
-        }
-    }
-
-    // ─── oct:// protocol support ───────────────────────────────────────
-    //
-    // Octra circle URLs look like oct://<circleId>/<path> (bare circle ID
-    // defaults to /index.html, mirroring the local web server gateway).
-    // Content is fetched directly over JSON-RPC — no local web server
-    // required — so circle pages work even with the server toggled off.
-    // Interactive circle features (upload, signing) stay on the
-    // localhost gateway pages, which call /api/* on the local server.
+    // ─── oct:// circle protocol (direct RPC, no local server) ────────────
 
     private boolean isOctUrl(String url) {
         return OctUrlParser.isOctUrl(url);
@@ -541,10 +1001,6 @@ public class DappBrowserActivity extends AppCompatActivity {
                 headers, new java.io.ByteArrayInputStream(body));
     }
 
-    /**
-     * Fetch a circle asset over RPC. Safe to call on any thread
-     * (shouldInterceptRequest already runs off the UI thread).
-     */
     private WebResourceResponse fetchOctResource(String url) {
         try {
             String[] parts = parseOctUrl(url);
@@ -552,7 +1008,7 @@ public class DappBrowserActivity extends AppCompatActivity {
                 return octError(400, "circle_id required");
             }
             JSONObject asset = OctraRpcClient.getInstance()
-                    .circleAsset(getNodeRpcUrl(), parts[0], parts[1]);
+                    .circleAsset(getRpcUrl(), parts[0], parts[1]);
             if (asset == null || asset.has("error")) {
                 return octError(404, "Circle asset not found");
             }
@@ -571,8 +1027,7 @@ public class DappBrowserActivity extends AppCompatActivity {
             }
             if (OctUrlParser.isTooLarge(raw.length)) {
                 return octError(413, "Asset too large (" + raw.length
-                        + " bytes, limit " + OctUrlParser.MAX_DIRECT_BYTES
-                        + ") — open via the local gateway instead");
+                        + " bytes, limit " + OctUrlParser.MAX_DIRECT_BYTES + ")");
             }
             Map<String, String> headers = new HashMap<>();
             headers.put("Cache-Control", "no-store");
@@ -581,6 +1036,7 @@ public class DappBrowserActivity extends AppCompatActivity {
             return new WebResourceResponse(mime, encoding, 200, "OK",
                     headers, new java.io.ByteArrayInputStream(raw));
         } catch (Exception e) {
+            Log.w(TAG, "Circle fetch failed: " + e.getMessage());
             return octError(500, "Circle fetch failed");
         }
     }
@@ -595,751 +1051,52 @@ public class DappBrowserActivity extends AppCompatActivity {
         return out.toByteArray();
     }
 
-    /** Render a top-level oct:// navigation (HTML/text inline, images via data URI). */
     private void loadOctUrl(final String octUrl) {
         urlInput.setText(octUrl);
         progressBar.setVisibility(View.VISIBLE);
         ((OctraWalletApplication) getApplication()).getIoExecutor().execute(() -> {
             final WebResourceResponse res = fetchOctResource(octUrl);
             runOnUiThread(() -> {
+                if (destroyed) return;
                 progressBar.setVisibility(View.GONE);
                 int code = res != null ? res.getStatusCode() : 500;
                 if (code == 413) {
-                    // Too large to buffer: offer the streaming gateway.
-                    if (LocalWebServerStore.isEnabled(this)) {
-                        String[] parts = parseOctUrl(octUrl);
-                        webView.loadUrl("http://127.0.0.1:" + LocalWebServerStore.PORT
-                                + "/oct/" + parts[0] + parts[1]);
-                    } else {
-                        Toast.makeText(this, "Page too large to render directly. "
-                                + "Enable Local Web Server in Settings for large circle pages.",
-                                Toast.LENGTH_LONG).show();
-                    }
+                    Toast.makeText(this, "Page too large to render directly "
+                            + "(over 8 MB). Try a smaller circle page.",
+                            Toast.LENGTH_LONG).show();
+                    showStartpage();
                     return;
                 }
                 if (res == null || code < 200 || code >= 300) {
-                    Toast.makeText(this, "Cannot open " + octUrl +
-                            " (circle not found, code " + code + ")",
+                    Toast.makeText(this, "Cannot open " + octUrl
+                            + " (circle not found, code " + code + ")",
                             Toast.LENGTH_LONG).show();
+                    showStartpage();
                     return;
                 }
                 try {
                     byte[] raw = readAllBytes(res.getData());
                     String mime = res.getMimeType();
-                    if (isTextMime(mime)) {
+                    if (mime != null && isTextMime(mime)) {
+                        hideStartpage();
                         String text = new String(raw, java.nio.charset.StandardCharsets.UTF_8);
                         webView.loadDataWithBaseURL(octUrl, text, mime, "UTF-8", null);
-                    } else if (mime.startsWith("image/")) {
+                    } else if (mime != null && mime.startsWith("image/")) {
+                        hideStartpage();
                         String b64 = OctraNative.getInstance().base64Encode(raw);
                         webView.loadUrl("data:" + mime + ";base64," + b64);
                     } else {
                         Toast.makeText(this, "Preview not supported for " + mime,
                                 Toast.LENGTH_LONG).show();
+                        showStartpage();
                     }
                 } catch (Exception e) {
+                    Log.w(TAG, "Circle render failed: " + e.getMessage());
                     Toast.makeText(this, "Failed to render circle page",
                             Toast.LENGTH_LONG).show();
+                    showStartpage();
                 }
             });
         });
-    }
-
-    // ─── JavaScript Bridge ─────────────────────────────────────────────
-
-    /**
-     * Native bridge exposed to JavaScript as OctraWalletBridge.
-     * The DApp calls OctraWalletBridge.connect(id) / .request(id, method, params)
-     * and receives responses via window.__octra_response(id, result, error).
-     */
-    private class OctraWalletBridge {
-
-        @JavascriptInterface
-        public void connect(final int requestId) {
-            runOnUiThread(() -> {
-                String origin = webView.getUrl();
-                if (!isOriginAllowed(origin)) {
-                    // Show approval dialog
-                    showConnectApproval(requestId, origin);
-                } else {
-                    approveConnection(requestId);
-                }
-            });
-        }
-
-        @JavascriptInterface
-        public void request(final int requestId, final String method, final String paramsJson) {
-            runOnUiThread(() -> {
-                if (!isConnected
-                        && !DappBridgeProtocol.REQUEST_ACCOUNTS.equals(
-                                DappBridgeProtocol.canonicalize(method))) {
-                    sendError(requestId, "Not connected",
-                            DappBridgeProtocol.UNAUTHORIZED);
-                    return;
-                }
-                handleDappRequest(requestId, method, paramsJson);
-            });
-        }
-    }
-
-    // ─── Connection approval ───────────────────────────────────────────
-
-    private void showConnectApproval(int requestId, String origin) {
-        String host = "Unknown";
-        try { host = Uri.parse(origin).getHost(); } catch (Exception e) { /* */ }
-
-        new AlertDialog.Builder(this)
-            .setTitle("Connect to DApp")
-            .setMessage("Allow " + host + " to connect to your Octra wallet?\n\n" +
-                "This will share your public address with this site.")
-            .setPositiveButton("Allow", (d, w) -> {
-                // Add to allowed origins
-                try {
-                    String h = Uri.parse(origin).getHost();
-                    if (h != null) DappOriginStore.addOrigin(this, h);
-                } catch (Exception e) { /* */ }
-                approveConnection(requestId);
-            })
-            .setNegativeButton("Deny", (d, w) -> {
-                sendError(requestId, "User rejected connection",
-                        DappBridgeProtocol.USER_REJECTED);
-            })
-            .setCancelable(false)
-            .show();
-    }
-
-    private void approveConnection(int requestId) {
-        // Get address from WalletKeysLoader or WalletViewModel
-        String address = getWalletAddress();
-        String pubKey = getWalletPublicKeyB64();
-
-        if (address == null || address.isEmpty()) {
-            sendError(requestId, "Wallet not loaded",
-                    DappBridgeProtocol.UNAUTHORIZED);
-            return;
-        }
-
-        isConnected = true;
-        connectedAddress = address;
-
-        connectionStatus.setVisibility(View.VISIBLE);
-        connectionText.setText("Connected: " + address.substring(0, 10) + "...");
-
-        try {
-            JSONObject result = new JSONObject();
-            result.put("address", address);
-            result.put("publicKey", pubKey);
-            sendResult(requestId, result.toString());
-        } catch (JSONException e) {
-            sendError(requestId, e.getMessage());
-        }
-    }
-
-    // ─── DApp request handler ──────────────────────────────────────────
-
-    private void handleDappRequest(int requestId, String method, String paramsJson) {
-        try {
-            String normalized = DappBridgeProtocol.canonicalize(method);
-            switch (normalized) {
-                case "octra_accounts":
-                    sendResult(requestId, "[\"" + connectedAddress + "\"]");
-                    break;
-                case "octra_requestAccounts":
-                    handleRequestAccounts(requestId, paramsJson);
-                    break;
-                case "octra_chainId":
-                    sendResult(requestId, "\"" + getActiveChainId() + "\"");
-                    break;
-                case "octra_getBalance":
-                    fetchBalance(requestId);
-                    break;
-                case "getBalance":
-                    // 0xio provider path: same balance read, answered raw — the
-                    // node result already carries the decimal `balance` string
-                    // the adapter reads (missing `privateBalance` → SDK-side 0).
-                    fetchBalance(requestId);
-                    break;
-                case "octra_sendTransaction":
-                    handleSendTransaction(requestId, paramsJson);
-                    break;
-                case "octra_sendContractTransaction":
-                    // 0xio state-changing call, object form
-                    // {contract, method, params, amount?, ou?}.
-                    handleContractTransaction(requestId, paramsJson);
-                    break;
-                case "octra_callContract":
-                    handleCallContract(requestId, paramsJson);
-                    break;
-                case "octra_callView":
-                    handleCallView(requestId, paramsJson);
-                    break;
-                case "octra_getEncryptedBalance":
-                    fetchEncryptedBalance(requestId);
-                    break;
-                case "octra_networkInfo":
-                    sendResult(requestId, networkInfoJson().toString());
-                    break;
-                case "octra_permissions":
-                    sendResult(requestId, new JSONArray(connectedPermissions).toString());
-                    break;
-                case "disconnect":
-                    doDisconnect(requestId);
-                    break;
-                case "getPublicKey":
-                    sendPublicKey(requestId);
-                    break;
-                case "octra_switchNetwork":
-                    answerSwitchNetwork(requestId, paramsJson);
-                    break;
-                // ── window.wallet facade (Orion-style high-level reads) ──
-                case "wallet_connect":
-                    handleRequestAccounts(requestId, paramsJson);
-                    break;
-                case "wallet_disconnect":
-                    doDisconnect(requestId);
-                    break;
-                case "wallet_getAccounts":
-                    sendAccounts(requestId);
-                    break;
-                case "wallet_getAddress":
-                    sendResult(requestId, "\""
-                            + (connectedAddress != null ? connectedAddress : "") + "\"");
-                    break;
-                case "wallet_getBalance":
-                    fetchBalance(requestId);
-                    break;
-                case "wallet_getNetwork":
-                    sendResult(requestId, "\"" + networkId() + "\"");
-                    break;
-                case "wallet_getNetworkInfo":
-                    sendResult(requestId, networkInfoJson().toString());
-                    break;
-                case "wallet_getNetworks":
-                    sendResult(requestId, "[" + networkInfoJson().toString() + "]");
-                    break;
-                case "wallet_getChainId":
-                    sendResult(requestId, "\"" + getActiveChainId() + "\"");
-                    break;
-                case "wallet_getPermissions":
-                    sendResult(requestId, new JSONArray(connectedPermissions).toString());
-                    break;
-                case "wallet_ping":
-                    answerPing(requestId);
-                    break;
-                default:
-                    if (DappBridgeProtocol.isKnownUnsupported(normalized)) {
-                        sendError(requestId,
-                                method + " is not supported by this wallet"
-                                        + " (sign-only submission split, message signing"
-                                        + " and FHE-private primitives stay in the wallet UI)",
-                                DappBridgeProtocol.UNSUPPORTED_METHOD);
-                    } else {
-                        sendError(requestId, "Unsupported method: " + method,
-                                DappBridgeProtocol.UNSUPPORTED_METHOD);
-                    }
-            }
-        } catch (Exception e) {
-            sendError(requestId, e.getMessage());
-        }
-    }
-
-    /**
-     * RFC-O-1 requestAccounts: approval-gated account list. Reuses the
-     * connect approval UI but answers with a plain address array.
-     */
-    private void handleRequestAccounts(int requestId, String paramsJson) {
-        List<String> requested = DappBridgeProtocol.extractRequestedPermissions(paramsJson);
-        String origin = webView.getUrl();
-        if (!isOriginAllowed(origin)) {
-            showRequestAccountsApproval(requestId, origin, requested);
-            return;
-        }
-        String address = getWalletAddress();
-        if (address == null || address.isEmpty()) {
-            sendError(requestId, "Wallet not loaded",
-                    DappBridgeProtocol.UNAUTHORIZED);
-            return;
-        }
-        isConnected = true;
-        connectedAddress = address;
-        connectedPermissions = requested;
-        sendResult(requestId, "[\"" + address + "\"]");
-    }
-
-    private void showRequestAccountsApproval(int requestId, String origin,
-                                             List<String> requested) {
-        String host = "Unknown";
-        try {
-            android.net.Uri parsed = android.net.Uri.parse(origin);
-            if (parsed.getHost() != null) host = parsed.getHost();
-        } catch (Exception e) { /* keep Unknown */ }
-
-        new AlertDialog.Builder(this)
-                .setTitle("Share account with DApp")
-                .setMessage("Allow " + host + " to see your Octra address?\n\n"
-                        + "This shares your public address with this site.")
-                .setPositiveButton("Allow", (d, w) -> {
-                    try {
-                        android.net.Uri parsed = android.net.Uri.parse(origin);
-                        String h = parsed.getHost();
-                        if (h != null) DappOriginStore.addOrigin(this, h);
-                    } catch (Exception e) { /* */ }
-                    String address = getWalletAddress();
-                    if (address == null || address.isEmpty()) {
-                        sendError(requestId, "Wallet not loaded",
-                                DappBridgeProtocol.UNAUTHORIZED);
-                        return;
-                    }
-                    isConnected = true;
-                    connectedAddress = address;
-                    connectedPermissions = requested;
-                    sendResult(requestId, "[\"" + address + "\"]");
-                })
-                .setNegativeButton("Deny", (d, w) -> {
-                    sendError(requestId, "User rejected connection",
-                            DappBridgeProtocol.USER_REJECTED);
-                })
-                .setCancelable(false)
-                .show();
-    }
-
-    /** RFC-O-1 encrypted balance: authenticated cipher for the active wallet. */
-    private void fetchEncryptedBalance(int requestId) {
-        ((OctraWalletApplication) getApplication()).getIoExecutor().execute(() -> {
-            try {
-                String rpcUrl = getNodeRpcUrl();
-                String address = connectedAddress;
-                if (address == null || address.isEmpty()) {
-                    address = getWalletAddress();
-                }
-                if (address == null || address.isEmpty()) {
-                    runOnUiThread(() -> sendError(requestId, "Wallet not loaded",
-                            DappBridgeProtocol.UNAUTHORIZED));
-                    return;
-                }
-                final String addr = address;
-                WalletRepository repo = new WalletRepository(getApplicationContext());
-                String cipher = repo.fetchEncryptedBalance(rpcUrl, addr);
-                JSONObject out = new JSONObject();
-                out.put("address", addr);
-                out.put("cipher", cipher);
-                final String json = out.toString();
-                runOnUiThread(() -> sendResult(requestId, json));
-            } catch (Exception e) {
-                runOnUiThread(() -> sendError(requestId, e.getMessage(),
-                        DappBridgeProtocol.NETWORK_UNAVAILABLE));
-            }
-        });
-    }
-
-    private void fetchBalance(int requestId) {
-        ((OctraWalletApplication) getApplication()).getIoExecutor().execute(() -> {
-            try {
-                OctraRpcClient rpc = OctraRpcClient.getInstance();
-                JSONObject result = rpc.call(getNodeRpcUrl(), "octra_balance", new JSONArray().put(connectedAddress));
-                runOnUiThread(() -> sendResult(requestId, result.toString()));
-            } catch (Exception e) {
-                runOnUiThread(() -> sendError(requestId, e.getMessage()));
-            }
-        });
-    }
-
-    /**
-     * Accept both param shapes: legacy positional {@code [{to, amount, ...}]}
-     * and the 0xio provider object form {@code {to, amount, ...}}. The object
-     * form additionally honours {@code amountOct}, {@code message}, and
-     * refuses private sends (no stealth submission over the provider).
-     */
-    private void handleSendTransaction(int requestId, String paramsJson) {
-        final JSONObject tx;
-        try {
-            tx = DappBridgeProtocol.asTxObject(paramsJson);
-        } catch (JSONException e) {
-            sendError(requestId, "Invalid params: " + e.getMessage());
-            return;
-        }
-        if (tx.optBoolean("isPrivate", false)) {
-            sendError(requestId,
-                    "Private transfers are not served over the provider"
-                            + " — use the wallet UI",
-                    DappBridgeProtocol.UNSUPPORTED_METHOD);
-            return;
-        }
-        final String to = tx.optString("to", "").trim();
-        if (to.isEmpty()) {
-            sendError(requestId, "Invalid params: missing recipient address");
-            return;
-        }
-        final String amount;
-        try {
-            amount = DappBridgeProtocol.resolveTxAmount(tx);
-        } catch (JSONException e) {
-            sendError(requestId, "Invalid params: " + e.getMessage());
-            return;
-        }
-        if ("0".equals(amount)) {
-            sendError(requestId, "Invalid params: amount must be greater than 0");
-            return;
-        }
-        String message = tx.optString("message", null);
-        if (message != null) {
-            message = message.trim();
-            if (message.isEmpty()) message = null;
-            else if (message.length() > 1000) {
-                sendError(requestId, "Invalid params: message over 1000 chars");
-                return;
-            }
-        }
-        final String memo = message;
-
-        // Show confirmation dialog
-        String prompt = "Send " + amount + " OCT to\n" + to + "?";
-        if (memo != null) prompt += "\n\nMessage: " + memo;
-        new AlertDialog.Builder(this)
-                .setTitle("Confirm Transaction")
-                .setMessage(prompt)
-                .setPositiveButton("Confirm", (d, w) -> {
-                    // Submit via the wallet's existing send flow
-                    submitTransaction(requestId, to, amount, "standard", null, memo);
-                })
-                .setNegativeButton("Cancel", (d, w) -> {
-                    sendError(requestId, "User rejected transaction");
-                })
-                .setCancelable(false)
-                .show();
-    }
-
-    private void handleCallContract(int requestId, String paramsJson) {
-        String t = paramsJson == null ? "" : paramsJson.trim();
-        if (t.startsWith("{")) {
-            // Object form {contract, method, params, ...}: a view when it
-            // carries no value (0xio contract_call_view), a submission otherwise.
-            // The legacy array form below always submits (existing behaviour).
-            JSONObject o;
-            try {
-                o = new JSONObject(t);
-            } catch (JSONException e) {
-                sendError(requestId, "Invalid params: " + e.getMessage());
-                return;
-            }
-            if (DappBridgeProtocol.isViewCall(o)) {
-                handleCallViewObject(requestId, o);
-                return;
-            }
-            handleContractTransaction(requestId, paramsJson);
-            return;
-        }
-        try {
-            JSONArray params = new JSONArray(paramsJson);
-            String address = params.getString(0);
-            String methodName = params.getString(1);
-            JSONArray callParams = params.optJSONArray(2);
-            String amount = params.optString(3, "0");
-
-            new AlertDialog.Builder(this)
-                .setTitle("Contract Call")
-                .setMessage("Call " + methodName + " on\n" + address +
-                    (!"0".equals(amount) ? "\n\nAmount: " + amount + " OCT" : ""))
-                .setPositiveButton("Confirm", (d, w) -> {
-                    submitTransaction(requestId, address, amount, "call",
-                        methodName, callParams != null ? callParams.toString() : "[]");
-                })
-                .setNegativeButton("Cancel", (d, w) -> {
-                    sendError(requestId, "User rejected");
-                })
-                .setCancelable(false)
-                .show();
-        } catch (JSONException e) {
-            sendError(requestId, "Invalid params: " + e.getMessage());
-        }
-    }
-
-    /** Read-only view from the object form (no unlock, no approval). */
-    private void handleCallViewObject(int requestId, JSONObject o) {
-        String address = o.optString("contract", "").trim();
-        String method = o.optString("method", "").trim();
-        if (address.isEmpty() || method.isEmpty()) {
-            sendError(requestId, "Invalid params: view needs contract + method");
-            return;
-        }
-        JSONArray callParams = o.optJSONArray("params");
-        String caller = o.optString("caller", connectedAddress != null ? connectedAddress : "");
-        ((OctraWalletApplication) getApplication()).getIoExecutor().execute(() -> {
-            try {
-                OctraRpcClient rpc = OctraRpcClient.getInstance();
-                JSONArray rpcParams = new JSONArray();
-                rpcParams.put(address);
-                rpcParams.put(method);
-                rpcParams.put(callParams != null ? callParams : new JSONArray());
-                rpcParams.put(caller != null ? caller : "");
-                JSONObject result = rpc.call(getNodeRpcUrl(), "contract_call", rpcParams);
-                runOnUiThread(() -> sendResult(requestId, result.toString()));
-            } catch (Exception e) {
-                runOnUiThread(() -> sendError(requestId, e.getMessage()));
-            }
-        });
-    }
-
-    /**
-     * 0xio state-changing call, object form
-     * {contract, method, params?, amount?, ou?}: approval-gated submit.
-     * The attached {@code ou} is read but the wallet fee oracle stays
-     * authoritative (submitTransaction applies the wallet default).
-     */
-    private void handleContractTransaction(int requestId, String paramsJson) {
-        final JSONObject o;
-        try {
-            o = DappBridgeProtocol.asTxObject(paramsJson);
-        } catch (JSONException e) {
-            sendError(requestId, "Invalid params: " + e.getMessage());
-            return;
-        }
-        final String address = o.optString("contract", "").trim();
-        final String methodName = o.optString("method", "").trim();
-        if (address.isEmpty() || methodName.isEmpty()) {
-            sendError(requestId, "Invalid params: call needs contract + method");
-            return;
-        }
-        JSONArray callParams = o.optJSONArray("params");
-        final String paramsStr = callParams != null ? callParams.toString() : "[]";
-        final String amount;
-        try {
-            amount = (o.has("amount") && !o.isNull("amount"))
-                    ? DappBridgeProtocol.resolveTxAmount(o) : "0";
-        } catch (JSONException e) {
-            sendError(requestId, "Invalid params: " + e.getMessage());
-            return;
-        }
-
-        new AlertDialog.Builder(this)
-                .setTitle("Contract Call")
-                .setMessage("Call " + methodName + " on\n" + address +
-                    (!"0".equals(amount) ? "\n\nAmount: " + amount + " OCT" : ""))
-                .setPositiveButton("Confirm", (d, w) -> {
-                    submitTransaction(requestId, address, amount, "call",
-                            methodName, paramsStr);
-                })
-                .setNegativeButton("Cancel", (d, w) -> {
-                    sendError(requestId, "User rejected");
-                })
-                .setCancelable(false)
-                .show();
-    }
-
-    /** Network record for third-party adapters: stable id + display fields. */
-    JSONObject networkInfoJson() throws JSONException {
-        String chainId = getActiveChainId();
-        boolean mainnet = chainId.contains("mainnet");
-        JSONObject o = new JSONObject();
-        o.put("id", mainnet ? "mainnet" : "devnet");
-        o.put("name", mainnet ? "Octra Mainnet" : "Octra Devnet");
-        o.put("chainId", chainId);
-        o.put("rpcUrl", getNodeRpcUrl());
-        o.put("explorerUrl", getActiveExplorerUrl());
-        o.put("isTestnet", !mainnet);
-        return o;
-    }
-
-    /** Ed25519 public key (base64) when the wallet stored one, else honest error. */
-    private void sendPublicKey(int requestId) {
-        String address = connectedAddress;
-        if (address == null || address.isEmpty()) address = getWalletAddress();
-        if (address == null || address.isEmpty()) {
-            sendError(requestId, "Wallet not loaded",
-                    DappBridgeProtocol.UNAUTHORIZED);
-            return;
-        }
-        String pk = getWalletPublicKeyB64();
-        if (pk == null || pk.isEmpty()) {
-            sendError(requestId, "No public key available for the active wallet");
-            return;
-        }
-        try {
-            JSONObject o = new JSONObject();
-            o.put("publicKey", pk);
-            sendResult(requestId, o.toString());
-        } catch (JSONException e) {
-            sendError(requestId, e.getMessage());
-        }
-    }
-
-    /**
-     * Network switch: this wallet follows its own configured node, so a page
-     * can never move it. Answer honestly — switched:true only when already there.
-     */
-    /** Stable network id for this wallet ("mainnet" or "devnet"). */
-    String networkId() {
-        return DappBridgeProtocol.networkIdForChain(getActiveChainId());
-    }
-
-    /** Session teardown shared by {@code disconnect} + {@code wallet_disconnect}. */
-    private void doDisconnect(int requestId) {
-        isConnected = false;
-        connectedAddress = null;
-        connectedPermissions = new ArrayList<>(Collections.singletonList("accounts"));
-        sendResult(requestId, "{\"success\":true}");
-    }
-
-    /** Currently connected account as a JSON array (empty string when none). */
-    private void sendAccounts(int requestId) {
-        String addr = connectedAddress != null ? connectedAddress : "";
-        sendResult(requestId, "[\"" + addr + "\"]");
-    }
-
-    /**
-     * Liveness probe: answers without touching wallet state or the session.
-     * {@code locked} is true when no wallet address is available at all.
-     */
-    private void answerPing(int requestId) {
-        String address = connectedAddress;
-        if (address == null || address.isEmpty()) address = getWalletAddress();
-        String origin = (webView != null && webView.getUrl() != null)
-                ? webView.getUrl() : "";
-        try {
-            sendResult(requestId, DappBridgeProtocol.buildPing(
-                    isConnected, address == null || address.isEmpty(),
-                    origin, System.currentTimeMillis()).toString());
-        } catch (JSONException e) {
-            sendError(requestId, e.getMessage());
-        }
-    }
-
-    private void answerSwitchNetwork(int requestId, String paramsJson) {
-        String wanted = "";
-        try {
-            JSONObject o = DappBridgeProtocol.asTxObject(paramsJson);
-            wanted = o.optString("networkId", o.optString("network", "")).trim();
-        } catch (JSONException e) {
-            // Deliberate fallthrough: an unparseable switch request is still
-            // answered below with the current network + switched:false, so the
-            // page learns the truth instead of hanging on a throw.
-            wanted = "";
-        }
-        String current = networkId();
-        boolean same = !wanted.isEmpty()
-                && (wanted.equalsIgnoreCase(current)
-                    || wanted.equalsIgnoreCase(getActiveChainId()));
-        try {
-            JSONObject o = new JSONObject();
-            o.put("network", current);
-            o.put("switched", same);
-            sendResult(requestId, o.toString());
-        } catch (JSONException e) {
-            sendError(requestId, e.getMessage());
-        }
-    }
-
-    private void handleCallView(int requestId, String paramsJson) {
-        ((OctraWalletApplication) getApplication()).getIoExecutor().execute(() -> {
-            try {
-                JSONArray params = new JSONArray(paramsJson);
-                String address = params.getString(0);
-                String method = params.getString(1);
-                JSONArray callParams = params.optJSONArray(2);
-
-                OctraRpcClient rpc = OctraRpcClient.getInstance();
-                JSONArray rpcParams = new JSONArray();
-                rpcParams.put(address);
-                rpcParams.put(method);
-                rpcParams.put(callParams != null ? callParams : new JSONArray());
-                rpcParams.put(connectedAddress);
-
-                JSONObject result = rpc.call(getNodeRpcUrl(), "contract_call", rpcParams);
-                runOnUiThread(() -> sendResult(requestId, result.toString()));
-            } catch (Exception e) {
-                runOnUiThread(() -> sendError(requestId, e.getMessage()));
-            }
-        });
-    }
-
-    private void submitTransaction(int requestId, String to, String amount,
-                                   String opType, String encryptedData, String message) {
-        ((OctraWalletApplication) getApplication()).getIoExecutor().execute(() -> {
-            try {
-                OctraRpcClient rpc = OctraRpcClient.getInstance();
-                String nodeUrl = getNodeRpcUrl();
-
-                // Get nonce
-                JSONObject balInfo = rpc.call(nodeUrl, "octra_balance", new JSONArray().put(connectedAddress));
-                int nonce = balInfo.optInt("pending_nonce", balInfo.optInt("nonce", 0)) + 1;
-
-                JSONObject tx = new JSONObject();
-                tx.put("from", connectedAddress);
-                tx.put("to_", to);
-                tx.put("amount", amount);
-                tx.put("nonce", nonce);
-                tx.put("ou", "10000");
-                tx.put("timestamp", System.currentTimeMillis() / 1000.0);
-                tx.put("op_type", opType);
-                if (encryptedData != null) tx.put("encrypted_data", encryptedData);
-                if (message != null) tx.put("message", message);
-
-                JSONObject result = rpc.call(nodeUrl, "octra_submit", new JSONArray().put(tx));
-                runOnUiThread(() -> sendResult(requestId, DappBridgeProtocol.acceptedSubmitJson(result)));
-            } catch (Exception e) {
-                runOnUiThread(() -> sendError(requestId, e.getMessage()));
-            }
-        });
-    }
-
-    // ─── JS response helpers ───────────────────────────────────────────
-
-    private void sendResult(int requestId, String resultJson) {
-        String js = "window.__octra_response(" + requestId + ", '" +
-            resultJson.replace("\\", "\\\\").replace("'", "\\'") + "', null, 0);";
-        webView.evaluateJavascript(js, null);
-    }
-
-    private void sendError(int requestId, String error) {
-        sendError(requestId, error, DappBridgeProtocol.NO_CODE);
-    }
-
-    /**
-     * RFC-O-1 error codes travel as the 4th argument. Old dApps ignore
-     * extra arguments, so this stays backward compatible.
-     */
-    private void sendError(int requestId, String error, int code) {
-        String safe = error == null ? "Unknown error" : error;
-        String js = "window.__octra_response(" + requestId + ", null, '" +
-            safe.replace("\\", "\\\\").replace("'", "\\'") + "', " + code + ");";
-        webView.evaluateJavascript(js, null);
-    }
-
-    // ─── Wallet access stubs ───────────────────────────────────────────
-
-    /**
-     * Retrieve the current wallet address.
-     * In production, this reads from WalletKeysLoader / WalletViewModel.
-     */
-    private String getWalletAddress() {
-        // TODO: Integrate with WalletKeysLoader.loadAddress(context)
-        // For now, check if passed via intent
-        String addr = getIntent().getStringExtra("walletAddress");
-        if (addr != null) return addr;
-        // Fallback: read from shared prefs
-        return getSharedPreferences("wallet_prefs", MODE_PRIVATE)
-            .getString("active_address", null);
-    }
-
-    private String getWalletPublicKeyB64() {
-        String pk = getIntent().getStringExtra("walletPublicKey");
-        if (pk != null) return pk;
-        return getSharedPreferences("wallet_prefs", MODE_PRIVATE)
-            .getString("active_public_key", "");
-    }
-
-    /**
-     * Returns the active node RPC base URL.
-     * Reads from OctraNative wallet info, falls back to the compile-time default.
-     */
-    private String getNodeRpcUrl() {
-        try {
-            String raw = OctraNative.getInstance().getWalletInfo();
-            if (raw != null && !raw.isEmpty()) {
-                JSONObject info = new JSONObject(raw);
-                String rpc = info.optString("rpc_url", "").trim();
-                if (!rpc.isEmpty()) return rpc;
-            }
-        } catch (Exception ignored) {}
-        return UrlSecurityValidator.DEFAULT_RPC;
     }
 }

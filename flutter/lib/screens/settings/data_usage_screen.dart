@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/data_usage_service.dart';
+import '../../services/recent_sites_service.dart';
 
 /// Screen to display data usage statistics and history.
 class DataUsageScreen extends StatefulWidget {
@@ -69,6 +70,8 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
 
     if (confirmed == true && mounted) {
       await _service.clearHistory();
+      // Clearing browsing data also drops Startpage recent sites.
+      await RecentSitesService.instance.clearAll();
       await _loadData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

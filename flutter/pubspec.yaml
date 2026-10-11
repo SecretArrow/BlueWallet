@@ -50,7 +50,3 @@ flutter:
   assets:
     - assets/images/
     - assets/images/logo_app_octopus.png
-    - assets/webcli/
-    - assets/webcli/icons/
-    - assets/webcli/templates/
-    - assets/webcli/adapter/
