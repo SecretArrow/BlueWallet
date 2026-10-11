@@ -177,7 +177,7 @@ public class DeriveChildWalletActivity extends BaseTxActivity {
         }
 
         String pin = PinStore.getDefaultPin(this);
-        if (!pin.matches("\\d{6,64}")) {
+        if (!pin.matches("\\d{6,16}")) {
             showError("PIN not available — unlock wallet first");
             return;
         }
@@ -262,7 +262,7 @@ public class DeriveChildWalletActivity extends BaseTxActivity {
 
     private String testDeriveAddress(String base64Key) throws Exception {
         String defaultPin = PinStore.getDefaultPin(this);
-        if (!defaultPin.matches("\\d{6,64}")) throw new Exception("PIN not available");
+        if (!defaultPin.matches("\\d{6,16}")) throw new Exception("PIN not available");
 
         String previousId = WalletProfileStore.getSelectedWalletId(this);
         File tempDir = new File(getFilesDir(), "temp_derive_" + System.currentTimeMillis());
@@ -285,7 +285,7 @@ public class DeriveChildWalletActivity extends BaseTxActivity {
             File dir = WalletProfileStore.getWalletDir(this, walletId);
             OctraNative.getInstance().lockWallet();
             OctraNative.getInstance().init(dir.getAbsolutePath());
-            if (pin != null && pin.matches("\\d{6,64}")) {
+            if (pin != null && pin.matches("\\d{6,16}")) {
                 try { OctraNative.getInstance().unlockWallet(pin); } catch (Exception ignored) {}
             }
         } catch (Exception ignored) {}

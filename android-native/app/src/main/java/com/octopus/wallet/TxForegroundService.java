@@ -869,7 +869,7 @@ public class TxForegroundService extends Service {
 
         if (nativeBridge.hasEncryptedWallet() && !nativeBridge.isWalletLoaded()) {
             String pin = PinStore.getDefaultPin(getApplicationContext());
-            if (pin == null || !pin.matches("\\d{6,64}")) {
+            if (pin == null || !pin.matches("\\d{6,16}")) {
                 throw new IllegalStateException("Wallet not loaded. Please unlock wallet first.");
             }
 

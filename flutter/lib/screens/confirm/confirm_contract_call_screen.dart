@@ -153,7 +153,7 @@ class _ConfirmContractCallScreenState extends State<ConfirmContractCallScreen> {
               controller: controller,
               keyboardType: TextInputType.number,
               obscureText: true,
-              maxLength: 64,
+              maxLength: 16,
               autofocus: true,
               decoration: const InputDecoration(
                 labelText: 'PIN Code',

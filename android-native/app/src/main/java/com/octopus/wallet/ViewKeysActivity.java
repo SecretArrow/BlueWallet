@@ -69,7 +69,7 @@ public class ViewKeysActivity extends AppCompatActivity {
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                     String pin = result.getData().getStringExtra(PinEntryActivity.EXTRA_PIN);
-                    if (pin != null && pin.matches("\\d{6,64}")) {
+                    if (pin != null && pin.matches("\\d{6,16}")) {
                         bindKeys(pin);
                     }
                 } else {

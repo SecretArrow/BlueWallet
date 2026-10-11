@@ -34,11 +34,11 @@ class _ChangePinScreenState extends State<ChangePinScreen> {
     if (current.length < 6 ||
         newPin.length < 6 ||
         confirm.length < 6 ||
-        current.length > 64 ||
-        newPin.length > 64 ||
-        confirm.length > 64) {
+        current.length > 16 ||
+        newPin.length > 16 ||
+        confirm.length > 16) {
       setState(() =>
-          _error = 'All PINs minimal 6 digit (at least 6 digits, max 64)');
+          _error = 'All PINs minimal 6 digit (at least 6 digits, max 16)');
       return;
     }
     if (newPin != confirm) {
@@ -121,7 +121,7 @@ class _PinField extends StatelessWidget {
       controller: controller,
       textAlign: TextAlign.center,
       keyboardType: TextInputType.number,
-      maxLength: 64,
+      maxLength: 16,
       obscureText: true,
       style: const TextStyle(fontSize: 24, letterSpacing: 10),
       decoration: InputDecoration(

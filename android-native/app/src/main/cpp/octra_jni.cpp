@@ -73,7 +73,7 @@ static void init_pvac_for_loaded_wallet() {
 }
 
 static bool is_valid_pin(const std::string &pin) {
-  if (pin.size() < 6 || pin.size() > 64) {
+  if (pin.size() < 6 || pin.size() > 16) {
     return false;
   }
   for (char c : pin) {

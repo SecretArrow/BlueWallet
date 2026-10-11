@@ -197,7 +197,7 @@ public class CreateMnemonicActivity extends BaseTxActivity {
      */
     private String testDeriveAddress(String base64Key) throws Exception {
         String defaultPin = PinStore.getDefaultPin(this);
-        if (!defaultPin.matches("\\d{6,64}")) {
+        if (!defaultPin.matches("\\d{6,16}")) {
             defaultPin = "000000"; // Fallback to a temporary PIN for the validation step
         }
 
@@ -227,7 +227,7 @@ public class CreateMnemonicActivity extends BaseTxActivity {
                     File prevDir = WalletProfileStore.getWalletDir(this, previousId);
                     OctraNative.getInstance().init(prevDir.getAbsolutePath());
                     String pin = PinStore.getDefaultPin(this);
-                    if (pin.matches("\\d{6,64}")) {
+                    if (pin.matches("\\d{6,16}")) {
                         try { OctraNative.getInstance().unlockWallet(pin); } catch (Exception ignored) {}
                     }
                 } catch (Exception ignored) {}
@@ -286,8 +286,8 @@ public class CreateMnemonicActivity extends BaseTxActivity {
             String pin = pinField.getText().toString();
             String pinConfirm = pinConfirmField.getText().toString();
 
-            if (pin.length() < 6 || pin.length() > 64) {
-                Toast.makeText(CreateMnemonicActivity.this, "PIN minimal 6 digit (max 64)", Toast.LENGTH_SHORT).show();
+            if (pin.length() < 6 || pin.length() > 16) {
+                Toast.makeText(CreateMnemonicActivity.this, "PIN minimal 6 digit (max 16)", Toast.LENGTH_SHORT).show();
                 return;
             }
             if (!pin.matches("\\d+")) {
@@ -324,7 +324,7 @@ public class CreateMnemonicActivity extends BaseTxActivity {
         }
 
         String pin = PinStore.getDefaultPin(this);
-        if (!pin.matches("\\d{6,64}")) {
+        if (!pin.matches("\\d{6,16}")) {
             showPinSetupDialog(this::doCreate);
             return;
         }

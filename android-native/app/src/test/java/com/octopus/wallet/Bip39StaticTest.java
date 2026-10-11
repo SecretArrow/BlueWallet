@@ -53,7 +53,7 @@ public class Bip39StaticTest {
 
     @Test
     public void isValidPin_matchesVerifierPolicy() {
-        // Kebijakan baru: minimal 6 digit, maksimal 64 digit, digit saja.
+        // Kebijakan baru: minimal 6 digit, maksimal 16 digit, digit saja.
         // SET menolak <6; VERIFY tetap menerima PIN 6-digit lama.
         assertEquals(true, PinStore.isValidPin("123456"));
         assertEquals(true, PinStore.isValidPin("123456789012"));
@@ -61,7 +61,7 @@ public class Bip39StaticTest {
         assertEquals(false, PinStore.isValidPin(""));
         assertEquals(false, PinStore.isValidPin("12345"));
         assertEquals(false, PinStore.isValidPin("12345a"));
-        assertEquals(false, PinStore.isValidPin("12345678901234567890123456789012345678901234567890123456789012345"));
+        assertEquals(false, PinStore.isValidPin("11111111111111111"));
         assertEquals(true, PinStore.isValidPin(" 123456 "));
     }
 }

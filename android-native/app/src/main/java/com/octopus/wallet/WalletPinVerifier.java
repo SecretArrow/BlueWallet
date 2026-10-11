@@ -10,8 +10,8 @@ public final class WalletPinVerifier {
 
     public static boolean verify(Context context, String walletId, String pin) {
         // VERIFY tidak menegakkan exact-6: PIN 6-digit lama tetap lolos,
-        // PIN baru 6..64 digit juga diterima. Di luar itu tolak cepat.
-        if (pin == null || !pin.matches("\\d{6,64}")) {
+        // PIN baru 6..16 digit juga diterima. Di luar itu tolak cepat.
+        if (pin == null || !pin.matches("\\d{6,16}")) {
             return false;
         }
 
@@ -39,7 +39,7 @@ public final class WalletPinVerifier {
                 java.io.File restoreDir = WalletProfileStore.getWalletDir(context, restoreWalletId);
                 OctraNative.getInstance().lockWallet();
                 OctraNative.getInstance().init(restoreDir.getAbsolutePath());
-                if (previousPin != null && previousPin.matches("\\d{6,64}")) {
+                if (previousPin != null && previousPin.matches("\\d{6,16}")) {
                     OctraNative.getInstance().unlockWallet(previousPin);
                 }
             } catch (Exception ignored) {

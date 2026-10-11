@@ -29,7 +29,7 @@ public class PinEntryActivity extends BaseTxActivity {
 
         findViewById(R.id.pin_entry_submit).setOnClickListener(v -> {
             String pin = pinInput.getText() == null ? "" : pinInput.getText().toString().trim();
-            if (!pin.matches("\\d{6,64}")) {
+            if (!pin.matches("\\d{6,16}")) {
                 Toast.makeText(this, "PIN minimal 6 digit", Toast.LENGTH_SHORT).show();
                 return;
             }
