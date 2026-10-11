@@ -170,21 +170,41 @@ public final class WalletRepository {
     public List<JSONObject> fetchHistory(String rpcUrl, String address, int limit, int offset) {
         List<JSONObject> out = new ArrayList<>();
         try {
-            JSONObject result = rpc.getTransactionsByAddress(rpcUrl, address, limit, offset);
-
-            JSONArray txs = null;
-            if (result.has("transactions")) txs = result.optJSONArray("transactions");
-            else if (result.has("history"))  txs = result.optJSONArray("history");
-            else if (result.has("txs"))      txs = result.optJSONArray("txs");
-
-            if (txs != null) {
-                for (int i = 0; i < txs.length(); i++) {
-                    JSONObject tx = txs.optJSONObject(i);
-                    if (tx != null) out.add(tx);
-                }
-            }
+            out.addAll(fetchHistoryThrowing(rpcUrl, address, limit, offset));
         } catch (Exception e) {
             Log.w(TAG, "fetchHistory failed: " + e.getMessage());
+        }
+        return out;
+    }
+
+    /**
+     * Throwing variant for background workers: lets callers distinguish
+     * transient failures (retry via WorkManager) from empty results.
+     *
+     * @throws Exception network/RPC errors; never for empty-but-valid responses
+     */
+    public List<JSONObject> fetchHistoryThrowing(String rpcUrl, String address, int limit, int offset)
+            throws Exception {
+        JSONObject result = rpc.getTransactionsByAddress(rpcUrl, address, limit, offset);
+        return parseHistoryArray(result);
+    }
+
+    /**
+     * Pure parsing of the paginated-history envelope (tolerates the node's
+     * alternate field names). JVM-testable, no Android framework touched.
+     */
+    static List<JSONObject> parseHistoryArray(JSONObject result) {
+        List<JSONObject> out = new ArrayList<>();
+        if (result == null) return out;
+        JSONArray txs = null;
+        if (result.has("transactions")) txs = result.optJSONArray("transactions");
+        else if (result.has("history"))  txs = result.optJSONArray("history");
+        else if (result.has("txs"))      txs = result.optJSONArray("txs");
+        if (txs != null) {
+            for (int i = 0; i < txs.length(); i++) {
+                JSONObject tx = txs.optJSONObject(i);
+                if (tx != null) out.add(tx);
+            }
         }
         return out;
     }

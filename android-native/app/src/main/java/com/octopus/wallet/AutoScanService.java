@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Foreground service that periodically scans for balance updates.
@@ -46,6 +47,12 @@ public class AutoScanService extends Service {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable scanRunnable;
     private boolean running = false;
+    /** Guard against overlapping scans when an RPC round takes longer than the interval. */
+    private final AtomicBoolean scanInProgress = new AtomicBoolean(false);
+    /** Consecutive failed scans; drives exponential backoff. Only touched on the handler thread. */
+    private int consecutiveFailures = 0;
+    /** Backoff cap: next delay = interval * 2^min(failures-1, 3), i.e. max 8x the interval. */
+    private static final int MAX_BACKOFF_SHIFT = 3;
 
     private WalletRepository repo() {
         return new WalletRepository(getApplicationContext());
@@ -76,7 +83,8 @@ public class AutoScanService extends Service {
     public static void stopScanning(Context context) {
         try {
             context.stopService(new Intent(context, AutoScanService.class));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            Log.d(TAG, "stopScanning failed: " + e.getMessage());
         }
     }
 
@@ -114,6 +122,7 @@ public class AutoScanService extends Service {
         }
 
         running = true;
+        consecutiveFailures = 0;
         final long intervalMs = intervalMinutes * 60L * 1000L;
 
         // Cancel any existing scan runnable
@@ -126,7 +135,6 @@ public class AutoScanService extends Service {
             public void run() {
                 if (!running) return;
                 doScan();
-                handler.postDelayed(this, intervalMs);
             }
         };
 
@@ -134,6 +142,28 @@ public class AutoScanService extends Service {
         handler.postDelayed(scanRunnable, intervalMs);
 
         return START_STICKY;
+    }
+
+    /** Schedules the next tick, backing off exponentially while scans keep failing. */
+    private void scheduleNext(boolean lastSuccess) {
+        if (!running) return;
+        if (lastSuccess) {
+            consecutiveFailures = 0;
+        } else {
+            consecutiveFailures++;
+        }
+        int shift = Math.min(Math.max(consecutiveFailures - 1, 0), MAX_BACKOFF_SHIFT);
+        long configuredMs = AutoScanActivity.getScanIntervalMinutes(this) * 60L * 1000L;
+        long delayMs = configuredMs > 0 ? configuredMs * (1L << shift) : intervalMsFallback();
+        if (!lastSuccess && consecutiveFailures > 1) {
+            Log.d(TAG, "Backing off scan, consecutiveFailures=" + consecutiveFailures
+                    + " nextDelayMs=" + delayMs);
+        }
+        handler.postDelayed(scanRunnable, delayMs);
+    }
+
+    private long intervalMsFallback() {
+        return 15L * 60L * 1000L;
     }
 
     @Override
@@ -147,7 +177,13 @@ public class AutoScanService extends Service {
     }
 
     private void doScan() {
+        if (!scanInProgress.compareAndSet(false, true)) {
+            Log.d(TAG, "Previous scan still running, skipping tick");
+            scheduleNext(consecutiveFailures == 0);
+            return;
+        }
         new Thread(() -> {
+            boolean success = false;
             try {
                 JSONObject info = new JSONObject(OctraNative.getInstance().getWalletInfo());
                 if (info.has("error")) return;
@@ -161,6 +197,7 @@ public class AutoScanService extends Service {
                 WalletRepository.Result<WalletRepository.BalanceSummary> balResult =
                         repo().fetchBalance(rpcUrl, address);
                 if (balResult.isSuccess()) {
+                    success = true;
                     Log.d(TAG, "Auto scan completed successfully");
                     maybeNotifyIncomingForAllWallets(rpcUrl, address);
                     // Notify listener to refresh UI
@@ -171,6 +208,10 @@ public class AutoScanService extends Service {
                 }
             } catch (Exception e) {
                 Log.w(TAG, "Auto scan failed: " + e.getMessage());
+            } finally {
+                scanInProgress.set(false);
+                final boolean outcome = success;
+                handler.post(() -> scheduleNext(outcome));
             }
         }).start();
     }
@@ -361,9 +402,10 @@ public class AutoScanService extends Service {
             if (hasNotificationPermission()) {
                 NotificationManagerCompat.from(this)
                         .notify(INCOMING_BASE_NOTIFICATION_ID + (hash.hashCode() & 0x7fffffff) % 100000, notification);
+                // Persist only after actually notifying: if permission is denied the hash
+                // must stay unrecorded so the alert can fire once permission is granted.
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(key, hash).apply();
             }
-
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(key, hash).apply();
         } catch (Exception e) {
             Log.w(TAG, "Incoming notify check failed: " + e.getMessage());
         }

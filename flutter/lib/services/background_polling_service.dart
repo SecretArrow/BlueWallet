@@ -8,7 +8,13 @@ import 'network_service.dart';
 import 'crypto_service.dart';
 
 /// Background service for polling transaction finality and PVAC registration
-/// Mirrors webcli's pvac_bg thread implementation
+/// Mirrors webcli's pvac_bg thread implementation.
+///
+/// FOREGROUND-ONLY by design: Dart [Timer]s run only while the app process
+/// is alive. There is deliberately no WorkManager / background-fetch plugin
+/// wired here — on Android the equivalent always-on coverage belongs to
+/// AutoScanService/AutoScanWorker (WorkManager + system notifications).
+/// Do not mistake this class for OS-level background execution.
 class BackgroundPollingService extends ChangeNotifier {
   static BackgroundPollingService? _instance;
 
@@ -18,6 +24,10 @@ class BackgroundPollingService extends ChangeNotifier {
   Timer? _pollTimer;
   Timer? _pvacTimer;
   bool _isRunning = false;
+  // Re-entrancy guards: a slow tick must never overlap the next one
+  // (concurrent RPC storms + read-modify-write races on the pending list).
+  bool _pollBusy = false;
+  bool _pvacBusy = false;
   String? _lastError;
   int _pollCount = 0;
   int _pvacCheckCount = 0;
@@ -75,16 +85,34 @@ class BackgroundPollingService extends ChangeNotifier {
 
   void _startPollTimer() {
     _pollTimer = Timer.periodic(_pollInterval, (_) async {
-      _pollCount++;
-      await _pollPendingTransactions();
+      if (_pollBusy) {
+        debugPrint('[BackgroundPolling] poll tick skipped (previous still running)');
+        return;
+      }
+      _pollBusy = true;
+      try {
+        _pollCount++;
+        await _pollPendingTransactions();
+      } finally {
+        _pollBusy = false;
+      }
     });
   }
 
   void _startPvacTimer() {
     // Initial delay before first PVAC check
     _pvacTimer = Timer.periodic(_pvacCheckInterval, (_) async {
-      _pvacCheckCount++;
-      await _checkPvacRegistration();
+      if (_pvacBusy) {
+        debugPrint('[BackgroundPolling] pvac tick skipped (previous still running)');
+        return;
+      }
+      _pvacBusy = true;
+      try {
+        _pvacCheckCount++;
+        await _checkPvacRegistration();
+      } finally {
+        _pvacBusy = false;
+      }
     });
   }
 
@@ -97,20 +125,29 @@ class BackgroundPollingService extends ChangeNotifier {
       if (pendingTxs.isEmpty) return;
 
       for (final txHash in pendingTxs) {
-        final result = await _rpcClient.getTransaction(txHash);
+        // Per-item guard: one bad hash (or one failing lookup) must not
+        // abort the whole tick and stall every other pending tx.
+        try {
+          final result = await _rpcClient.getTransaction(txHash);
 
-        if (result.ok && result.result != null) {
-          final status = result.result['status']?.toString().toLowerCase();
+          if (result.ok && result.result != null) {
+            final status = result.result['status']?.toString().toLowerCase();
 
-          // Update local storage with new status
-          await _updateTransactionStatus(txHash, status);
+            // Update local storage with new status
+            await _updateTransactionStatus(txHash, status);
 
-          // If no longer pending, remove from pending list
-          if (status != 'pending') {
-            await _removeFromPending(txHash);
-            debugPrint(
-                '[BackgroundPolling] TX $txHash reached finality: $status');
+            // If no longer pending, remove from pending list
+            if (status != 'pending') {
+              await _removeFromPending(txHash);
+              debugPrint(
+                  '[BackgroundPolling] TX $txHash reached finality: $status');
+            }
           }
+        } catch (e) {
+          // No auto-retry here by design (A6: blind retries risk
+          // double-submit; the next tick retries naturally). Rate-limit
+          // (429) responses surface as errors and are retried next tick.
+          debugPrint('[BackgroundPolling] TX $txHash lookup failed: $e');
         }
       }
     } catch (e) {
@@ -193,36 +230,17 @@ class BackgroundPollingService extends ChangeNotifier {
     }
   }
 
-  /// Register PVAC pubkey
+  /// PVAC registration itself is intentionally NOT performed here: it needs
+  /// the unlocked wallet for signing and belongs to WalletService. This
+  /// method only detects the unregistered state and logs it honestly
+  /// (previously this pretended to register and silently did nothing).
   Future<void> _registerPvacPubkey(
     String addr,
     String privB64,
     String pubB64,
   ) async {
-    try {
-      // Initialize PVAC
-      final privBytes = base64Decode(privB64);
-      if (!CryptoService.pvacInit(privBytes)) {
-        debugPrint('[BackgroundPolling] PVAC init failed for $addr');
-        return;
-      }
-
-      // Get PVAC pubkey
-      NativeCrypto.pvacGetPubkeyB64();
-
-      // Compute AES-KAT
-      NativeCrypto.computeAesKat();
-
-      // Reset PVAC
-      NativeCrypto.pvacReset();
-
-      debugPrint(
-          '[BackgroundPolling] PVAC registration needed for $addr (signature requires wallet unlock)');
-      // Note: Full PVAC registration requires signing with private key
-      // This should be done when wallet is unlocked via WalletService
-    } catch (e) {
-      debugPrint('[BackgroundPolling] PVAC register error: $e');
-    }
+    debugPrint(
+        '[BackgroundPolling] PVAC registration needed for $addr — requires wallet unlock (WalletService registers on next encrypt/stealth flow)');
   }
 
   /// Get list of pending transaction hashes

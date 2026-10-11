@@ -13,14 +13,25 @@ import android.os.IBinder;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
+import android.util.Log;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class StealthClaimService extends Service {
+    private static final String TAG = "StealthClaimService";
     private static final String CHANNEL_ID = "stealth_claim";
+    private static final String CHANNEL_RESULT_ID = "stealth_claim_result";
     private static final int ONGOING_NOTIFICATION_ID = 6101;
     private static final int RESULT_NOTIFICATION_ID = 6102;
     private static final String EXTRA_OUTPUTS_JSON = "outputs_json";
+
+    /** Single-instance guard: only one queueing pass may run at a time. */
+    private final AtomicBoolean busy = new AtomicBoolean(false);
+    private volatile Thread worker;
+    private volatile boolean cancelled;
 
     public static void startClaiming(android.content.Context context, JSONArray selectedOutputs) {
         Intent intent = new Intent(context, StealthClaimService.class);
@@ -41,19 +52,48 @@ public class StealthClaimService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (!busy.compareAndSet(false, true)) {
+            Log.w(TAG, "Claim queue already running, ignoring duplicate start");
+            return START_NOT_STICKY;
+        }
+        cancelled = false;
+
         String raw = intent == null ? "[]" : intent.getStringExtra(EXTRA_OUTPUTS_JSON);
         JSONArray outputs;
         try {
             outputs = new JSONArray(raw == null ? "[]" : raw);
         } catch (Exception e) {
+            Log.w(TAG, "Invalid outputs payload: " + e.getMessage());
             outputs = new JSONArray();
         }
 
         startForegroundCompat(buildNotification("Preparing claim queue...", true));
 
         final JSONArray finalOutputs = outputs;
-        new Thread(() -> processClaims(finalOutputs)).start();
+        worker = new Thread(() -> {
+            try {
+                processClaims(finalOutputs);
+            } finally {
+                busy.set(false);
+                worker = null;
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                // Plain stopSelf(): rejected duplicate starts carry no work, so no
+                // startId bookkeeping is needed (a duplicate startId would otherwise
+                // make stopSelf(startId) a no-op and leak the foreground service).
+                stopSelf();
+            }
+        });
+        worker.setName("stealth-claim-worker");
+        worker.start();
         return START_NOT_STICKY;
+    }
+
+    @Override
+    public void onDestroy() {
+        cancelled = true;
+        Thread t = worker;
+        if (t != null) t.interrupt();
+        super.onDestroy();
     }
 
     private void processClaims(JSONArray outputs) {
@@ -63,6 +103,10 @@ public class StealthClaimService extends Service {
         long totalAmountRaw = 0L;
 
         for (int i = 0; i < total; i++) {
+            if (cancelled || Thread.currentThread().isInterrupted()) {
+                Log.d(TAG, "Claim queue cancelled, stopping");
+                break;
+            }
             try {
                 JSONObject item = outputs.optJSONObject(i);
                 if (item == null) {
@@ -76,7 +120,7 @@ public class StealthClaimService extends Service {
                     continue;
                 }
 
-                String txId = "tx_claim_" + System.currentTimeMillis() + "_" + i;
+                String txId = "tx_claim_" + System.currentTimeMillis() + "_" + System.nanoTime() + "_" + i;
                 TxForegroundService.startTx(
                         getApplicationContext(),
                         TxForegroundService.ACTION_DECRYPT,
@@ -90,31 +134,42 @@ public class StealthClaimService extends Service {
                 updateProgress(queued, total);
                 try {
                     Thread.sleep(250L);
-                } catch (InterruptedException ignored) {
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    Log.d(TAG, "Claim queue pacing interrupted");
+                    break;
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                Log.w(TAG, "Skipping claim item: " + e.getMessage());
                 skipped++;
             }
         }
 
-        NotificationManager nm = getSystemService(NotificationManager.class);
-        if (nm != null) {
-            nm.cancel(ONGOING_NOTIFICATION_ID);
-            String amountDisplay = formatOctAmount(totalAmountRaw);
-            String summary;
-            if (queued == 0) {
-                summary = "No stealth outputs to claim"
-                        + (skipped > 0 ? " (" + skipped + " skipped)" : "") + ".";
-            } else {
-                summary = "Claiming " + queued + " stealth output" + (queued > 1 ? "s" : "")
-                        + " worth " + amountDisplay + " OCT."
-                        + (skipped > 0 ? " (" + skipped + " skipped)" : "")
-                        + "\nOpen Transactions Manager to track progress.";
+        if (hasNotificationPermission()) {
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            if (nm != null) {
+                nm.cancel(ONGOING_NOTIFICATION_ID);
+                String amountDisplay = formatOctAmount(totalAmountRaw);
+                String summary;
+                if (queued == 0) {
+                    summary = "No stealth outputs to claim"
+                            + (skipped > 0 ? " (" + skipped + " skipped)" : "") + ".";
+                } else {
+                    summary = "Claiming " + queued + " stealth output" + (queued > 1 ? "s" : "")
+                            + " worth " + amountDisplay + " OCT."
+                            + (skipped > 0 ? " (" + skipped + " skipped)" : "")
+                            + "\nOpen Transactions Manager to track progress.";
+                }
+                nm.notify(RESULT_NOTIFICATION_ID, buildResultNotification(summary));
             }
-            nm.notify(RESULT_NOTIFICATION_ID, buildResultNotification(summary));
+        } else {
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            if (nm != null) {
+                nm.cancel(ONGOING_NOTIFICATION_ID);
+            }
+            Log.d(TAG, "Claim queue finished (queued=" + queued + ", skipped=" + skipped
+                    + ") but POST_NOTIFICATIONS not granted; result notification skipped");
         }
-        stopForeground(STOP_FOREGROUND_REMOVE);
-        stopSelf();
     }
 
     /** Formats a raw micro-OCT amount (6 decimal places) as a human-readable string. */
@@ -127,6 +182,7 @@ public class StealthClaimService extends Service {
     }
 
     private void updateProgress(int queued, int total) {
+        if (!hasNotificationPermission()) return;
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (nm == null) return;
         String text = "Queueing claim tasks... (" + queued + "/" + total + ")";
@@ -168,7 +224,7 @@ public class StealthClaimService extends Service {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        return new NotificationCompat.Builder(this, CHANNEL_RESULT_ID)
                 .setSmallIcon(R.drawable.ic_stealth)
                 .setContentTitle("Stealth Claim Queued")
                 .setContentText(text)
@@ -195,6 +251,14 @@ public class StealthClaimService extends Service {
         }
     }
 
+    private boolean hasNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        }
+        return true;
+    }
+
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
@@ -203,9 +267,17 @@ public class StealthClaimService extends Service {
                     NotificationManager.IMPORTANCE_LOW
             );
             channel.setDescription("Stealth claim background tasks");
+            NotificationChannel resultChannel = new NotificationChannel(
+                    CHANNEL_RESULT_ID,
+                    "Stealth Claim Results",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            resultChannel.setDescription("Stealth claim queue results");
+            resultChannel.enableVibration(true);
             NotificationManager nm = getSystemService(NotificationManager.class);
             if (nm != null) {
                 nm.createNotificationChannel(channel);
+                nm.createNotificationChannel(resultChannel);
             }
         }
     }
