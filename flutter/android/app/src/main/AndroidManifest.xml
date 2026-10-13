@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Camera: real QR scanning (mobile_scanner). The manifest entry is
+         required for the runtime permission dialog the plugin triggers when
+         the scanner screen opens. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />

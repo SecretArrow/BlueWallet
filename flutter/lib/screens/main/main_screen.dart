@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../services/deep_link_nav.dart';
 import '../../services/wallet_service.dart';
 import '../../services/network_service.dart';
 import '../dapp/dapp_browser_screen.dart';
@@ -28,6 +29,35 @@ class _MainScreenState extends State<MainScreen> {
 
   bool get _isDesktop =>
       Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+
+  /// Browser tab index (dashboard, history, browser, settings).
+  static const _browserTabIndex = 2;
+
+  @override
+  void initState() {
+    super.initState();
+    // A cold-start deep link can arrive before this screen mounts: pick
+    // the pending URL up here; the listener covers links arriving later.
+    if (DeepLinkNav.instance.pendingUrl != null) {
+      _tabIndex = _browserTabIndex;
+    }
+    DeepLinkNav.instance.addListener(_onDeepLinkNav);
+  }
+
+  @override
+  void dispose() {
+    DeepLinkNav.instance.removeListener(_onDeepLinkNav);
+    super.dispose();
+  }
+
+  /// Deep links targeting the browser switch to the Browser tab; the
+  /// DappBrowserScreen consumes the URL itself.
+  void _onDeepLinkNav() {
+    if (DeepLinkNav.instance.pendingUrl == null) return;
+    if (_tabIndex != _browserTabIndex) {
+      setState(() => _tabIndex = _browserTabIndex);
+    }
+  }
 
   @override
   void didChangeDependencies() {

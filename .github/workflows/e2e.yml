@@ -19,9 +19,16 @@ on:
     # Nightly — emulator E2E is slow, never run it per-push.
     - cron: '0 2 * * *'
 
+concurrency:
+  # Emulator runs are slow and expensive; supersede older pending runs for
+  # the same ref instead of queueing them.
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,12 +37,51 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      # The integration-test build runs a real gradle build; setup-gradle
+      # caches ~/.gradle for it.
+      - uses: gradle/actions/setup-gradle@v4
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
       - run: flutter pub get
         working-directory: flutter
+      # Pre-warm/validate the pinned NDK (27.0.12077973) used by the shared
+      # android toolchain. The Flutter app itself builds with
+      # `flutter.ndkVersion` (resolved by the Flutter tool, may differ) —
+      # gradle auto-installs that one with its own retry, so this step mainly
+      # warms/caches the download and catches corrupt zips early.
+      - name: Pre-install NDK (retry flaky downloads)
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          NDK_VERSION="27.0.12077973"
+          ANDROID_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if [ -d "$ANDROID_ROOT/ndk/$NDK_VERSION" ] && [ -x "$ANDROID_ROOT/ndk/$NDK_VERSION/ndk-build" ]; then
+            echo "NDK $NDK_VERSION already present"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            echo "NDK install attempt $attempt"
+            # `yes` dies with SIGPIPE (141) once sdkmanager stops reading; under
+            # `set -o pipefail` that would mask a successful install, so relax
+            # -e/pipefail for this one pipeline and test sdkmanager's own status.
+            set +e
+            set +o pipefail
+            yes | sdkmanager "ndk;$NDK_VERSION" > /tmp/ndk-install.log 2>&1
+            rc=$?
+            set -e
+            set -o pipefail
+            if [ "$rc" -eq 0 ]; then
+              echo "NDK installed on attempt $attempt"
+              exit 0
+            fi
+            echo "::warning::NDK install attempt $attempt failed (see /tmp/ndk-install.log tail)"
+            tail -n 40 /tmp/ndk-install.log || true
+            sleep $((attempt * 20))
+          done
+          echo "::error::NDK $NDK_VERSION failed to install after 3 attempts"
+          exit 1
       # Cache the AVD snapshot so nightly runs skip cold emulator creation.
       - uses: actions/cache@v4
         with:

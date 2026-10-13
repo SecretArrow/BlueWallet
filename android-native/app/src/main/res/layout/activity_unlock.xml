@@ -51,7 +51,7 @@
     <!-- Biometric unlock button (hidden when hardware not available) -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/unlock_biometric_button"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        style="@style/Widget.Material3.Button.OutlinedButton"
         android:layout_width="200dp"
         android:layout_height="wrap_content"
         android:text="Use Biometrics"

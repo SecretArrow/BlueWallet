@@ -66,7 +66,7 @@
                             android:text="Export Wallets"
                             android:textAllCaps="false"
                             app:cornerRadius="12dp"
-                            style="@style/Widget.MaterialComponents.Button" />
+                            style="@style/Widget.Material3.Button" />
 
                     <!-- Add export button and status here as needed -->
 

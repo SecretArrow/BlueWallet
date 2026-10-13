@@ -3,12 +3,10 @@ name: Build APK (split ABI)
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: android-native
@@ -21,6 +19,40 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      # NDK downloads from dl.google.com have flaked with corrupt zips
+      # ("Error on ZipFile unknown archive") — pre-install with retries
+      # before gradle touches it.
+      - name: Pre-install NDK (retry flaky downloads)
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          NDK_VERSION="27.0.12077973"
+          ANDROID_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if [ -d "$ANDROID_ROOT/ndk/$NDK_VERSION" ] && [ -x "$ANDROID_ROOT/ndk/$NDK_VERSION/ndk-build" ]; then
+            echo "NDK $NDK_VERSION already present"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            echo "NDK install attempt $attempt"
+            # `yes` dies with SIGPIPE (141) once sdkmanager stops reading; under
+            # `set -o pipefail` that would mask a successful install, so relax
+            # -e/pipefail for this one pipeline and test sdkmanager's own status.
+            set +e
+            set +o pipefail
+            yes | sdkmanager "ndk;$NDK_VERSION" > /tmp/ndk-install.log 2>&1
+            rc=$?
+            set -e
+            set -o pipefail
+            if [ "$rc" -eq 0 ]; then
+              echo "NDK installed on attempt $attempt"
+              exit 0
+            fi
+            echo "::warning::NDK install attempt $attempt failed (see /tmp/ndk-install.log tail)"
+            tail -n 40 /tmp/ndk-install.log || true
+            sleep $((attempt * 20))
+          done
+          echo "::error::NDK $NDK_VERSION failed to install after 3 attempts"
+          exit 1
       - name: Restore keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > scripts/octra.jks

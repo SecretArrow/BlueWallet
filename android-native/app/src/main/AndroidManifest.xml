@@ -147,6 +147,12 @@
             android:hardwareAccelerated="true" />
 
         <activity
+            android:name=".BookmarksActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".TxSettingsActivity"
             android:exported="false"
             android:screenOrientation="portrait"

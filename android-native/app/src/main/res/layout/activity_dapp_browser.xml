@@ -54,6 +54,15 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Navigate" />
 
+        <!-- Overflow: bookmark this page / private mode -->
+        <ImageButton
+            android:id="@+id/btnMore"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_more"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="More options" />
+
         <ImageButton
             android:id="@+id/btnClose"
             android:layout_width="40dp"
@@ -99,6 +108,19 @@
             android:textColor="#2E7D32" />
     </LinearLayout>
 
+    <!-- Private mode indicator (runtime toggle) -->
+    <TextView
+        android:id="@+id/private_banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:paddingVertical="6dp"
+        android:text="Private mode: visits are not recorded"
+        android:textColor="?attr/colorOnPrimaryContainer"
+        android:textSize="12sp"
+        android:background="?attr/colorPrimaryContainer"
+        android:visibility="gone" />
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -136,29 +158,21 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
-            <LinearLayout
+            <!-- Quick access: bookmark chips (falls back to default
+                 explorer shortcuts when nothing is bookmarked yet). -->
+            <HorizontalScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:orientation="horizontal">
+                android:scrollbars="none"
+                android:clipToPadding="false">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/quickDevnet"
-                    style="@style/Widget.OctraWallet.Button.Tonal.Compact"
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:id="@+id/bookmarksStrip"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Devnet Explorer" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/quickMainnet"
-                    style="@style/Widget.OctraWallet.Button.Tonal.Compact"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="8dp"
-                    android:text="Mainnet Explorer" />
-            </LinearLayout>
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
 
             <LinearLayout
                 android:layout_width="match_parent"

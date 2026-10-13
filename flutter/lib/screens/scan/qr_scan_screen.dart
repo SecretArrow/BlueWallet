@@ -1,13 +1,19 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
-/// QR Scan screen — camera scanner that returns an address string.
+/// QR Scan screen — real camera scanning that returns an address string.
 /// Used by SendScreen, AddressBookEntryScreen, etc.
 ///
-/// On mobile: camera-based QR scanning (stub/demo for now).
-/// On desktop: provides "Paste from Clipboard" as the primary input method.
+/// - Mobile: full-bleed camera preview ([MobileScanner]) with a scan-frame
+///   overlay, torch toggle, and clipboard / manual entry fallbacks. The
+///   CAMERA permission is requested at runtime by mobile_scanner when the
+///   preview starts; a denied permission, a missing camera, or an
+///   unsupported platform falls back to the manual entry card — never a
+///   dead end, never a simulated result.
+/// - Desktop: paste / type the address directly (no camera assumed).
 class QrScanScreen extends StatefulWidget {
   const QrScanScreen({super.key});
 
@@ -16,23 +22,52 @@ class QrScanScreen extends StatefulWidget {
 }
 
 class _QrScanScreenState extends State<QrScanScreen> {
-  bool _simulating = false;
   final _pasteCtrl = TextEditingController();
+
+  /// Pop-once guard: detection bursts must not pop the route twice.
+  bool _popped = false;
+
+  /// Camera unavailable / permission denied / unsupported platform → show
+  /// the manual entry card (the same one the desktop branch uses).
+  bool _cameraFailed = false;
+
+  /// Manual entry explicitly requested via the bottom controls.
+  bool _manualRequested = false;
+
+  bool _torchOn = false;
+
+  /// Created lazily (mobile branch only) so the desktop branch and widget
+  /// tests never touch the camera plugin.
+  MobileScannerController? _scanner;
 
   @override
   void dispose() {
+    _scanner?.dispose();
     _pasteCtrl.dispose();
     super.dispose();
   }
 
+  /// Desktop = Linux / Windows / macOS. Uses [defaultTargetPlatform] (not
+  /// `dart:io` Platform) so widget tests can select either branch with
+  /// `debugDefaultTargetPlatformOverride`.
   bool get _isDesktop =>
-      Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+      defaultTargetPlatform == TargetPlatform.linux ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.macOS;
 
-  Future<void> _simulate() async {
-    setState(() => _simulating = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted) {
-      context.pop('oct1qABCDExampleAddress');
+  void _popWith(String value) {
+    if (_popped || !mounted) return;
+    _popped = true;
+    context.pop(value);
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    if (_popped) return;
+    for (final barcode in capture.barcodes) {
+      final value = barcode.rawValue;
+      if (value == null || value.trim().isEmpty) continue;
+      _popWith(value.trim());
+      return;
     }
   }
 
@@ -40,7 +75,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim() ?? '';
     if (text.isNotEmpty && mounted) {
-      context.pop(text);
+      _popWith(text);
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Clipboard is empty')),
@@ -51,8 +86,24 @@ class _QrScanScreenState extends State<QrScanScreen> {
   void _submitManual() {
     final text = _pasteCtrl.text.trim();
     if (text.isNotEmpty && mounted) {
-      context.pop(text);
+      _popWith(text);
     }
+  }
+
+  Future<void> _toggleTorch() async {
+    final scanner = _scanner;
+    if (scanner == null) return;
+    try {
+      // Toggling talks to camera hardware asynchronously; a rejected Future
+      // (missing torch on emulators / front cameras) must not go unhandled.
+      await scanner.toggleTorch();
+    } catch (e) {
+      // Torch hardware missing — the scanner stays usable, just without the
+      // light.
+      debugPrint('QR torch toggle failed: $e');
+      return;
+    }
+    if (mounted) setState(() => _torchOn = !_torchOn);
   }
 
   @override
@@ -70,7 +121,106 @@ class _QrScanScreenState extends State<QrScanScreen> {
     );
   }
 
-  Widget _buildDesktopBody(ColorScheme cs) {
+  Widget _buildDesktopBody(ColorScheme cs) => _buildManualEntryCard(cs);
+
+  Widget _buildMobileBody(ColorScheme cs) {
+    if (_cameraFailed || _manualRequested) {
+      return _buildManualEntryCard(cs);
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _buildCameraPreview(),
+        _buildScanOverlay(cs),
+      ],
+    );
+  }
+
+  Widget _buildCameraPreview() {
+    // Try-builder: mobile_scanner may throw on platforms without camera
+    // support — fall back to the manual card instead of crashing.
+    try {
+      return MobileScanner(
+        controller: _scanner ??= MobileScannerController(
+          // Payment QRs only: ignore 1D / other barcode noise.
+          formats: const [BarcodeFormat.qrCode],
+        ),
+        onDetect: _onDetect,
+        errorBuilder: (context, error) {
+          // Permission denied, camera busy, or preview failure: flip to the
+          // manual entry card (post-frame — no setState during build).
+          if (!_cameraFailed) {
+            debugPrint('QR scanner camera error: $error');
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _cameraFailed = true);
+            });
+          }
+          return const SizedBox.shrink();
+        },
+      );
+    } catch (e) {
+      debugPrint('QR scanner unavailable on this platform: $e');
+      return _buildManualEntryCard(Theme.of(context).colorScheme);
+    }
+  }
+
+  Widget _buildScanOverlay(ColorScheme cs) {
+    return SafeArea(
+      child: Column(
+        children: [
+          const Spacer(),
+          Container(
+            width: 240,
+            height: 240,
+            decoration: BoxDecoration(
+              border: Border.all(color: cs.primary, width: 2.5),
+              borderRadius: BorderRadius.circular(24),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Point camera at a QR code',
+            style: TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+          const Spacer(),
+          _buildControlsRow(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlsRow() {
+    return Container(
+      color: Colors.black54,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          IconButton(
+            tooltip: _torchOn ? 'Turn torch off' : 'Turn torch on',
+            color: Colors.white,
+            icon: Icon(_torchOn ? Icons.flashlight_on : Icons.flashlight_off),
+            onPressed: _toggleTorch,
+          ),
+          IconButton(
+            tooltip: 'Paste from clipboard',
+            color: Colors.white,
+            icon: const Icon(Icons.content_paste_rounded),
+            onPressed: _pasteFromClipboard,
+          ),
+          IconButton(
+            tooltip: 'Enter address manually',
+            color: Colors.white,
+            icon: const Icon(Icons.keyboard_alt_rounded),
+            onPressed: () => setState(() => _manualRequested = true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Manual / desktop entry card: paste or type the address.
+  Widget _buildManualEntryCard(ColorScheme cs) {
     return SafeArea(
       child: Center(
         child: ConstrainedBox(
@@ -134,68 +284,6 @@ class _QrScanScreenState extends State<QrScanScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildMobileBody(ColorScheme cs) {
-    // Camera-stack page: keep the preview full-bleed but guard controls
-    // against the status / gesture bars.
-    return SafeArea(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 240,
-                    height: 240,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: cs.primary, width: 2.5),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(Icons.qr_code_scanner_rounded,
-                        size: 80, color: cs.primary.withValues(alpha: 0.4)),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Point camera at a QR code',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                  const SizedBox(height: 20),
-                  if (!_simulating) ...[
-                    OutlinedButton.icon(
-                      onPressed: _simulate,
-                      icon: const Icon(Icons.qr_code_rounded,
-                          color: Colors.white),
-                      label: const Text('Simulate Scan (Demo)',
-                          style: TextStyle(color: Colors.white)),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: _pasteFromClipboard,
-                      icon: const Icon(Icons.content_paste_rounded,
-                          color: Colors.white),
-                      label: const Text('Paste from Clipboard',
-                          style: TextStyle(color: Colors.white)),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                  ] else
-                    const CircularProgressIndicator(color: Colors.white),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

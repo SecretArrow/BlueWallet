@@ -2,7 +2,9 @@
     native <methods>;
 }
 
--keep class github.com.maragung.octopus_wallet.OctraNative { *; }
+# JNI entry points: keep the wrapper class (its fully-qualified name is baked
+# into native code) and all classes with native methods.
+-keep class com.octopus.wallet.OctraNative { *; }
 
 -keep class org.json.** { *; }
 

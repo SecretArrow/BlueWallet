@@ -38,8 +38,8 @@ class DappRequest {
 
 /// Services + UI callbacks an adapter may use. Adapters never touch
 /// `BuildContext` or navigation directly — the browser screen injects
-/// approval callbacks that show `ConfirmActionScreen` /
-/// `ConfirmContractCallScreen` and return `true` only on explicit user
+/// approval callbacks that show the in-app approval dialogs
+/// (`DappBrowserScreen`) and return `true` only on explicit user
 /// approval. A dismissed / cancelled dialog MUST resolve to `false`
 /// (cancel != approve).
 class AdapterContext {

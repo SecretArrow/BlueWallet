@@ -12,7 +12,10 @@ import '../../widgets/adaptive_body.dart';
 class SendScreen extends StatefulWidget {
   final String? prefillAddress;
 
-  const SendScreen({super.key, this.prefillAddress});
+  /// Optional prefilled amount (deep links `octra://send?to=…&amount=…`).
+  final String? prefillAmount;
+
+  const SendScreen({super.key, this.prefillAddress, this.prefillAmount});
 
   @override
   State<SendScreen> createState() => _SendScreenState();
@@ -33,6 +36,10 @@ class _SendScreenState extends State<SendScreen> {
     super.initState();
     if (widget.prefillAddress != null) {
       _toCtrl.text = widget.prefillAddress!;
+    }
+    final amount = widget.prefillAmount;
+    if (amount != null && amount.isNotEmpty) {
+      _amtCtrl.text = amount;
     }
   }
 

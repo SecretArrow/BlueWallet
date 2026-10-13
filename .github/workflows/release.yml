@@ -7,14 +7,21 @@ on:
   # NOTE: the publish job only publishes on tags (guard below).
   workflow_dispatch:
 
-permissions:
-  contents: write
+concurrency:
+  # Serialize per ref so a re-pushed tag cannot double-publish. NO
+  # cancel-in-progress here: never kill a signing build mid-flight — a
+  # half-finished release is worse than a queued duplicate.
+  group: release-${{ github.ref }}
 
 jobs:
   # Cheap gate before any signed build: a tag that does not match the version
   # the apps ship produces an artifact labelled with a version it is not.
   verify-version:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      # Consumed by android-build's post-build APK versionCode verification.
+      VERSION_CODE: ${{ steps.v.outputs.code }}
     steps:
       - uses: actions/checkout@v4
       - name: Resolve tag and declared versions
@@ -26,11 +33,13 @@ jobs:
           CODE=$(grep -E '^VERSION_CODE=' android-native/version.properties | cut -d= -f2- | tr -d '\r')
           FNAME=$(grep -E '^version:' flutter/pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
           FCODE=$(grep -E '^version:' flutter/pubspec.yaml | awk '{print $2}' | cut -d+ -f2)
-          echo "tag=$TAG"     >> "$GITHUB_OUTPUT"
-          echo "name=$NAME"   >> "$GITHUB_OUTPUT"
-          echo "code=$CODE"   >> "$GITHUB_OUTPUT"
-          echo "fname=$FNAME" >> "$GITHUB_OUTPUT"
-          echo "fcode=$FCODE" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$TAG"
+            echo "name=$NAME"
+            echo "code=$CODE"
+            echo "fname=$FNAME"
+            echo "fcode=$FCODE"
+          } >> "$GITHUB_OUTPUT"
           echo "tag=$TAG android=$NAME/$CODE flutter=$FNAME/$FCODE"
       - name: Tag must match the shipped versions
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -44,10 +53,32 @@ jobs:
             echo "android VERSION_CODE (${{ steps.v.outputs.code }}) != flutter build number (${{ steps.v.outputs.fcode }})"; exit 1
           fi
           echo "version guard OK: $TAG"
+      # Legacy provider dialect is sunset at v0.19.0 (docs/ADAPTER.md). The
+      # same guard exists in sdk/test/version.test.mjs, but that only runs on
+      # sdk-path changes — this one guards the actual release path, so a
+      # version-bump-only PR cannot ship past the sunset.
+      - name: Legacy sunset guard
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          node -e '
+            const fs = require("fs");
+            const props = fs.readFileSync("android-native/version.properties", "utf8");
+            const m = props.match(/VERSION_NAME=([0-9]+)\.([0-9]+)\.([0-9]+)/);
+            if (!m) { console.error("Cannot parse VERSION_NAME"); process.exit(1); }
+            const minor = parseInt(m[2], 10);
+            if (minor >= 19) {
+              console.error("Refusing release: legacy provider dialect is sunset at v0.19.0 (see docs/ADAPTER.md). Settle the RFC rename first.");
+              process.exit(1);
+            }
+            console.log("Sunset guard OK: minor " + minor + " < 19");
+          '
 
   android-build:
     needs: verify-version
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: android-native
@@ -60,6 +91,40 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      # NDK downloads from dl.google.com have flaked with corrupt zips
+      # ("Error on ZipFile unknown archive") — pre-install with retries
+      # before gradle touches it.
+      - name: Pre-install NDK (retry flaky downloads)
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          NDK_VERSION="27.0.12077973"
+          ANDROID_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if [ -d "$ANDROID_ROOT/ndk/$NDK_VERSION" ] && [ -x "$ANDROID_ROOT/ndk/$NDK_VERSION/ndk-build" ]; then
+            echo "NDK $NDK_VERSION already present"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            echo "NDK install attempt $attempt"
+            # `yes` dies with SIGPIPE (141) once sdkmanager stops reading; under
+            # `set -o pipefail` that would mask a successful install, so relax
+            # -e/pipefail for this one pipeline and test sdkmanager's own status.
+            set +e
+            set +o pipefail
+            yes | sdkmanager "ndk;$NDK_VERSION" > /tmp/ndk-install.log 2>&1
+            rc=$?
+            set -e
+            set -o pipefail
+            if [ "$rc" -eq 0 ]; then
+              echo "NDK installed on attempt $attempt"
+              exit 0
+            fi
+            echo "::warning::NDK install attempt $attempt failed (see /tmp/ndk-install.log tail)"
+            tail -n 40 /tmp/ndk-install.log || true
+            sleep $((attempt * 20))
+          done
+          echo "::error::NDK $NDK_VERSION failed to install after 3 attempts"
+          exit 1
       - name: Restore keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > scripts/octra.jks
@@ -91,17 +156,58 @@ jobs:
           mv app/build/outputs/apk/release/app-arm64-v8a-release.apk app/build/outputs/apk/release/octra-wallet-android-arm64-v8a-release.apk
           mv app/build/outputs/bundle/release/app-release.aab app/build/outputs/bundle/release/octra-wallet-android-release.aab
           ls app/build/outputs/apk/release/*.apk app/build/outputs/bundle/release/*.aab
+      # The auto-increment hack in app/build.gradle is gone: version bumps
+      # now happen ONLY by editing android-native/version.properties and
+      # flutter/pubspec.yaml (CI verifies both sides match the tag). This
+      # step proves the built APK ships exactly the declared VERSION_CODE —
+      # previously the hack shipped 314 while the guard read 313.
+      - name: Verify APK versionCode matches version.properties
+        run: |
+          set -euo pipefail
+          # buildToolsVersion is 35.0.0 (app/build.gradle); fall back to any
+          # installed build-tools if that exact dir is absent.
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          if [ ! -x "$AAPT" ]; then
+            # `|| true` keeps `set -e` from aborting when build-tools is absent.
+            AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt -type f 2>/dev/null | head -1 || true)
+          fi
+          if [ -z "$AAPT" ] || [ ! -x "$AAPT" ]; then
+            echo "::error::aapt not found under $ANDROID_HOME/build-tools"
+            exit 1
+          fi
+          set -- app/build/outputs/apk/release/*.apk
+          if [ ! -e "$1" ]; then
+            echo "::error::no release APK found under app/build/outputs/apk/release/"
+            exit 1
+          fi
+          APK="$1"
+          # `|| true` so a non-matching grep prints the friendly error below
+          # instead of aborting silently under `set -e`.
+          ACTUAL=$("$AAPT" dump badging "$APK" | grep -oP "package:.*versionCode='\K[0-9]+" | head -1 || true)
+          EXPECTED="${{ needs.verify-version.outputs.VERSION_CODE }}"
+          echo "APK: $APK"
+          echo "APK versionCode: $ACTUAL (version.properties / guard: $EXPECTED)"
+          if [ -z "$ACTUAL" ]; then
+            echo "::error::could not extract versionCode from $APK"
+            exit 1
+          fi
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::versionCode drift: APK ships $ACTUAL but version.properties declares $EXPECTED"
+            exit 1
+          fi
+          echo "versionCode guard OK: $ACTUAL"
       # AGP names unsigned outputs *-unsigned.apk — refuse to ship those.
       - name: Refuse unsigned artifacts
         run: |
-          if ls app/build/outputs/apk/release/*unsigned*.apk 2>/dev/null | grep -q .; then
+          set -- app/build/outputs/apk/release/*unsigned*.apk
+          if [ -e "$1" ]; then
             echo "unsigned release APK produced — signing misconfigured"; exit 1
           fi
           ls app/build/outputs/apk/release/*.apk app/build/outputs/bundle/release/*.aab
       # Detect silent fallback to debug signing (storeFile null in build.gradle).
       - name: Show signing certificate DN
         run: |
-          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          APK=$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -1)
           APKSIGNER=$(find "$ANDROID_HOME" -name apksigner -type f 2>/dev/null | head -1)
           if [ -n "$APKSIGNER" ]; then
             "$APKSIGNER" verify --print-certs "$APK" 2>/dev/null | grep -m1 "DN:" || echo "verify failed"
@@ -130,6 +236,9 @@ jobs:
   flutter-build:
     needs: verify-version
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: flutter
@@ -141,6 +250,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      # The flutter release build runs a real gradle build under the hood;
+      # setup-gradle caches ~/.gradle for it.
+      - uses: gradle/actions/setup-gradle@v4
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -190,6 +302,13 @@ jobs:
       # builds). NOTE: --split-per-abi is incompatible with ndk abiFilters
       # in build.gradle — the Flutter Gradle plugin rejects that combination.
       - run: flutter build apk --release --target-platform android-arm64 --obfuscate --split-debug-info=build/debug-info --tree-shake-icons
+      # --split-debug-info + --obfuscate strip Dart symbols into this dir;
+      # upload it so obfuscated release stack traces can be symbolicated.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flutter-debug-symbols
+          path: flutter/build/debug-info/
+          if-no-files-found: warn
       # Clear public name (Flutter default collides with the native APK name).
       - name: Rename artifacts
         run: |
@@ -218,6 +337,10 @@ jobs:
     # validation only.
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      # The only job that needs write access (creating the GitHub Release).
+      contents: write
     steps:
       # Download by exact artifact name (keeps nested output paths intact).
       - uses: actions/download-artifact@v4
@@ -234,3 +357,5 @@ jobs:
             dist/**/*.apk
             dist/**/*.aab
           generate_release_notes: true
+          # alpha/beta/rc tags are pre-releases — keep them off "latest".
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}

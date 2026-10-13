@@ -157,7 +157,7 @@ Desktop-gated developer tools for smart contract interaction:
   `share_plus`.
 - **URL launcher** — Explorer links open externally via `url_launcher`.
 
-## Screens & Routes (37 total)
+## Screens & Routes (35 total)
 
 | Route | Screen | Category |
 |-------|--------|----------|
@@ -185,7 +185,6 @@ Desktop-gated developer tools for smart contract interaction:
 | `/auto-scan` | AutoScanScreen | Scan |
 | `/tx-manager` | TransactionsManagerScreen | Transactions |
 | `/tx-detail` | HistoryDetailScreen | Transactions |
-| `/confirm-action` | ConfirmActionScreen | Confirm |
 | `/about` | AboutScreen | Settings |
 | `/network-settings` | NetworkSettingsScreen | Settings |
 | `/theme-palette` | ThemePaletteScreen | Settings |

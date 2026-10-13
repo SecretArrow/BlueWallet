@@ -108,16 +108,13 @@ if (versionPropertiesFile.exists()) {
 
 def configuredVersionCode = (versionProperties.getProperty("VERSION_CODE", "1") as int)
 def configuredVersionName = versionProperties.getProperty("VERSION_NAME", "0.14.1-alpha")
-def shouldAutoIncrementVersion = gradle.startParameter.taskNames.any { task ->
-    String lower = task == null ? "" : task.toLowerCase()
-    return lower.contains("assemble") || lower.contains("bundle") || lower.contains("install")
-}
+// Version bumps happen ONLY by editing version.properties (and flutter/pubspec.yaml
+// to keep both apps in lockstep — CI's release guard verifies the two sides match
+// and that the built APK actually ships this VERSION_CODE). The previous
+// auto-increment hack bumped VERSION_CODE during assemble/bundle and rewrote
+// version.properties mid-build, which drifted the shipped artifact (314) away
+// from the guard (313) and mutated the source tree during builds.
 def effectiveVersionCode = configuredVersionCode
-if (shouldAutoIncrementVersion) {
-    effectiveVersionCode = configuredVersionCode + 1
-    versionProperties.setProperty("VERSION_CODE", String.valueOf(effectiveVersionCode))
-    versionPropertiesFile.withOutputStream { out -> versionProperties.store(out, null) }
-}
 
 def resolveSigningAlias(File keystoreFile, String storePassword, String configuredAlias) {
     if (configuredAlias != null && !configuredAlias.trim().isEmpty()) {

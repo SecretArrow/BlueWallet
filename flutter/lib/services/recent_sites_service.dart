@@ -28,13 +28,22 @@ class RecentSitesService extends ChangeNotifier {
 
   final List<VisitedPage> _pages = [];
   bool _loaded = false;
+  String? _error;
 
   List<VisitedPage> get pages => List.unmodifiable(_pages);
   bool get isLoaded => _loaded;
   bool get isEmpty => _pages.isEmpty;
 
+  /// Last load failure, rendered by the Startpage error state (with a
+  /// retry). Non-null only after a failed [load]; cleared on retry.
+  String? get error => _error;
+
+  /// Load persisted history. Idempotent after a successful load; a FAILED
+  /// load can be retried (that is what the Startpage retry button does).
+  /// Failures are logged and exposed via [error] — never swallowed.
   Future<void> load() async {
-    if (_loaded) return;
+    if (_loaded && _error == null) return;
+    _error = null;
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(storeKey);
@@ -51,8 +60,10 @@ class RecentSitesService extends ChangeNotifier {
           }
         }
       }
-    } catch (_) {
+    } catch (e) {
       _pages.clear();
+      _error = 'Could not load recent sites: $e';
+      debugPrint('[RecentSites] load failed: $e');
     }
     _loaded = true;
     notifyListeners();

@@ -327,6 +327,43 @@ CATATAN REALISASI (ditambahkan 2026-10-13; spec asli di atas utuh)
 #   oct_browser_test ke devnet + skip jujur saat RPC tak terjangkau;
 #   actionlint dipakai untuk validasi workflow (menemukan larangan secrets di if)
 
+## 16. Audit mendalam + penutupan gap → SELESAI (2026-10-14, push langsung main)
+# Audit ulang seluruh klaim rekap ini terhadap kode + CI live; temuan & perbaikan:
+# - TERVERIFIKASI HIJAU: hapus local server, dApp adapter (30 metode, approval,
+#   origin, session), Startpage 10 URL, wallet RPC nyata, PIN 6-16, dual-stack
+#   alias, settings frekuensi, 429 backoff, insets, webcli dialect
+# - BUG KRITIS DIPERBAIKI (native): baris Settings > "Cache" memanggil kelas
+#   basi github.com.maragung.octopus_wallet.* → ActivityNotFoundException
+#   (crash) → kini eksplisit PermissionsCenterActivity + maintenance_mode;
+#   proguard keep rule basi ikut diperbaiki
+# - FITUR DITUTUP (native): favicon Startpage asinkron + fallback huruf
+#   (FaviconLoader/FaviconUrls + test); bookmark penuh (BookmarkStore paritas
+#   skema flutter, BookmarksActivity, strip startpage, toggle bintang di
+#   browser); toggle Private mode di menu browser + banner; tema migrasi
+#   MaterialComponents → Material3 (12 palet + dialog + tombol);
+#   rpc_client.cpp stub mati dihapus; pesan PIN JNI + FEATURES.md diluruskan
+# - FITUR DITUTUP (flutter): QR scan kamera NYATA (mobile_scanner 7; tombol
+#   demo palsu dihapus; fallback entri manual + paste); deep link octra:// &
+#   octra-wallet:// dihubungkan (MethodChannel MainActivity.kt + DeepLinkRoute
+#   + bus DeepLinkNav, prefill send); BackgroundPollingService mati dihapus;
+#   tema ikut terang/gelap sistem (mode system/dark/light + 2 slot palet);
+#   error state Startpage nyata; rute legacy /confirm-* dibuang; hash PIN
+#   salted PBKDF2-HMAC-SHA256 100k + upgrade transparan dari skema lama;
+#   widget_test kini bermakna (StartpageView + DeepLinkRoute)
+# - CI/CD DIKERAHKAN: pre-install NDK dengan retry 3x (flake corrupt zip yang
+#   sempat memerahkan main, sudah di-rerun hijau); timeout semua job; setup-
+#   gradle + JDK terpin untuk job flutter (cache build native); guard sunset
+#   0.19.0 kini MENGEREM jalur rilis (bukan cuma path sdk) + file versi masuk
+#   filter sdk; hack auto-increment VERSION_CODE dihapus + verifikasi aapt
+#   APK vs version.properties (drift 313/314 tidak mungkin lagi); autofix
+#   aman fork-PR; actionlint jadi job CI; concurrency e2e/release; alpha/beta
+#  /rc ditandai prerelease; simbol debug flutter diunggah; permission
+#   contents:write diciutkan ke job publish saja
+# - webcli submodule dinaikkan ke 8059a1b (README PIN policy 8-64; kode
+#   validate_pin sudah selaras sejak b4ae091 — kebijakan PIN aplikasi tetap
+#   6-16 digit karena enkripsi wallet.oct native pakai skema sendiri)
+# - Versi 0.18.2-alpha+314 kedua sisi; rilis via tag v0.18.2-alpha
+
 ## Daftar PR merge ke main: #48–#59 (semua CI hijau, main hijau)
 
 ## DITUNDA / butuh keputusan user
@@ -334,4 +371,4 @@ CATATAN REALISASI (ditambahkan 2026-10-13; spec asli di atas utuh)
 # - iOS signed: butuh Apple account + 4 secrets
 # - Boot receiver auto-rescan: butuh izin baru (keputusan produk)
 # - Smoke test device fisik: daftar di PR #57/#59
-# - Rilis berikutnya: bump versi + tag (pola v0.18.1-alpha terbukti)
+# - Rilis berikutnya: bump versi + tag (pola v0.18.2-alpha terbukti)

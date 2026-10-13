@@ -36,7 +36,6 @@ import '../screens/transactions/transactions_manager_screen.dart';
 import '../screens/transactions/history_detail_screen.dart';
 import '../screens/balance/encrypt_balance_screen.dart';
 import '../screens/balance/decrypt_balance_screen.dart';
-import '../screens/confirm/confirm_action_screen.dart';
 import '../screens/devtools/dev_tools_screen.dart';
 import '../screens/devtools/dev_deploy_screen.dart';
 import '../screens/devtools/dev_call_screen.dart';
@@ -49,7 +48,6 @@ import '../screens/devtools/dev_compute_addr_screen.dart';
 import '../screens/settings/polling_settings_screen.dart';
 import '../screens/settings/data_usage_screen.dart';
 import '../screens/settings/tor_proxy_settings_screen.dart';
-import '../screens/confirm/confirm_contract_call_screen.dart';
 import '../models/tx_record.dart';
 
 class AppRouter {
@@ -68,9 +66,19 @@ class AppRouter {
       GoRoute(path: '/send-menu', builder: (_, __) => const SendMenuScreen()),
       GoRoute(
         path: '/send',
-        builder: (_, state) => SendScreen(
-          prefillAddress: state.uri.queryParameters['to'],
-        ),
+        builder: (_, state) {
+          // Deep links (octra://send?to=…) and internal callers both
+          // prefill via extras; the `to`/`amount` query params are kept
+          // for manual / URL-driven navigation.
+          final extra = state.extra is Map ? state.extra as Map : null;
+          return SendScreen(
+            prefillAddress:
+                extra?['prefillTo']?.toString() ??
+                    state.uri.queryParameters['to'],
+            prefillAmount: extra?['prefillAmount']?.toString() ??
+                state.uri.queryParameters['amount'],
+          );
+        },
       ),
       GoRoute(path: '/receive', builder: (_, __) => const ReceiveScreen()),
       GoRoute(path: '/wallets', builder: (_, __) => const WalletsScreen()),
@@ -170,12 +178,6 @@ class AppRouter {
         builder: (_, __) => const DecryptBalanceScreen(),
       ),
       GoRoute(
-        path: '/confirm-action',
-        builder: (_, state) => ConfirmActionScreen(
-          data: safeStringMap(state.extra),
-        ),
-      ),
-      GoRoute(
           path: '/export-wallet',
           builder: (_, state) => ExportWalletScreen(
                 walletId: state.uri.queryParameters['id'],
@@ -216,13 +218,6 @@ class AppRouter {
       GoRoute(
         path: '/tor-proxy',
         builder: (_, __) => const TorProxySettingsScreen(),
-      ),
-      GoRoute(
-        path: '/confirm-contract-call',
-        builder: (_, state) => ConfirmContractCallScreen(
-          requestId: state.uri.queryParameters['id'] ?? '',
-          details: state.extra is Map ? safeStringMap(state.extra) : null,
-        ),
       ),
     ],
   );

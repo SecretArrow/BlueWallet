@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:octopus_wallet/services/mnemonic_service.dart';
 import 'package:octopus_wallet/services/pin_service.dart';
@@ -38,6 +41,45 @@ void main() {
         expect(() => PinService.setPin(bad), throwsArgumentError,
             reason: 'for "$bad"');
       }
+    });
+  });
+
+  group('PIN hashing (salted + stretched, PBKDF2-HMAC-SHA256)', () {
+    // base64 of 16 zero bytes / 16 one-bytes.
+    const saltA = 'AAAAAAAAAAAAAAAAAAAAAA==';
+    const saltB = 'AQEBAQEBAQEBAQEBAQEBAQ==';
+
+    test('computeHash is deterministic for pin + salt', () {
+      expect(PinService.computeHash('123456', saltA),
+          PinService.computeHash('123456', saltA));
+    });
+
+    test('different salts produce different hashes', () {
+      final a = PinService.computeHash('123456', saltA);
+      final b = PinService.computeHash('123456', saltB);
+      expect(a, isNot(b));
+    });
+
+    test('different PINs produce different hashes', () {
+      expect(PinService.computeHash('123456', saltA),
+          isNot(PinService.computeHash('654321', saltA)));
+    });
+
+    test('computeHash output is a SHA-256 hex digest (64 hex chars)', () {
+      expect(
+        RegExp(r'^[0-9a-f]{64}$')
+            .hasMatch(PinService.computeHash('123456', saltA)),
+        isTrue,
+      );
+    });
+
+    test('legacyHash equals the old unsalted formula', () {
+      final expected =
+          sha256.convert(utf8.encode('octra_pin_123456')).toString();
+      expect(PinService.legacyHash('123456'), expected);
+      // And differs from the salted scheme.
+      expect(PinService.legacyHash('123456'),
+          isNot(PinService.computeHash('123456', saltA)));
     });
   });
 

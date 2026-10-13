@@ -11,7 +11,6 @@ import 'mnemonic_service.dart';
 import 'native_crypto.dart';
 import 'database_service.dart';
 import 'network_service.dart';
-import 'background_polling_service.dart';
 
 const _storage = FlutterSecureStorage();
 
@@ -179,32 +178,6 @@ class WalletService extends ChangeNotifier {
       _autoScanLastError = e.toString().replaceFirst('Exception: ', '');
     }
     notifyListeners();
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  Background polling for finality and PVAC registration
-  // ══════════════════════════════════════════════════════════════════════════
-
-  /// Start background polling for transaction finality and PVAC registration
-  /// Mirrors webcli's pvac_bg thread and wallet.js polling
-  Future<void> startBackgroundPolling(String nodeUrl) async {
-    final pollingService = BackgroundPollingService.instance;
-
-    // Start with both finality polling and PVAC checks enabled
-    await pollingService.start(
-      nodeUrl: nodeUrl,
-      pollFinality: true,
-      checkPvac: true,
-    );
-
-    debugPrint('[WalletService] Background polling started');
-  }
-
-  /// Stop background polling
-  Future<void> stopBackgroundPolling() async {
-    final pollingService = BackgroundPollingService.instance;
-    pollingService.stop();
-    debugPrint('[WalletService] Background polling stopped');
   }
 
   Future<void> _init() async {

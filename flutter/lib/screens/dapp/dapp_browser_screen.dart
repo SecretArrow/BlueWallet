@@ -12,6 +12,7 @@ import '../../services/dapp/js_bridge.dart';
 import '../../services/dapp/octra_adapter.dart';
 import '../../services/dapp/wallet_adapter.dart';
 import '../../services/dapp_bridge_protocol.dart';
+import '../../services/deep_link_nav.dart';
 import '../../services/network_service.dart';
 import '../../services/oct_url.dart';
 import '../../services/recent_sites_service.dart';
@@ -174,7 +175,39 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       if (!_showingStartpage) {
         _openUrl(_currentUrl);
       }
+      // A cold-start deep link may already be pending (registered before
+      // this screen existed).
+      _handlePendingDeepLink();
     });
+
+    // Deep links (octra:// circle pages, octra-wallet:// callbacks) are
+    // dispatched by the app state via the DeepLinkNav bus.
+    DeepLinkNav.instance.addListener(_onDeepLinkNav);
+  }
+
+  /// Deep-link listener: consume + load whatever the app state queued.
+  void _onDeepLinkNav() {
+    if (!mounted || _disposed) return;
+    _handlePendingDeepLink();
+  }
+
+  /// Opens the URL queued by the deep-link handler (if any). Consumes it,
+  /// then loads it — or explains why it cannot be opened (no silent dead
+  /// ends).
+  void _handlePendingDeepLink() {
+    final url = DeepLinkNav.instance.pendingUrl;
+    if (url == null) return;
+    DeepLinkNav.instance.consumePending();
+    final lower = url.toLowerCase();
+    if (!lower.startsWith('http://') &&
+        !lower.startsWith('https://') &&
+        !lower.startsWith('oct://')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Deep link is not a browsable page: $url')),
+      );
+      return;
+    }
+    _openUrl(url);
   }
 
   void _initBridge() {
@@ -585,6 +618,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
   @override
   void dispose() {
     _disposed = true;
+    DeepLinkNav.instance.removeListener(_onDeepLinkNav);
     _bridge?.dispose();
     _bridge = null;
     _urlCtrl.dispose();
@@ -745,7 +779,7 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
                       listenable: Listenable.merge([_recent, _sessions]),
                       builder: (_, __) => StartpageView(
                         isLoading: !_recent.isLoaded,
-                        error: null,
+                        error: _recent.error,
                         pages: _recent.pages,
                         bookmarks:
                             _bookmarks.isEmpty ? _defaultShortcuts : _bookmarks,

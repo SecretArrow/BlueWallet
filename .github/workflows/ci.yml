@@ -14,6 +14,7 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       flutter: ${{ steps.filter.outputs.flutter }}
       android: ${{ steps.filter.outputs.android }}
@@ -36,11 +37,36 @@ jobs:
               - '.gitmodules'
             sdk:
               - 'sdk/**'
+              # Version bumps must re-run the sdk guards: sdk/test/version.test.mjs
+              # asserts both apps agree AND that we have not shipped past the
+              # v0.19.0 legacy-dialect sunset — without these paths a
+              # version-bump-only PR skips that guard entirely.
+              - 'android-native/version.properties'
+              - 'flutter/pubspec.yaml'
+
+  lint-workflows:
+    # Static-check every workflow file with actionlint. Fully parallel: not
+    # part of any needs chain so it never delays or gates the build jobs.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      # actionlint only reads .github/workflows — no submodules, shallow.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Install actionlint 1.7.7
+        run: |
+          curl -sSL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz | tar -xz -C /usr/local/bin actionlint
+      - name: Run actionlint
+        run: actionlint -color
 
   flutter:
     needs: changes
     if: needs.changes.outputs.flutter == 'true' || needs.changes.outputs.webcli == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: flutter
@@ -48,10 +74,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      # Pinned JDK + gradle user-home cache: `flutter build apk` runs a real
+      # gradle build under the hood (sdk gradle wrapper), and setup-gradle
+      # caches ~/.gradle for it.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+      - uses: gradle/actions/setup-gradle@v4
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test --coverage
@@ -70,6 +104,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.android == 'true' || needs.changes.outputs.webcli == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: android-native
@@ -117,6 +152,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.android == 'true' || needs.changes.outputs.webcli == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: android-native
@@ -129,6 +165,40 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      # NDK downloads from dl.google.com have flaked with corrupt zips
+      # ("Error on ZipFile unknown archive") making CI red on trunk — pre-
+      # install with retries before gradle touches it.
+      - name: Pre-install NDK (retry flaky downloads)
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          NDK_VERSION="27.0.12077973"
+          ANDROID_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if [ -d "$ANDROID_ROOT/ndk/$NDK_VERSION" ] && [ -x "$ANDROID_ROOT/ndk/$NDK_VERSION/ndk-build" ]; then
+            echo "NDK $NDK_VERSION already present"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            echo "NDK install attempt $attempt"
+            # `yes` dies with SIGPIPE (141) once sdkmanager stops reading; under
+            # `set -o pipefail` that would mask a successful install, so relax
+            # -e/pipefail for this one pipeline and test sdkmanager's own status.
+            set +e
+            set +o pipefail
+            yes | sdkmanager "ndk;$NDK_VERSION" > /tmp/ndk-install.log 2>&1
+            rc=$?
+            set -e
+            set -o pipefail
+            if [ "$rc" -eq 0 ]; then
+              echo "NDK installed on attempt $attempt"
+              exit 0
+            fi
+            echo "::warning::NDK install attempt $attempt failed (see /tmp/ndk-install.log tail)"
+            tail -n 40 /tmp/ndk-install.log || true
+            sleep $((attempt * 20))
+          done
+          echo "::error::NDK $NDK_VERSION failed to install after 3 attempts"
+          exit 1
       - run: bash gradlew --no-daemon assembleDebug
       - uses: actions/upload-artifact@v4
         with:
@@ -139,6 +209,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.sdk == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: sdk
@@ -157,6 +228,7 @@ jobs:
     needs: [flutter, android-build]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -191,7 +263,10 @@ jobs:
   autofix-flutter:
     runs-on: ubuntu-latest
     needs: changes
-    if: github.event_name == 'pull_request' && needs.changes.outputs.flutter == 'true'
+    timeout-minutes: 15
+    # Fork PRs can never push back to the base repo — hard-fail on checkout
+    # of a head ref that lives in the fork — so only run for same-repo PRs.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.changes.outputs.flutter == 'true'
     permissions:
       contents: write
     defaults:
@@ -202,6 +277,7 @@ jobs:
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -222,7 +298,10 @@ jobs:
   autofix-java:
     runs-on: ubuntu-latest
     needs: changes
-    if: github.event_name == 'pull_request' && needs.changes.outputs.android == 'true'
+    timeout-minutes: 15
+    # Fork PRs can never push back to the base repo — hard-fail on checkout
+    # of a head ref that lives in the fork — so only run for same-repo PRs.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.changes.outputs.android == 'true'
     permissions:
       contents: write
     defaults:
@@ -234,6 +313,7 @@ jobs:
           submodules: recursive
           fetch-depth: 0
           ref: ${{ github.head_ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

@@ -14,7 +14,6 @@ add_library(octra_wallet_native SHARED
     octra_jni.cpp
     crypto_utils.cpp
     wallet.cpp
-    rpc_client.cpp
     tx_builder.cpp
     stealth.cpp
     tweetnacl.c

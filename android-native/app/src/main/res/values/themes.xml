@@ -2,7 +2,7 @@
 <resources>
     <style name="Theme.OctraWallet" parent="Theme.OctraWallet.Zenith" />
 
-    <style name="Theme.OctraWallet.Zenith" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.OctraWallet.Zenith" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_dark</item>
         <item name="colorOnPrimary">@color/text_primary</item>
@@ -25,7 +25,7 @@
         <item name="colorOnSurfaceVariant">@color/text_secondary</item>
     </style>
 
-    <style name="Theme.OctraWallet.Moonbloom" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.OctraWallet.Moonbloom" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary_moonbloom</item>
         <item name="colorPrimaryVariant">@color/primary_dark_moonbloom</item>
         <item name="colorOnPrimary">@color/text_primary_moonbloom</item>
@@ -48,7 +48,7 @@
         <item name="colorOnSurfaceVariant">@color/text_secondary_moonbloom</item>
     </style>
 
-    <style name="Theme.OctraWallet.Frostline" parent="Theme.MaterialComponents.Light.NoActionBar">
+    <style name="Theme.OctraWallet.Frostline" parent="Theme.Material3.Light.NoActionBar">
         <item name="colorPrimary">@color/primary_frostline</item>
         <item name="colorPrimaryVariant">@color/primary_dark_frostline</item>
         <item name="colorOnPrimary">@color/text_primary_frostline</item>
@@ -71,7 +71,7 @@
         <item name="colorOnSurfaceVariant">@color/text_secondary_frostline</item>
     </style>
 
-    <style name="Theme.OctraWallet.Signal" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.OctraWallet.Signal" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary_signal</item>
         <item name="colorPrimaryVariant">@color/primary_dark_signal</item>
         <item name="colorOnPrimary">@color/text_primary_signal</item>
@@ -94,7 +94,7 @@
         <item name="colorOnSurfaceVariant">@color/text_secondary_signal</item>
     </style>
 
-    <style name="Theme.OctraWallet.NightPulse" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.OctraWallet.NightPulse" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary_nightpulse</item>
         <item name="colorPrimaryVariant">@color/primary_dark_nightpulse</item>
         <item name="colorOnPrimary">@color/text_primary_nightpulse</item>
@@ -117,7 +117,7 @@
         <item name="colorOnSurfaceVariant">@color/text_secondary_nightpulse</item>
     </style>
 
-    <style name="Theme.OctraWallet.ObsidianGrid" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.OctraWallet.ObsidianGrid" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary_obsidiangrid</item>
         <item name="colorPrimaryVariant">@color/primary_dark_obsidiangrid</item>
         <item name="colorOnPrimary">@color/text_primary_obsidiangrid</item>
@@ -140,7 +140,7 @@
         <item name="colorOnSurfaceVariant">@color/text_secondary_obsidiangrid</item>
     </style>
 
-    <style name="Theme.OctraWallet.NeonForge" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.OctraWallet.NeonForge" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary_neonforge</item>
         <item name="colorPrimaryVariant">@color/primary_dark_neonforge</item>
         <item name="colorOnPrimary">@color/text_primary_neonforge</item>
@@ -163,7 +163,7 @@
         <item name="colorOnSurfaceVariant">@color/text_secondary_neonforge</item>
     </style>
 
-    <style name="Theme.OctraWallet.IvoryCircuit" parent="Theme.MaterialComponents.Light.NoActionBar">
+    <style name="Theme.OctraWallet.IvoryCircuit" parent="Theme.Material3.Light.NoActionBar">
         <item name="colorPrimary">@color/primary_ivorycircuit</item>
         <item name="colorPrimaryVariant">@color/primary_dark_ivorycircuit</item>
         <item name="colorOnPrimary">@color/text_primary_ivorycircuit</item>
@@ -186,7 +186,7 @@
         <item name="colorOnSurfaceVariant">@color/text_secondary_ivorycircuit</item>
     </style>
 
-    <style name="Theme.OctraWallet.SolarPaper" parent="Theme.MaterialComponents.Light.NoActionBar">
+    <style name="Theme.OctraWallet.SolarPaper" parent="Theme.Material3.Light.NoActionBar">
         <item name="colorPrimary">@color/primary_solarpaper</item>
         <item name="colorPrimaryVariant">@color/primary_dark_solarpaper</item>
         <item name="colorOnPrimary">@color/text_primary_solarpaper</item>
@@ -209,7 +209,7 @@
         <item name="colorOnSurfaceVariant">@color/text_secondary_solarpaper</item>
     </style>
 
-    <style name="Theme.OctraWallet.MistTerminal" parent="Theme.MaterialComponents.Light.NoActionBar">
+    <style name="Theme.OctraWallet.MistTerminal" parent="Theme.Material3.Light.NoActionBar">
         <item name="colorPrimary">@color/primary_mistterminal</item>
         <item name="colorPrimaryVariant">@color/primary_dark_mistterminal</item>
         <item name="colorOnPrimary">@color/text_primary_mistterminal</item>
@@ -238,7 +238,7 @@
 
     <style name="Theme.OctraWallet.Pastel" parent="Theme.OctraWallet.Signal" />
 
-    <style name="Theme.OctraWallet.Dialog" parent="Theme.MaterialComponents.DayNight.Dialog">
+    <style name="Theme.OctraWallet.Dialog" parent="Theme.Material3.DayNight.Dialog">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_dark</item>
         <item name="colorOnPrimary">@color/text_primary</item>
@@ -257,7 +257,7 @@
         <item name="cornerSize">999dp</item>
     </style>
 
-    <style name="Widget.OctraWallet.Button.Round" parent="Widget.MaterialComponents.Button">
+    <style name="Widget.OctraWallet.Button.Round" parent="Widget.Material3.Button">
         <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.OctraWallet.Button.Round</item>
     </style>
 

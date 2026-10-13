@@ -9,9 +9,9 @@ Octra Wallet is a native Android cryptocurrency wallet application for the Octra
 ## 1. Wallet Management
 
 ### 1.1 Wallet Creation & Import
-- **Create New Wallet**: Generate a new wallet with a 6-digit PIN
+- **Create New Wallet**: Generate a new wallet with a PIN 6–16 digits
 - **Import Wallet**: Import existing wallet using private key
-- **PIN Protection**: 6-digit PIN for wallet security
+- **PIN Protection**: PIN 6–16 digits for wallet security
 - **Default PIN Storage**: Optional default PIN for quick access
 
 ### 1.2 Multiple Wallet Support
@@ -166,7 +166,7 @@ Octra Wallet is a native Android cryptocurrency wallet application for the Octra
 ## 8. Security Features
 
 ### 8.1 Authentication
-- **PIN Protection**: 6-digit numeric PIN
+- **PIN Protection**: numeric PIN, 6–16 digits
 - **PIN Change**: Update wallet PIN
 - **Session Lock**: Auto-lock after inactivity
 - **Session Timeout**: Configurable timeout duration
