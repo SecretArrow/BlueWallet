@@ -1,0 +1,337 @@
+# Complete Browser Wallet Enhancement, dApp Integration & UI/UX Modernization
+
+Lakukan penyempurnaan menyeluruh terhadap aplikasi Android ini agar menjadi **browser wallet modern, aman, stabil, minimalis, dan kaya fitur**, dengan pengalaman penggunaan setara aplikasi wallet terkemuka seperti MetaMask dan Trust Wallet. Pertahankan identitas, fitur inti, serta arsitektur aplikasi yang masih relevan, tetapi perbaiki dan modernisasi seluruh bagian yang diperlukan.
+
+## Remove Local Web Server and Implement a Native dApp Wallet Adapter
+
+Hapus sepenuhnya fitur Local Web Server beserta seluruh komponen yang hanya digunakan untuk menjalankan atau mengelola server lokal. Bersihkan kode, konfigurasi, dependensi, permission, service, UI, dan dokumentasi terkait apabila sudah tidak dibutuhkan.
+
+Sebagai penggantinya, bangun **modular dApp Wallet Adapter** yang memungkinkan website dan decentralized applications (dApps) berinteraksi secara aman dengan wallet yang tersedia di dalam browser.
+
+Adapter harus dirancang agar mudah diintegrasikan ke berbagai dApps tanpa memerlukan Local Web Server. Gunakan arsitektur yang sesuai dengan platform Android, browser engine, jenis blockchain, dan protokol wallet yang didukung.
+
+Implementasikan kemampuan berikut:
+
+* Wallet provider injection ke halaman web melalui mekanisme yang aman dan sesuai dengan browser engine.
+* API untuk mendeteksi ketersediaan wallet, meminta koneksi, mendapatkan alamat publik, memeriksa jaringan aktif, serta memutuskan koneksi.
+* Alur persetujuan pengguna untuk setiap permintaan sensitif, termasuk penandatanganan pesan, transaksi, dan perubahan jaringan.
+* Komunikasi dua arah antara halaman dApp, browser, dan wallet menggunakan bridge yang terisolasi serta tervalidasi.
+* Dukungan pengelolaan sesi koneksi dApp, izin per situs, pencabutan akses, dan pemutusan koneksi.
+* Penanganan permintaan paralel, timeout, pembatalan, respons duplikat, navigasi halaman, tab yang ditutup, serta WebView yang dihancurkan.
+* Penanganan kesalahan provider, jaringan tidak tersedia, akun belum dibuat, wallet belum dibuka, metode yang tidak didukung, dan respons RPC yang tidak valid.
+* Adapter modular agar dukungan jaringan dan protokol baru dapat ditambahkan tanpa perlu menulis ulang seluruh sistem.
+
+Utamakan standar integrasi wallet yang sesuai dengan ekosistem blockchain terkait. Jangan mengasumsikan seluruh blockchain menggunakan EVM atau protokol yang sama. Pisahkan adapter berdasarkan jaringan dan protokol, serta pastikan metode yang ditampilkan benar-benar didukung.
+
+Untuk Android WebView, gunakan mekanisme bridge yang aman dan terbatas pada origin tepercaya. Hindari mengekspos fungsi native secara langsung kepada halaman yang tidak tepercaya. Validasi origin, parameter, tipe data, ukuran payload, dan hak akses setiap permintaan.
+
+Jangan membuat provider palsu atau mengembalikan respons simulasi dalam build produksi. Jika suatu fitur belum didukung, tampilkan status yang jelas dan tangani dengan aman.
+
+## Browser Startpage and Recently Visited Websites
+
+Buat Startpage browser yang modern, ringan, minimalis, dan mudah digunakan.
+
+Startpage harus mencakup:
+
+* Kolom pencarian dan URL yang mendukung input alamat website maupun kata kunci pencarian.
+* Akses cepat ke bookmark dan website favorit.
+* **10 URL terakhir yang dikunjungi**, ditampilkan berdasarkan urutan kunjungan terbaru.
+* Favicon, judul website, dan alamat domain yang ditampilkan secara rapi.
+* Menu tindakan untuk membuka, menghapus satu riwayat, atau menghapus seluruh riwayat.
+* Opsi membuka halaman pada tab saat ini atau tab baru.
+* Empty state yang menarik ketika belum ada riwayat kunjungan.
+* Loading state, error state, dan tampilan fallback ketika favicon atau metadata website gagal dimuat.
+* Pembaruan daftar secara otomatis setelah navigasi berhasil.
+* Dukungan mode gelap dan terang serta penyesuaian terhadap tema sistem Android.
+
+Pastikan daftar 10 kunjungan terakhir tetap konsisten ketika aplikasi ditutup dan dibuka kembali. Hindari duplikasi yang tidak perlu dengan memperbarui waktu kunjungan URL yang sama. Terapkan kebijakan privasi yang jelas dan integrasikan fitur ini dengan pengaturan penghapusan data browsing serta mode privat jika tersedia.
+
+Jangan menampilkan URL internal, halaman error browser, halaman kosong, atau alamat sensitif secara tidak sengaja pada Startpage.
+
+## Complete Wallet Functionality
+
+Tingkatkan aplikasi agar memiliki pengalaman wallet Android yang matang dan dapat diandalkan.
+
+Periksa dan sempurnakan seluruh fitur wallet yang sudah ada, termasuk:
+
+* Pembuatan wallet baru dan impor wallet.
+* Pengelolaan beberapa wallet dan akun.
+* Backup dan pemulihan melalui recovery phrase atau metode lain yang memang didukung.
+* Impor dan ekspor kunci dengan perlindungan keamanan yang memadai.
+* Tampilan alamat wallet, saldo, aset, token, dan riwayat transaksi.
+* Pengiriman dan penerimaan aset.
+* Detail transaksi, status konfirmasi, biaya jaringan, dan estimasi biaya jika tersedia.
+* Dukungan jaringan utama dan custom network sesuai kemampuan implementasi.
+* Koneksi ke dApps, pengelolaan izin, serta persetujuan transaksi dan tanda tangan.
+* Pengaturan keamanan, privasi, mata uang tampilan, dan preferensi pengguna.
+* Empty state, loading state, skeleton, error state, retry, serta notifikasi keberhasilan atau kegagalan yang informatif.
+
+Semua fitur harus menggunakan data dan layanan yang sesuai dengan jaringan sebenarnya. Jangan menampilkan saldo, transaksi, biaya, atau status konfirmasi palsu sebagai data nyata.
+
+Jika jaringan tidak tersedia atau RPC mengalami gangguan, pertahankan data yang masih valid, tampilkan status koneksi dengan jelas, dan sediakan mekanisme percobaan ulang yang aman.
+
+## Material Design 3 — UI/UX Modern and Minimalist
+
+Rancang ulang UI/UX dengan Material Design 3 menggunakan prinsip desain modern, konsisten, minimalis, dan berorientasi pada kemudahan penggunaan.
+
+Fokuskan desain pada:
+
+* Navigasi yang jelas dan mudah dipahami.
+* Hierarki visual yang kuat tanpa memenuhi layar dengan elemen yang tidak diperlukan.
+* Tipografi yang mudah dibaca, ikon konsisten, spacing teratur, dan ukuran tombol yang nyaman disentuh.
+* Komponen Material 3, termasuk cards, dialogs, sheets, menus, text fields, navigation components, dan progress indicators.
+* Tema terang dan gelap dengan kontras warna yang memadai.
+* Animasi halus yang tidak mengganggu performa.
+* Feedback visual untuk tindakan pengguna, status wallet, proses transaksi, dan kesalahan.
+* Dialog konfirmasi yang jelas untuk tindakan sensitif.
+* Desain responsif terhadap ukuran layar, kepadatan piksel, orientasi, dan perubahan ukuran jendela.
+* Accessibility yang baik, termasuk dukungan ukuran teks, screen reader, touch target, dan kontras.
+
+Sederhanakan alur yang terlalu panjang. Hindari tombol duplikat, menu berulang, dialog yang tidak diperlukan, label membingungkan, serta fitur yang tidak memiliki fungsi nyata.
+
+Jangan hanya mempercantik tampilan. Pastikan setiap elemen UI terhubung ke logika aplikasi dan menghasilkan tindakan yang benar.
+
+## Android System Bars, Insets and Edge-to-Edge
+
+Audit seluruh Activity, Fragment, Dialog, Bottom Sheet, popup, halaman wallet, browser, pengaturan, serta layar onboarding agar tidak bertabrakan dengan antarmuka sistem Android.
+
+Persyaratan wajib:
+
+* Tidak ada konten penting yang tertutup notification bar atau status bar di bagian atas.
+* Tidak ada tombol, kolom input, menu navigasi, atau elemen interaktif yang tertutup system navigation bar di bagian bawah.
+* Implementasikan Window Insets dan edge-to-edge secara benar sesuai versi Android yang didukung.
+* Tangani gesture navigation, three-button navigation, cutout, punch-hole camera, dan perangkat dengan rasio layar berbeda.
+* Pastikan keyboard tidak menutupi kolom input, tombol konfirmasi, atau dialog penting.
+* Periksa posisi snackbar, toast kustom, floating controls, bottom navigation, dan bottom sheets.
+* Gunakan inset yang sesuai untuk masing-masing komponen dan hindari penambahan padding ganda.
+* Pertahankan perilaku layout ketika keyboard muncul, orientasi berubah, jendela di-resize, atau aplikasi kembali dari background.
+
+Gunakan pendekatan yang konsisten di seluruh aplikasi, bukan perbaikan terpisah yang hanya menyelesaikan masalah pada satu Activity.
+
+## Stability, Lifecycle and Crash Prevention
+
+Lakukan audit stabilitas secara menyeluruh. Targetnya adalah aplikasi tidak mengalami crash akibat navigasi, interaksi wallet, perubahan lifecycle, permintaan jaringan, atau penggunaan browser dalam kondisi normal maupun kondisi gagal.
+
+Periksa dan tangani kemungkinan berikut:
+
+* Null values, data kosong, tipe data tidak sesuai, indeks di luar batas, serta objek yang belum diinisialisasi.
+* Callback terlambat setelah Activity, Fragment, tab, atau WebView dihancurkan.
+* Race conditions dan operasi asynchronous yang selesai di luar urutan.
+* Permission ditolak, koneksi internet terputus, timeout, RPC gagal, respons server rusak, dan penyimpanan penuh.
+* State wallet tidak konsisten, sesi kedaluwarsa, jaringan berubah, akun berganti, dan transaksi gagal.
+* Orientasi berubah, aplikasi masuk background, proses Android dihentikan, dan aplikasi dilanjutkan kembali.
+* Navigasi berulang, tombol ditekan berkali-kali, permintaan transaksi duplikat, dan dialog yang dibuka bersamaan.
+* WebView gagal memuat halaman, renderer terhenti, JavaScript error, serta tab ditutup saat masih menjalankan operasi.
+* Kegagalan membaca atau menulis penyimpanan, database migration, dan pemulihan state.
+* Versi Android dan perangkat dengan kemampuan berbeda.
+
+Gunakan null safety yang sesuai dengan bahasa pemrograman, validasi input, exception handling yang tepat, lifecycle-aware components, pembatalan coroutine atau task, serta state management yang konsisten.
+
+**Jangan menggunakan try-catch kosong atau menelan semua exception.** Catat error secara aman tanpa menyimpan private key, recovery phrase, password, token rahasia, atau data sensitif lainnya.
+
+Tampilkan pesan yang dapat dipahami pengguna dan sediakan recovery path jika memungkinkan. Hindari retry tanpa batas, operasi berulang yang tidak terkendali, deadlock, memory leak, dan pemanggilan UI dari thread yang salah.
+
+## Complete Branch and State Handling
+
+Audit seluruh percabangan dan kemungkinan state dalam kode, bukan hanya jalur penggunaan normal.
+
+Periksa semua kondisi `if`, `else if`, `else`, nested condition, `switch`, `when`, ternary operator, state machine, callback, event handler, dan alur asynchronous.
+
+Pastikan implementasi menangani:
+
+* Setiap kondisi yang mungkin terjadi.
+* Seluruh nilai `case` yang relevan pada setiap `switch`.
+* Nilai default dan fallback yang aman.
+* Enum atau status baru yang belum dikenal.
+* Respons API yang tidak lengkap atau tidak sesuai kontrak.
+* Fitur yang didukung, tidak didukung, belum dikonfigurasi, atau sedang tidak tersedia.
+* Transisi state yang tidak valid dan urutan event yang tidak terduga.
+
+Gunakan exhaustive matching jika didukung oleh bahasa pemrograman. Hindari kondisi yang tumpang tindih, cabang yang tidak pernah dijalankan, unreachable code, duplikasi logika, dan fallback yang menyamarkan kegagalan.
+
+Jangan menambahkan percabangan secara berlebihan tanpa alasan. Utamakan desain yang sederhana, terukur, mudah diuji, dan dapat dipelihara.
+
+## Security and Privacy
+
+Perlakukan wallet sebagai komponen keamanan utama.
+
+* Jangan pernah mengekspos private key atau recovery phrase kepada website, dApps, log, analytics, atau JavaScript yang tidak tepercaya.
+* Simpan rahasia menggunakan mekanisme penyimpanan aman yang sesuai dengan Android dan arsitektur wallet.
+* Jangan memberikan akses akun otomatis kepada website tanpa persetujuan pengguna.
+* Tampilkan origin dApp dengan jelas pada permintaan koneksi, tanda tangan, dan transaksi.
+* Validasi parameter transaksi dan tampilkan detail penting sebelum pengguna menyetujuinya.
+* Jangan menandatangani transaksi atau pesan secara otomatis hanya karena halaman memintanya.
+* Terapkan origin isolation, permission management, input validation, dan proteksi terhadap bridge abuse.
+* Pastikan pembatalan dialog tidak dianggap sebagai persetujuan.
+* Jangan menyimpan browsing history lebih lama daripada kebijakan yang ditentukan pengguna.
+* Jangan menonaktifkan pemeriksaan sertifikat TLS atau mengabaikan peringatan keamanan untuk mengatasi masalah konektivitas.
+
+## Testing and Verification
+
+Setelah implementasi, lakukan pengujian menyeluruh terhadap fitur yang diubah dan fitur lama yang berpotensi terdampak.
+
+Minimal lakukan:
+
+* Build debug dan release.
+* Static analysis, linting, dan pemeriksaan dependency.
+* Unit test untuk adapter, state management, validasi, dan error handling.
+* Integration test untuk komunikasi dApp–browser–wallet.
+* Pengujian koneksi, pemutusan koneksi, perubahan akun, perubahan jaringan, dan permission.
+* Pengujian Startpage serta 10 URL terakhir.
+* Pengujian layout dengan status bar, navigation bar, keyboard, dan berbagai ukuran layar.
+* Pengujian lifecycle, rotasi, background/foreground, tab switching, dan WebView renderer failure.
+* Pengujian timeout, offline mode, RPC error, respons invalid, dan operasi asynchronous bersamaan.
+* Pengujian keamanan agar situs yang tidak diizinkan tidak dapat memanggil fungsi wallet sensitif.
+* Regression test untuk memastikan fitur yang sebelumnya berfungsi tidak rusak.
+
+Perbaiki semua build error, runtime exception, resource leak, warning penting, dan kegagalan test yang ditemukan. Jangan menyatakan pengujian berhasil jika belum benar-benar dijalankan.
+
+## Implementation Rules
+
+Sebelum mengubah kode, periksa struktur repository, arsitektur aplikasi, bahasa pemrograman, dependency, seluruh Activity dan komponen browser, implementasi wallet, serta alur navigasi yang sudah ada.
+
+Pertahankan komponen dan fitur yang masih valid. Hindari rewrite total yang tidak diperlukan, perubahan kontrak API tanpa alasan, atau penghapusan fitur yang masih digunakan.
+
+Implementasikan perubahan secara menyeluruh, bukan hanya membuat mockup, prototype, placeholder, atau tombol tanpa fungsi. Integrasikan seluruh komponen baru ke alur aplikasi yang sebenarnya.
+
+Jaga modularitas kode agar browser, wallet, jaringan blockchain, dApp adapter, riwayat browsing, keamanan, dan UI dapat dikembangkan serta diuji secara terpisah.
+
+Jika ada kemampuan yang tidak dapat diimplementasikan karena keterbatasan protokol, library, platform, atau infrastruktur, dokumentasikan batasannya dengan jelas dan jangan berpura-pura fitur tersebut telah berfungsi.
+
+## Final Acceptance Criteria
+
+Aplikasi dinyatakan siap setelah:
+
+* Local Web Server benar-benar dihapus dan tidak lagi menjadi dependensi fitur lain.
+* dApp Wallet Adapter berfungsi dengan jaringan dan protokol yang benar-benar didukung.
+* Startpage menampilkan 10 kunjungan terakhir secara akurat.
+* Fitur wallet dan browser lama tetap berfungsi.
+* Semua Activity dan komponen UI aman dari benturan system bars dan keyboard.
+* Seluruh fitur utama memiliki loading, success, empty, dan error state yang sesuai.
+* Tidak ditemukan crash pada skenario pengujian yang telah dijalankan.
+* Permintaan sensitif dApp tetap memerlukan persetujuan pengguna.
+* UI/UX konsisten dengan Material Design 3, minimalis, responsif, dan nyaman digunakan.
+* Build dan test selesai dengan hasil yang dapat diverifikasi.
+* Tidak ada tombol palsu, fitur yang hanya berupa tampilan, data produksi simulasi, atau error kritis yang sengaja disembunyikan.
+
+**Prioritas utama: keamanan wallet, fungsi nyata, stabilitas aplikasi, kompatibilitas Android, integrasi dApp yang benar, dan pengalaman pengguna yang berkualitas.**
+
+
+=================================================================
+CATATAN REALISASI (ditambahkan 2026-10-13; spec asli di atas utuh)
+=================================================================
+# Rekap Fitur — BlueWallet (Android-Native + Flutter)
+# Disusun: 2026-10-13. Sumber: seluruh permintaan user + realisasi di repo.
+# Repo: https://github.com/SecretArrow/BlueWallet (branch main, hijau CI)
+
+## Legenda status
+# SELESAI  = merge ke main + CI hijau (terverifikasi via GitHub Actions)
+# DIVERIFIKASI-LIVE = diuji lawan devnet dengan dana real
+# DITUNDA  = menunggu keputusan/dependensi eksternal (alasan dicatat)
+# BATAL    = dibatalkan user
+
+## 1. Rencana awal plan.txt → SELESAI (PR #48)
+# - Hapus Local Web Server (native + flutter + embeds + tests)
+# - dApp Wallet Adapter modular + approval-gated writes
+# - Startpage browser + 10 URL terakhir (dedup, persist, private-mode)
+# - Wallet completeness (data RPC nyata, tanpa mock produksi)
+# - Material Design 3 minimalis + edge-to-edge insets terpusat
+# - Stabilitas/lifecycle, exhaustive branch handling, security/privacy
+# - Testing via CI (unit/lint/integration/E2E)
+
+## 2. Dual target Android-Native + Flutter → SELESAI
+# - Setiap perubahan dikerjakan paralel di dua stack (fan-out subagents)
+
+## 3. GitHub Actions CI/CD, tanpa build lokal → SELESAI
+# - Semua verifikasi via Actions (CI + E2E + Release); push via PAT sekali pakai
+# - Token tidak pernah masuk repo/config (terverifikasi bersih tiap push)
+# - Safe memory lokal: gradle Xmx1024m, workers=1, parallel=false
+# - Build hemat: path-filter, cancel-in-progress, cache, job quick vs build
+# - Auto-fix: autofix-flutter (dart fix/format) + autofix-java (spotless)
+# - Auto-release: release.yml (guard versi, tolak unsigned, publish artefak)
+
+## 4. Pindah repo + push ke main → SELESAI
+# - Remote disamakan ke SecretArrow/BlueWallet.git; push langsung (fork ditolak 403)
+
+## 5. Release v0.18.1-alpha semua platform Android → SELESAI + DIVERIFIKASI
+# - Artefak signed: APK native 16.8MB, AAB 22.6MB, APK Flutter 34.5MB
+# - Insiden: tag v0.19.0-alpha sempat terbit lalu DIHAPUS (menabrak guard sunset
+#   legacy) → diganti v0.18.1-alpha. Guard bekerja sesuai desain.
+
+## 6. iOS Flutter via CI → SEBAGIAN, lalu BATAL (instruksi user: skip iOS)
+# - SELESAI: ios-check macOS hijau (kompilasi incl. pod octra_native FFI)
+# - SELESAI: perbaiki octra_native.podspec (source_files absolut → relatif)
+# - SELESAI: job ios-ipa (signed bila secrets ada, fallback unsigned jujur)
+# - BATAL: seluruh pipeline iOS dihapus (PR #55); folder flutter/ios DISIMPAN
+# - DITUNDA permanen: IPA signed butuh Apple Developer account + 4 secrets
+
+## 7. WebCLI: pelajari + selaraskan → SELESAI (PR #51)
+# - Submodule sudah latest (b4ae091 == upstream main) — tidak ada update tertunda
+# - Temuan: LocalhostTransport memanggil 3 route yang tak ada di desktop
+#   (/api/status, /api/wallet/info, /api/transaction) → diselaraskan ke
+#   /api/wallet/status, /api/wallet (503→UNAUTHORIZED), /api/tx (404→found:false)
+# - Token jadi no-op terdokumentasi (desktop loopback-trust)
+# - Prinsip terkunci di docs: "webcli hanya dipakai untuk memproses"
+#   (crypto lib + dialek /api; server/UI tidak dipakai)
+
+## 8. PIN bebas, min 6, maks 16 → SELESAI (PR #52 + #53)
+# - 6..16 digit di semua jalur SET/VERIFY dua app incl. JNI is_valid_pin,
+#   maxLength layout, validator, pesan, test batas (17-digit ditolak,
+#   12-digit lolos), dok A10. Back-compat PIN 6-digit lama.
+
+## 9. Akun devnet + pengujian live → SELESAI + DIVERIFIKASI-LIVE
+# - Akun 1: oct4t13G2UutH69G3DBiXYfRyTH3sdXbyxMSBVDEvSTVBAT (did danai 55 OCT)
+# - Akun 2: octEDrWSBWa3AqS13gYXXcBFEaPyFbmnNwV6Vj7GdkMv9Ho
+# - Teruji: kirim 2 arah (6d5122fb, 63bc71c0), fee oracle, history, nonce,
+#   encryptedBalance-request ter-sign, ABI/storage kontrak, contract view
+#   (contract_call), deploy kontrak legasi end-to-end (octA35...rNer, live)
+# - Temuan batas: self-transfer ditolak chain (108); deploy dialek Program
+#   ditolak node (attestation missing) — kebijakan node, bukan bug app
+# - Biaya total: fee 0.42 OCT (2 send + 1 deploy + 1 deploy gagal tanpa biaya)
+# - Sisa: acc1 ±54.29, acc2 0.49
+# - DITUNDA: encrypt/decrypt + stealth write + register PVAC (butuh lib native
+#   di device), token flows (tak ada token), live dApp UX (ranah emulator)
+
+## 10. Crypto native → SEBAGIAN (PR #54)
+# - DIVERIFIKASI (harness sementara, sudah dihapus): round-trip ECDH/tag/claim/
+#   address-binding + ed25519 sign/verify 3/3 hijau memakai sumber repo
+# - SELESAI: fix <stdexcept> hilang di stealth.hpp (bug laten portabilitas)
+# - DITUNDA: round-trip PVAC (butuh build libpvac+leveldb — berat);
+#   kompilasi PVAC tetap ter-cover CI android-build
+
+## 11. Auto-retry 429 + background/notifikasi → SELESAI (PR #59)
+# - RPC: RateLimitedException + Retry-After (cap 120s) + jitter, ceiling 5
+# - Worker: retry transient via WorkManager, dedup set 100 (bukan 1 hash),
+#   ID notifikasi 31-bit, backoff eksponensial, anti-overlap/duplikat,
+#   channel + izin Tiramisu, interrupt/executor hygiene
+# - Flutter: guard tick, per-item try, PVAC jujur (deteksi saja),
+#   foreground-only dinyatakan eksplisit (tanpa plugin background)
+# - Sengaja tidak: retry buta Flutter (A6 anti double-submit), boot receiver
+
+## 12. Audit insets + anti-crash → SELESAI (PR #57)
+# - 104 file: InsetsHelper idempoten, hapus fitsSystemWindows sporadis,
+#   SafeArea konsisten, safe_cast + router is-check + mounted/dispose,
+#   guard double-submit/leak/race. Daftar uji-manual device dilampirkan di PR.
+
+## 13. Alias RFC dual-stack → SELESAI (PR #56)
+# - wallet_sendTransaction + wallet_callView hidup di native+flutter+SDK;
+#   facade internal migrasi; tests aditif; docs. Legacy UTUH (dual-stack).
+
+## 14. Settings urut frekuensi → SELESAI (PR #58)
+# - Wallets > Networks > Change PIN > Theme > Address Book > Biometric(flutter)
+#   > Origins > Permissions > Session > Cache > Data > AutoScan > Polling >
+#   Tor > About > Logout; baris DApp Browser dibuang (sudah jadi tab bawah)
+
+## 15. Perbaikan CI/CD di jalan → SELESAI (PR #49, #50, e2e fixes)
+# - sdk tests ditulis ulang pasca-server; e2e.yml paths + hapus adapter_http;
+#   oct_browser_test ke devnet + skip jujur saat RPC tak terjangkau;
+#   actionlint dipakai untuk validasi workflow (menemukan larangan secrets di if)
+
+## Daftar PR merge ke main: #48–#59 (semua CI hijau, main hijau)
+
+## DITUNDA / butuh keputusan user
+# - Sunset legacy penuh + 0.19.0: butuh 4 nama RFC final + koordinasi dApp 0xio
+# - iOS signed: butuh Apple account + 4 secrets
+# - Boot receiver auto-rescan: butuh izin baru (keputusan produk)
+# - Smoke test device fisik: daftar di PR #57/#59
+# - Rilis berikutnya: bump versi + tag (pola v0.18.1-alpha terbukti)
