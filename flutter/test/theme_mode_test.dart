@@ -86,6 +86,9 @@ void main() {
     await tm.setPalette('solarpaper');
     expect(tm.mode, 'light');
     expect(tm.effectivePalette.id, 'solarpaper');
+    // setPalette forces the palette's mode — brightness only matters after
+    // returning to system mode, which then resolves via the seeded slots.
+    await tm.setMode('system');
     // System resolution honors the seeded slots too.
     tm.systemBrightness = Brightness.dark;
     expect(tm.effectivePalette.id, 'moonbloom');
