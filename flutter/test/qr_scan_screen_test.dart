@@ -9,11 +9,18 @@ import 'package:octopus_wallet/screens/scan/qr_scan_screen.dart';
 /// is intentionally not pumped here; the controller is only created lazily
 /// on the mobile branch.
 void main() {
+  // setUp/tearDown (NOT in-body addTearDown): the test binding verifies
+  // foundation debug variables BEFORE per-test teardowns run, so the
+  // override must be restored outside the testWidgets body.
+  setUp(() {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+  });
+  tearDown(() {
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('desktop branch: manual entry pops the typed address',
       (WidgetTester tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
-
     const address = 'oct1qzw4t8yk3e0a2r9v6testaddress';
     String? popped;
 

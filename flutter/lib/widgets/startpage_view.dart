@@ -256,32 +256,38 @@ class _BookmarkChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 120,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.4)),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _Favicon(url: url, size: 22),
-            const SizedBox(height: 6),
-            Text(name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style:
-                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-            Text(VisitedPage.domainOf(url),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
-          ],
+    // Material + InkWell (not InkWell over a decorated Container) so the
+    // ripple is clipped to the rounded card and actually visible.
+    return Material(
+      color: cs.surface,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 120,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _Favicon(url: url, size: 22),
+                const SizedBox(height: 6),
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(VisitedPage.domainOf(url),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -298,47 +304,53 @@ class _RecentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // Material (not a bare DecoratedBox) so ListTile's ink splashes and
+    // pressed state stay visible — a plain Container decoration would
+    // paint over them (flutter framework asserts on this in debug).
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
+      child: Material(
         color: cs.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.4)),
-      ),
-      child: ListTile(
-        leading: _Favicon(url: page.url, size: 26),
-        title: Text(
-          page.title.isEmpty ? page.domain : page.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.4)),
+          borderRadius: BorderRadius.circular(12),
         ),
-        subtitle: Text(page.domain,
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          leading: _Favicon(url: page.url, size: 26),
+          title: Text(
+            page.title.isEmpty ? page.domain : page.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12)),
-        trailing: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert_rounded, size: 20),
-          onSelected: (v) async {
-            switch (v) {
-              case 'open':
-                await onOpen(page.url, StartpageOpenTarget.currentTab);
-                break;
-              case 'new_tab':
-                await onOpen(page.url, StartpageOpenTarget.newTab);
-                break;
-              case 'delete':
-                await onDelete(page.url);
-                break;
-            }
-          },
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'open', child: Text('Open')),
-            PopupMenuItem(value: 'new_tab', child: Text('Open in new tab')),
-            PopupMenuItem(value: 'delete', child: Text('Delete')),
-          ],
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          subtitle: Text(page.domain,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12)),
+          trailing: PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded, size: 20),
+            onSelected: (v) async {
+              switch (v) {
+                case 'open':
+                  await onOpen(page.url, StartpageOpenTarget.currentTab);
+                  break;
+                case 'new_tab':
+                  await onOpen(page.url, StartpageOpenTarget.newTab);
+                  break;
+                case 'delete':
+                  await onDelete(page.url);
+                  break;
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'open', child: Text('Open')),
+              PopupMenuItem(value: 'new_tab', child: Text('Open in new tab')),
+              PopupMenuItem(value: 'delete', child: Text('Delete')),
+            ],
+          ),
+          onTap: () => onOpen(page.url, StartpageOpenTarget.currentTab),
         ),
-        onTap: () => onOpen(page.url, StartpageOpenTarget.currentTab),
       ),
     );
   }
