@@ -104,6 +104,23 @@ jobs:
             echo "NDK $NDK_VERSION already present"
             exit 0
           fi
+          # `sdkmanager` is not reliably on PATH across runner images —
+          # resolve the absolute binary (latest layout, then legacy).
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            for cand in \
+              "$ANDROID_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+              "$ANDROID_ROOT/cmdline-tools/bin/sdkmanager" \
+              "/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager"; do
+              if [ -x "$cand" ]; then SDKMANAGER="$cand"; break; fi
+            done
+          fi
+          if [ -z "$SDKMANAGER" ]; then
+            # No sdkmanager on this image: leave the install to gradle's own
+            # downloader instead of hard-failing here (the original flake).
+            echo "::warning::sdkmanager not found — NDK left to gradle auto-install"
+            exit 0
+          fi
           for attempt in 1 2 3; do
             echo "NDK install attempt $attempt"
             # `yes` dies with SIGPIPE (141) once sdkmanager stops reading; under
@@ -111,7 +128,7 @@ jobs:
             # -e/pipefail for this one pipeline and test sdkmanager's own status.
             set +e
             set +o pipefail
-            yes | sdkmanager "ndk;$NDK_VERSION" > /tmp/ndk-install.log 2>&1
+            yes | "$SDKMANAGER" "ndk;$NDK_VERSION" > /tmp/ndk-install.log 2>&1
             rc=$?
             set -e
             set -o pipefail

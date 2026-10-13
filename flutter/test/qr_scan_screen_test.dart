@@ -22,12 +22,12 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (_, __) => Scaffold(
+          builder: (c, __) => Scaffold(
             body: Center(
               child: OutlinedButton(
                 // Capture the pop result of the pushed scanner route.
                 onPressed: () async {
-                  popped = await context.push<String>('/qr-scan');
+                  popped = await c.push<String>('/qr-scan');
                 },
                 child: const Text('Open Scanner'),
               ),

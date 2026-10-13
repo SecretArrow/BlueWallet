@@ -48,7 +48,7 @@ class ThemeManager extends ChangeNotifier with WidgetsBindingObserver {
 
   ThemeManager({Brightness? initialSystemBrightness})
       : systemBrightness = initialSystemBrightness ??
-            WidgetsBinding.instance.platformBrightness {
+            WidgetsBinding.instance.platformDispatcher.platformBrightness {
     ready = _loadSaved();
     WidgetsBinding.instance.addObserver(this);
   }
@@ -152,7 +152,8 @@ class ThemeManager extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangePlatformBrightness() {
-    final brightness = WidgetsBinding.instance.platformBrightness;
+    final brightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
     if (brightness == systemBrightness) return;
     systemBrightness = brightness;
     // Only a live system-mode resolution changes the rendered palette.
