@@ -225,6 +225,16 @@ class OctraAdapter implements WalletAdapter {
     return {'network': current, 'switched': same};
   }
 
+  /// Hard-blocks signing methods for watch-only wallets BEFORE any approval
+  /// dialog is shown (the WalletService signing methods guard again as
+  /// defense in depth).
+  void _requireSendable() {
+    if (wallets.activeWallet?.watchOnly == true) {
+      throw DappError(WalletService.watchOnlySendBlockMessage,
+          DappBridgeProtocol.unauthorized);
+    }
+  }
+
   Future<AdapterResult> _handleCallView(DappRequest request) async {
     final params = request.params;
     if (params.length < 2) {
@@ -251,6 +261,7 @@ class OctraAdapter implements WalletAdapter {
 
   Future<AdapterResult> _handleSend(
       DappRequest request, AdapterContext ctx) async {
+    _requireSendable();
     late final Map<String, dynamic> tx;
     try {
       tx = DappBridgeProtocol.txObject(request.params);
@@ -387,6 +398,7 @@ class OctraAdapter implements WalletAdapter {
     List callArgs,
     String callAmount,
   ) async {
+    _requireSendable();
     final approved = await ctx.requestTxApproval(
       title: 'Contract Call',
       to: contractAddr,

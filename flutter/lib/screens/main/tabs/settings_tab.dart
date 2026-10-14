@@ -22,6 +22,7 @@ class SettingsTab extends StatelessWidget {
     final items = [
       // Ordered by frequency of use (same as Android, minus Biometric there)
       _Item('Wallets', Icons.account_balance_wallet_rounded, '/wallets'),
+      _Item('Verify Backup', Icons.verified_rounded, '/verify-backup'),
       _Item('Networks', Icons.public_rounded, '/network-settings'),
       _Item('Change PIN', Icons.pin_rounded, '/change-pin'),
       _Item('Theme', Icons.palette_rounded, '/theme-palette'),

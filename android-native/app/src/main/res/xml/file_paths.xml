@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Shared CSV history exports live under cache/history
+         (see MainActivity.exportHistoryCsv). -->
+    <cache-path
+        name="history_exports"
+        path="history/" />
+</paths>

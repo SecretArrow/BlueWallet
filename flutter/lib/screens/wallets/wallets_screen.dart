@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../services/backup_reminder.dart';
 import '../../services/wallet_service.dart';
 import '../../models/wallet_profile.dart';
 import '../../widgets/octopus_card.dart';
+import '../../widgets/tonal_button.dart';
 
 /// Wallets management — list, switch, delete.  Matches WalletsActivity.
 class WalletsScreen extends StatelessWidget {
@@ -12,6 +14,15 @@ class WalletsScreen extends StatelessWidget {
   static String _maskAddr(String addr) {
     if (addr.length <= 20) return addr;
     return '${addr.substring(0, 8)}...${addr.substring(addr.length - 8)}';
+  }
+
+  /// Mnemonic ROOT wallet ids (children resolve to their parent's seed).
+  static List<String> _mnemonicRootIds(WalletService ws) {
+    final ids = <String>{};
+    for (final w in ws.wallets) {
+      if (w.isMnemonicWallet) ids.add(w.parentId ?? w.id);
+    }
+    return ids.toList();
   }
 
   @override
@@ -38,10 +49,16 @@ class WalletsScreen extends StatelessWidget {
               )
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                itemCount: ws.wallets.length,
+                itemCount: ws.wallets.length + 1,
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) {
-                  final w = ws.wallets[i];
+                  // Reminder banner sits above the wallet list.
+                  if (i == 0) {
+                    return _BackupReminderBanner(
+                      mnemonicWalletIds: _mnemonicRootIds(ws),
+                    );
+                  }
+                  final w = ws.wallets[i - 1];
                   final isActive = w.id == ws.activeWallet?.id;
                   return _WalletTile(
                     wallet: w,
@@ -133,7 +150,9 @@ class _WalletTile extends StatelessWidget {
                   : null,
             ),
             child: Icon(
-              Icons.account_balance_wallet_rounded,
+              wallet.watchOnly
+                  ? Icons.visibility_outlined
+                  : Icons.account_balance_wallet_rounded,
               color: isActive ? cs.primary : cs.onSurfaceVariant,
               size: 20,
             ),
@@ -151,6 +170,33 @@ class _WalletTile extends StatelessWidget {
                               fontWeight: FontWeight.w600, fontSize: 14),
                           overflow: TextOverflow.ellipsis),
                     ),
+                    if (wallet.watchOnly) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: cs.secondary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.visibility_outlined,
+                                size: 10, color: cs.secondary),
+                            const SizedBox(width: 3),
+                            Text(
+                              'WATCH-ONLY',
+                              style: TextStyle(
+                                  fontSize: 9,
+                                  color: cs.secondary,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (isActive) ...[
                       const SizedBox(width: 8),
                       Container(
@@ -246,3 +292,128 @@ class _WalletTile extends StatelessWidget {
 }
 
 enum _WalletAction { activate, viewKeys, export, delete }
+
+/// Dismissible backup-reminder banner shown above the wallet list.
+///
+/// Visible only while [BackupReminder.shouldRemind] is true (due and not
+/// snoozed). [Dismiss] hides it for this session only; "Snooze 7 Days"
+/// persists via [BackupReminder.snooze]; "Verify Now" opens the quiz and
+/// the banner re-checks itself when the user returns.
+class _BackupReminderBanner extends StatefulWidget {
+  final List<String> mnemonicWalletIds;
+  const _BackupReminderBanner({required this.mnemonicWalletIds});
+
+  @override
+  State<_BackupReminderBanner> createState() => _BackupReminderBannerState();
+}
+
+class _BackupReminderBannerState extends State<_BackupReminderBanner> {
+  bool _visible = true;
+  bool? _due;
+  bool _snoozing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  @override
+  void didUpdateWidget(_BackupReminderBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Wallet list changed (added/removed) → re-evaluate the reminder.
+    _check();
+  }
+
+  Future<void> _check() async {
+    final due = await BackupReminder.shouldRemind(
+      DateTime.now(),
+      mnemonicWalletIds: widget.mnemonicWalletIds,
+    );
+    if (mounted) setState(() => _due = due);
+  }
+
+  Future<void> _snooze() async {
+    if (_snoozing) return;
+    setState(() => _snoozing = true);
+    await BackupReminder.snooze(DateTime.now());
+    if (mounted) {
+      setState(() {
+        _visible = false;
+        _snoozing = false;
+      });
+    }
+  }
+
+  Future<void> _verifyNow() async {
+    await context.push('/verify-backup');
+    // Re-check when returning — a successful verification hides the banner.
+    _check();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_visible || _due != true) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.shield_outlined,
+                  color: cs.onPrimaryContainer, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Verify your recovery phrase backup',
+                  style: TextStyle(
+                      color: cs.onPrimaryContainer,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.close_rounded,
+                    size: 18, color: cs.onPrimaryContainer),
+                tooltip: 'Dismiss',
+                onPressed: () => setState(() => _visible = false),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'It has been a while since your seed phrase backup was last '
+            'verified. Take the word quiz to confirm your backup works.',
+            style: TextStyle(color: cs.onPrimaryContainer, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TonalButton(
+                  label: 'Verify Now',
+                  icon: Icons.task_alt_rounded,
+                  onPressed: _verifyNow,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TonalButton(
+                  label: 'Snooze 7 Days',
+                  loading: _snoozing,
+                  onPressed: _snoozing ? null : _snooze,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

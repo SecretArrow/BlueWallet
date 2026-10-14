@@ -11,6 +11,7 @@ import 'mnemonic_service.dart';
 import 'native_crypto.dart';
 import 'database_service.dart';
 import 'network_service.dart';
+import 'oct_address.dart';
 
 const _storage = FlutterSecureStorage();
 
@@ -20,6 +21,10 @@ class WalletService extends ChangeNotifier {
 
   static const _kWalletListKey = 'wallet_ids';
   static const _kActiveWalletKey = 'active_wallet_id';
+
+  /// Hard-block message shown whenever a watch-only wallet tries to send.
+  static const String watchOnlySendBlockMessage =
+      'Watch-only wallet cannot send funds';
 
   List<WalletProfile> _wallets = [];
   String? _activeId;
@@ -86,6 +91,25 @@ class WalletService extends ChangeNotifier {
   /// (new wallet that has never been funded).
   bool get accountNotFound => _accountNotFound;
   bool get hasWallets => _wallets.isNotEmpty;
+
+  /// Pure send decision for the ACTIVE wallet: false when there is no
+  /// active wallet or it is watch-only, true when it holds a spendable
+  /// key. UI entry points check this before opening any send screen.
+  bool get canSend => walletCanSend(activeWallet);
+
+  /// Pure send decision for any wallet profile. Watch-only wallets have
+  /// no secret key on device, so they can never sign or send.
+  static bool walletCanSend(WalletProfile? wallet) =>
+      wallet != null && !wallet.watchOnly;
+
+  /// Throws [StateError] when [wallet] is watch-only — the deep guard used
+  /// by every signing method below (defense in depth behind the UI checks).
+  static void assertCanSend(WalletProfile? wallet) {
+    if (wallet != null && wallet.watchOnly) {
+      throw StateError(watchOnlySendBlockMessage);
+    }
+  }
+
   int get standardFee => _standardFee;
   int get stealthFee => _stealthFee;
   bool get pvacAvailable => CryptoService.pvacAvailable;
@@ -426,6 +450,38 @@ class WalletService extends ChangeNotifier {
           skBase64: skBase64,
           walletType: 'imported');
 
+  /// Imports a WATCH-ONLY wallet from a public oct address.
+  ///
+  /// No mnemonic/private key is requested or stored: the profile is
+  /// persisted exactly like any other wallet (SharedPreferences JSON +
+  /// `wallet_ids` list) with `watchOnly: true`, but NOTHING is written to
+  /// secure storage — the native encrypted wallet is never required.
+  /// Balance and history keep working because they are fetched by address
+  /// over RPC. Every signing path hard-blocks watch-only wallets.
+  Future<WalletProfile> importWatchOnlyWallet({
+    required String name,
+    required String address,
+  }) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) {
+      throw ArgumentError('Wallet name must not be empty');
+    }
+    if (!OctAddress.isValid(address)) {
+      throw ArgumentError(
+          'Invalid oct address - must start with "oct" and be '
+          '${OctAddress.expectedLength} characters');
+    }
+    final id = 'wallet_${DateTime.now().millisecondsSinceEpoch}';
+    final profile = WalletProfile(
+      id: id,
+      name: cleanName,
+      address: address.trim(),
+      walletType: 'watch_only',
+      watchOnly: true,
+    );
+    return _persistWalletProfile(profile);
+  }
+
   Future<WalletProfile> _addWalletInternal({
     required String name,
     required String address,
@@ -450,6 +506,15 @@ class WalletService extends ChangeNotifier {
       throw Exception('Failed to store wallet key securely. '
           'On Linux, ensure libsecret-1-dev is installed and a keyring daemon is running.');
     }
+    return _persistWalletProfile(profile);
+  }
+
+  /// Shared persistence: appends [profile] to `wallet_ids`, stores its
+  /// JSON under `wallet_profile_<id>` and selects it. No secret material
+  /// is touched here, so watch-only profiles persist without any
+  /// secure-storage / native-encrypted-wallet dependency.
+  Future<WalletProfile> _persistWalletProfile(WalletProfile profile) async {
+    final id = profile.id;
     final prefs = await SharedPreferences.getInstance();
     final ids = prefs.getStringList(_kWalletListKey) ?? [];
     ids.add(id);
@@ -506,6 +571,7 @@ class WalletService extends ChangeNotifier {
       walletType: oldProfile.walletType,
       derivationPath: oldProfile.derivationPath,
       parentId: oldProfile.parentId,
+      watchOnly: oldProfile.watchOnly,
     );
 
     final prefs = await SharedPreferences.getInstance();
@@ -873,6 +939,7 @@ class WalletService extends ChangeNotifier {
   }) async {
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    assertCanSend(wallet);
     if (toAddress.trim().isEmpty) {
       throw ArgumentError('Recipient address must not be empty');
     }
@@ -916,6 +983,7 @@ class WalletService extends ChangeNotifier {
   }) async {
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    assertCanSend(wallet);
     if (tokenAddress.trim().isEmpty) {
       throw ArgumentError('Token address must not be empty');
     }
@@ -961,6 +1029,7 @@ class WalletService extends ChangeNotifier {
     }
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    assertCanSend(wallet);
     if (!_pvacInitialised) throw Exception('PVAC not initialised');
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
@@ -996,6 +1065,7 @@ class WalletService extends ChangeNotifier {
     }
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    assertCanSend(wallet);
     if (!_pvacInitialised) throw Exception('PVAC not initialised');
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
@@ -1035,6 +1105,7 @@ class WalletService extends ChangeNotifier {
     }
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    assertCanSend(wallet);
     if (!_pvacInitialised) throw Exception('PVAC not initialised');
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
@@ -1346,6 +1417,7 @@ class WalletService extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> scanStealthOutputs(String nodeUrl) async {
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    assertCanSend(wallet); // scanning needs the private view key
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
 
@@ -1407,6 +1479,7 @@ class WalletService extends ChangeNotifier {
   }) async {
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    assertCanSend(wallet);
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
 
@@ -1448,6 +1521,7 @@ class WalletService extends ChangeNotifier {
   }) async {
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    assertCanSend(wallet);
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
 
@@ -1562,6 +1636,7 @@ class WalletService extends ChangeNotifier {
   Future<String> registerPvacPubkey(String nodeUrl, String pvacPubkey) async {
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    assertCanSend(wallet);
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
     final sig = await CryptoService.signPvacRegister(wallet.address, sk);
@@ -1583,6 +1658,7 @@ class WalletService extends ChangeNotifier {
   Future<Map<String, dynamic>> submitKeySwitch(String nodeUrl) async {
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    assertCanSend(wallet);
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
     final localPk = CryptoService.pvacGetPubkeyB64();
@@ -1665,6 +1741,7 @@ class WalletService extends ChangeNotifier {
   Future<String> registerViewPubkey(String nodeUrl) async {
     final wallet = activeWallet;
     if (wallet == null) throw Exception('No active wallet');
+    assertCanSend(wallet);
     final sk = await getPrivateKey(wallet.id);
     if (sk == null) throw Exception('Private key not found');
     final skBytes = Uint8List.fromList(base64.decode(sk));

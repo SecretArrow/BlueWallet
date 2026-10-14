@@ -23,6 +23,17 @@ class _StealthScanScreenState extends State<StealthScanScreen> {
   List<Map<String, dynamic>> _found = [];
 
   Future<void> _startScan() async {
+    // Scanning matches outputs with the PRIVATE view key — a watch-only
+    // wallet has none, so block at entry with a clear message.
+    if (context.read<WalletService>().activeWallet?.watchOnly == true) {
+      setState(() {
+        _scanning = false;
+        _done = true;
+        _error = 'Watch-only wallet cannot scan for stealth payments '
+            '(requires the private view key)';
+      });
+      return;
+    }
     setState(() {
       _scanning = true;
       _done = false;

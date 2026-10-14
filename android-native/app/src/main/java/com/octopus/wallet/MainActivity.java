@@ -32,6 +32,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -40,10 +41,15 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -279,6 +285,7 @@ public class MainActivity extends AppCompatActivity {
     setupWalletSelector();
     setupBottomNavigation();
     setupHistoryList();
+    setupHistoryExport();
     setupTokenSearch();
     setupSettingsActionsList();
     setupInsets();
@@ -441,6 +448,19 @@ public class MainActivity extends AppCompatActivity {
   }
 
   private void switchWallet(String walletId) {
+    if (WatchOnlyStore.isWatchOnly(this, walletId)) {
+      // A watch-only wallet has no native encrypted key: activating it
+      // would trap the app in the setup flow. Reject the switch and rebind
+      // the spinner to the actual selection — view watch-only balances in
+      // the Wallets screen instead.
+      android.widget.Toast.makeText(
+              this,
+              "Watch-only account cannot be activated (no spendable key on device)",
+              android.widget.Toast.LENGTH_LONG)
+          .show();
+      refreshWalletProfiles();
+      return;
+    }
     WalletProfileStore.setSelectedWalletId(this, walletId);
     activeWalletId = walletId;
     switchingWalletInApp = true;
@@ -1033,6 +1053,69 @@ public class MainActivity extends AppCompatActivity {
           } catch (Exception ignored) {
           }
         });
+  }
+
+  private void setupHistoryExport() {
+    View exportButton = findViewById(R.id.history_export_button);
+    if (exportButton != null) {
+      exportButton.setOnClickListener(v -> exportHistoryCsv());
+    }
+  }
+
+  /**
+   * Exports the active wallet's cached history (Room) as an RFC 4180 CSV and opens the share sheet.
+   */
+  private void exportHistoryCsv() {
+    if (isFinishing() || isDestroyed()) return;
+    final String walletId = activeWalletId == null ? "default" : activeWalletId;
+    final String selfAddress = walletAddress == null ? "" : walletAddress;
+    executor.execute(
+        () -> {
+          try {
+            List<TxHistoryEntity> rows =
+                walletRepository.loadHistoryEntitiesFromRoom(walletId, 500);
+            if (rows == null || rows.isEmpty()) {
+              mainHandler.post(() -> showSuccess("No transactions to export"));
+              return;
+            }
+            String csv = TxHistoryCsv.build(rows, selfAddress);
+
+            File dir = new File(getCacheDir(), "history");
+            if (!dir.exists() && !dir.mkdirs()) {
+              mainHandler.post(() -> showError("Unable to create export directory"));
+              return;
+            }
+            String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+            File file = new File(dir, "octopus_history_" + stamp + ".csv");
+            try (OutputStreamWriter writer =
+                new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8)) {
+              writer.write(csv);
+            }
+
+            mainHandler.post(
+                () -> {
+                  if (isFinishing() || isDestroyed()) return;
+                  shareHistoryCsvFile(file);
+                });
+          } catch (Exception e) {
+            mainHandler.post(() -> showError("Unable to export history"));
+          }
+        });
+  }
+
+  /** Opens the system share sheet for an exported CSV file via FileProvider. */
+  private void shareHistoryCsvFile(File file) {
+    try {
+      Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", file);
+      Intent share = new Intent(Intent.ACTION_SEND);
+      share.setType("text/csv");
+      share.putExtra(Intent.EXTRA_STREAM, uri);
+      share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+      Intent chooser = Intent.createChooser(share, "Export transaction history");
+      startActivity(chooser);
+    } catch (Exception e) {
+      showError("Unable to share history CSV");
+    }
   }
 
   private JSONArray hydrateHistoryRows(JSONArray txs) {

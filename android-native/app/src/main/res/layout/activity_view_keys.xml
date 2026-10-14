@@ -254,6 +254,29 @@
             app:icon="@android:drawable/ic_menu_manage"
             app:iconGravity="textStart" />
 
+        <!-- Backup reminder hint — visible while the reminder is due -->
+        <TextView
+            android:id="@+id/verify_backup_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Backup not verified — confirm your seed phrase backup."
+            android:textColor="?attr/colorPrimary"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <!-- Verify Backup — only for mnemonic wallets (after PIN unlock) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/verify_backup_button"
+            style="@style/Widget.OctraWallet.Button.Tonal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Verify Backup"
+            android:visibility="gone"
+            app:icon="@drawable/ic_lock"
+            app:iconGravity="textStart" />
+
         <!-- Export Wallet Button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/export_wallet_button"

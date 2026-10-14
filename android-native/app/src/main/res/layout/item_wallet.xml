@@ -46,6 +46,16 @@
 
         </LinearLayout>
 
+        <ImageView
+            android:id="@+id/wallet_watch_only_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginStart="8dp"
+            android:contentDescription="Watch-only wallet"
+            android:src="@drawable/ic_visibility"
+            android:visibility="gone"
+            app:tint="@color/text_secondary" />
+
         <ImageButton
             android:id="@+id/wallet_delete_button"
             android:layout_width="36dp"

@@ -110,7 +110,19 @@ class _DashboardTabState extends State<DashboardTab> {
                         child: TonalButton(
                           label: 'Send',
                           icon: Icons.send_rounded,
-                          onPressed: () => context.push('/send-menu'),
+                          onPressed: () {
+                            // Watch-only wallets can never send — block at
+                            // the menu entry, deep guards cover the rest.
+                            if (!ws.canSend) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text(WalletService
+                                        .watchOnlySendBlockMessage)),
+                              );
+                              return;
+                            }
+                            context.push('/send-menu');
+                          },
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -228,7 +240,18 @@ class _WalletSelectorCard extends StatelessWidget {
           items: ws.wallets
               .map((w) => DropdownMenuItem(
                     value: w.id,
-                    child: Text(w.name, overflow: TextOverflow.ellipsis),
+                    child: Row(
+                      children: [
+                        if (w.watchOnly) ...[
+                          Icon(Icons.visibility_outlined,
+                              size: 16, color: cs.secondary),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                            child: Text(w.name,
+                                overflow: TextOverflow.ellipsis)),
+                      ],
+                    ),
                   ))
               .toList(),
           onChanged: (id) {

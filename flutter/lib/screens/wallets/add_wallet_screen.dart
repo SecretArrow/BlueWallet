@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../services/crypto_service.dart';
+import '../../services/oct_address.dart';
 import '../../services/wallet_service.dart';
 import '../../widgets/tonal_button.dart';
 
@@ -16,13 +17,15 @@ class AddWalletScreen extends StatefulWidget {
   State<AddWalletScreen> createState() => _AddWalletScreenState();
 }
 
-enum _AddMode { none, importKey, importFile }
+enum _AddMode { none, importKey, importFile, watchOnly }
 
 class _AddWalletScreenState extends State<AddWalletScreen> {
   _AddMode _mode = _AddMode.none;
 
   final _nameCtrl = TextEditingController();
   final _pkCtrl = TextEditingController();
+  final _watchAddrCtrl = TextEditingController();
+  final _watchFormKey = GlobalKey<FormState>();
 
   bool _loading = false;
   String? _error;
@@ -32,6 +35,7 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _pkCtrl.dispose();
+    _watchAddrCtrl.dispose();
     super.dispose();
   }
 
@@ -109,6 +113,40 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
     }
   }
 
+  /// Watch-only import: address only, no mnemonic/private key requested.
+  Future<void> _doImportWatchOnly() async {
+    if (!(_watchFormKey.currentState?.validate() ?? false)) return;
+    final name = _nameCtrl.text.trim();
+    final address = _watchAddrCtrl.text.trim();
+    setState(() {
+      _loading = true;
+      _error = null;
+      _status = 'Importing watch-only wallet...';
+    });
+    try {
+      final ws = context.read<WalletService>();
+      await ws.importWatchOnlyWallet(name: name, address: address);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _status = 'Watch-only wallet imported!';
+        });
+        await Future.delayed(const Duration(seconds: 1));
+        if (mounted) context.pop();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e
+            .toString()
+            .replaceFirst('Exception: ', '')
+            .replaceFirst('ArgumentError: ', '')
+            .replaceFirst('Invalid argument(s): ', '');
+      });
+    }
+  }
+
   Future<void> _doImportFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -166,6 +204,7 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
               _AddMode.none => [_buildChoice(cs, tt)],
               _AddMode.importKey => [_buildImportKey(cs, tt)],
               _AddMode.importFile => [_buildImportKey(cs, tt)],
+              _AddMode.watchOnly => [_buildWatchOnly(cs, tt)],
             },
           ),
         ),
@@ -237,6 +276,16 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
           ),
           const SizedBox(height: 12),
           TonalButton(
+            label: 'Import Watch-only Address',
+            icon: Icons.visibility_outlined,
+            onPressed: () => setState(() {
+                  _mode = _AddMode.watchOnly;
+                  _error = null;
+                  _status = null;
+                }),
+          ),
+          const SizedBox(height: 12),
+          TonalButton(
             label: 'Import from File',
             icon: Icons.file_open_rounded,
             onPressed: _doImportFile,
@@ -246,6 +295,75 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
             Text(_status!, style: TextStyle(color: cs.primary)),
           if (_error != null) Text(_error!, style: TextStyle(color: cs.error)),
         ],
+      );
+
+  Widget _buildWatchOnly(ColorScheme cs, TextTheme tt) => Form(
+        key: _watchFormKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Import Watch-only Wallet', style: tt.headlineMedium),
+            const SizedBox(height: 8),
+            Text(
+              'Track an address without a private key. You can view its '
+              'balance and history, but you cannot send funds from it.',
+              style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 24),
+            if (_error != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: cs.errorContainer,
+                    borderRadius: BorderRadius.circular(10)),
+                child: Text(_error!,
+                    style: TextStyle(color: cs.onErrorContainer)),
+              ),
+              const SizedBox(height: 12),
+            ],
+            TextFormField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(
+                  labelText: 'Wallet Name', hintText: 'e.g. Cold Storage'),
+              textCapitalization: TextCapitalization.words,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Enter a wallet name' : null,
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _watchAddrCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Oct Address',
+                hintText: 'oct...',
+              ),
+              style:
+                  const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              validator: (v) => (v == null || !OctAddress.isValid(v))
+                  ? 'Enter a valid oct address '
+                      '(${OctAddress.expectedLength} characters, starts with "oct")'
+                  : null,
+            ),
+            const SizedBox(height: 24),
+            Row(children: [
+              Expanded(
+                  child: TonalButton(
+                      label: 'Import',
+                      loading: _loading,
+                      onPressed: _loading ? null : _doImportWatchOnly)),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: TonalButton(
+                      label: 'Back',
+                      onPressed: _loading
+                          ? null
+                          : () => setState(() {
+                                _mode = _AddMode.none;
+                                _error = null;
+                              }))),
+            ]),
+          ],
+        ),
       );
 
   Widget _buildImportKey(ColorScheme cs, TextTheme tt) => Column(

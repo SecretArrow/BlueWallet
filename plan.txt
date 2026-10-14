@@ -364,6 +364,30 @@ CATATAN REALISASI (ditambahkan 2026-10-13; spec asli di atas utuh)
 #   6-16 digit karena enkripsi wallet.oct native pakai skema sendiri)
 # - Versi 0.18.2-alpha+314 kedua sisi; rilis via tag v0.18.2-alpha
 
+# - SESI 0.18.3 (4 subagent paralel, 60 file):
+#   1) PERIODIC CHECK: AutoScanWorker akhirnya DIJADWALKAN via WorkManager
+#      BackgroundScanScheduler (15 mnt saat app ditutup — batas minimum
+#      platform Android; auto-survive reboot TANPA izin baru; toggle di
+#      AutoScanActivity; flag di background_scan_prefs). FCM ditunda:
+#      butuh akun Firebase + server pengirim push. Saat app hidup: polling
+#      1 menit sudah didukung (chips 30s/1m/5m/15m di polling settings).
+#   2) EXPORT CSV + FILTER RIWAYAT: history_tab kini cari (alamat/memo/
+#      jumlah) + chip arah (semua/masuk/keluar/stealth) + export CSV
+#      RFC4180 daftar terfilter (share_plus). Sisi native: TxHistoryCsv +
+#      tombol Export CSV di MainActivity (Room <=500 baris, FileProvider).
+#   3) WATCH-ONLY WALLET: import alamat oct tanpa kunci (flutter +
+#      native WatchOnlyStore), badge mata di daftar wallet, SEMUA jalur
+#      kirim/tanda-tangan dijaga (UI + deep guard WalletService 11 metode
+#      + TxInputValidator/TxForegroundService native; dapp bridge ikut).
+#   4) PENGINGAT BACKUP: BackupReminder (grace 3 hari, ingat ulang 30
+#      hari, snooze 7 hari) banner di wallets screen + quiz verifikasi
+#      3 kata acak (seed stabil per hari) flutter verify_backup_screen +
+#      native dialog di ViewKeysActivity. State global (id wallet native
+#      tidak stabil lintas rename).
+# - webcli submodule 8059a1b -> 549536d (README: PIN per aksi wallet;
+#      PIN app tetap 6-16 digit skema wallet.oct)
+# - Versi 0.18.3-alpha+315 kedua sisi
+
 ## Daftar PR merge ke main: #48–#59 (semua CI hijau, main hijau)
 
 ## DITUNDA / butuh keputusan user

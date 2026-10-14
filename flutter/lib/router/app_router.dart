@@ -12,6 +12,7 @@ import '../screens/receive/receive_screen.dart';
 import '../screens/wallets/wallets_screen.dart';
 import '../screens/wallets/add_wallet_screen.dart';
 import '../screens/wallets/view_keys_screen.dart';
+import '../screens/wallets/verify_backup_screen.dart';
 import '../screens/wallets/export_wallet_screen.dart';
 import '../screens/wallets/tx_progress_screen.dart';
 import '../screens/wallets/mnemonic_wallet_screen.dart';
@@ -97,6 +98,11 @@ class AppRouter {
       GoRoute(
           path: '/view-keys',
           builder: (_, state) => ViewKeysScreen(
+                walletId: state.uri.queryParameters['id'],
+              )),
+      GoRoute(
+          path: '/verify-backup',
+          builder: (_, state) => VerifyBackupScreen(
                 walletId: state.uri.queryParameters['id'],
               )),
       GoRoute(path: '/about', builder: (_, __) => const AboutScreen()),

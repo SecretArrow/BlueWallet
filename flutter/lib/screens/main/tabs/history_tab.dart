@@ -1,12 +1,19 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../models/tx_record.dart';
 import '../../../services/wallet_service.dart';
 import '../../../services/network_service.dart';
+import '../../../utils/history_filter.dart';
+import '../../../utils/tx_csv_export.dart';
 import '../../../widgets/adaptive_body.dart';
 
-/// History tab — transaction history list with pull-to-refresh and date grouping.
+/// History tab — transaction history list with pull-to-refresh and date
+/// grouping, plus live search, direction filter chips and CSV export of the
+/// currently filtered rows.
 ///
 /// On first mount it always schedules a background network refresh so cached
 /// rows are shown instantly and then seamlessly replaced with fresh data.
@@ -19,6 +26,11 @@ class HistoryTab extends StatefulWidget {
 
 class _HistoryTabState extends State<HistoryTab> {
   bool _firstLoadTriggered = false;
+
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  TxHistoryDirectionFilter _directionFilter = TxHistoryDirectionFilter.all;
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -33,12 +45,53 @@ class _HistoryTabState extends State<HistoryTab> {
     });
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _refresh() async {
     if (!mounted) return;
     final ws = context.read<WalletService>();
     final ns = context.read<NetworkService>();
     await ws.loadHistory(ns.activeNodeUrl);
   }
+
+  /// Exports [txs] (the currently filtered list) as an RFC 4180 CSV file to
+  /// the OS temp directory and hands it to the system share sheet.
+  Future<void> _exportCsv(List<TxRecord> txs, String myAddress) async {
+    if (_exporting || txs.isEmpty) return;
+    setState(() => _exporting = true);
+    try {
+      final csv = buildTxHistoryCsv(txs, myAddress: myAddress);
+      final dir = await getTemporaryDirectory();
+      final now = DateTime.now();
+      final stamp = '${now.year}${_two(now.month)}${_two(now.day)}'
+          '_${_two(now.hour)}${_two(now.minute)}${_two(now.second)}';
+      final file = File('${dir.path}/octopus_history_$stamp.csv');
+      await file.writeAsString(csv, flush: true);
+      await Share.shareXFiles([XFile(file.path)]);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  void _clearFilters() {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _directionFilter = TxHistoryDirectionFilter.all;
+    });
+  }
+
+  static String _two(int v) => v.toString().padLeft(2, '0');
 
   // ── Build a flat list that interleaves date-header items ─────────────────
 
@@ -107,6 +160,9 @@ class _HistoryTabState extends State<HistoryTab> {
     final cs = Theme.of(context).colorScheme;
     final txs = ws.history;
     final myAddr = ws.activeWallet?.address ?? '';
+    // Search query ∩ direction chip, applied to the full history.
+    final filtered = filterTxHistory(txs,
+        query: _searchQuery, direction: _directionFilter, myAddress: myAddr);
 
     // Show full-screen spinner only on the very first load with zero cache.
     if (txs.isEmpty && ws.loading) {
@@ -136,41 +192,201 @@ class _HistoryTabState extends State<HistoryTab> {
       );
     }
 
-    final items = _buildListItems(txs);
+    final items = _buildListItems(filtered);
 
     return AdaptiveBody(
-      child: RefreshIndicator(
-        color: cs.primary,
-        onRefresh: _refresh,
-        child: Stack(
-          children: [
-            ListView.builder(
-              padding: const EdgeInsets.only(bottom: 24),
-              itemCount: items.length,
-              itemBuilder: (context, i) {
-                final item = items[i];
-                if (item is Map && item['type'] == _dateHeaderType) {
-                  return _DateHeader(
-                      label: item['label']?.toString() ?? 'Unknown date');
-                }
-                if (item is! TxRecord) return const SizedBox.shrink();
-                return _HistoryRow(tx: item, myAddress: myAddr);
-              },
+      child: Column(
+        children: [
+          // Search field + direction chips + CSV export of filtered rows.
+          _SearchFilterBar(
+            controller: _searchController,
+            direction: _directionFilter,
+            exporting: _exporting,
+            onQueryChanged: (v) => setState(() => _searchQuery = v),
+            onDirectionChanged: (d) => setState(() => _directionFilter = d),
+            onExport: filtered.isEmpty
+                ? null
+                : () => _exportCsv(filtered, myAddr),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              color: cs.primary,
+              onRefresh: _refresh,
+              child: filtered.isEmpty
+                  ? ListView(
+                      // Keep pull-to-refresh working with the short content.
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(top: 80, bottom: 24),
+                      children: [
+                        Center(
+                          child: Text(
+                            'No matching transactions',
+                            style: TextStyle(
+                              color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Center(
+                          child: TextButton(
+                            onPressed: _clearFilters,
+                            child: const Text('Clear filters'),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Stack(
+                      children: [
+                        ListView.builder(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          itemCount: items.length,
+                          itemBuilder: (context, i) {
+                            final item = items[i];
+                            if (item is Map &&
+                                item['type'] == _dateHeaderType) {
+                              return _DateHeader(
+                                label: item['label']?.toString() ??
+                                    'Unknown date',
+                              );
+                            }
+                            if (item is! TxRecord) {
+                              return const SizedBox.shrink();
+                            }
+                            return _HistoryRow(tx: item, myAddress: myAddr);
+                          },
+                        ),
+                        // Subtle top-of-list spinner when refreshing but list
+                        // has data.
+                        if (ws.loading)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: LinearProgressIndicator(
+                              minHeight: 2,
+                              color: cs.primary,
+                              backgroundColor:
+                                  cs.primary.withValues(alpha: 0.12),
+                            ),
+                          ),
+                      ],
+                    ),
             ),
-            // Subtle top-of-list spinner when refreshing but list has data.
-            if (ws.loading)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: LinearProgressIndicator(
-                  minHeight: 2,
-                  color: cs.primary,
-                  backgroundColor: cs.primary.withValues(alpha: 0.12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+//  Search field + filter chips + export action
+// ────────────────────────────────────────────────────────────────────────────
+
+class _SearchFilterBar extends StatelessWidget {
+  final TextEditingController controller;
+  final TxHistoryDirectionFilter direction;
+  final bool exporting;
+  final ValueChanged<String> onQueryChanged;
+  final ValueChanged<TxHistoryDirectionFilter> onDirectionChanged;
+  final VoidCallback? onExport;
+
+  const _SearchFilterBar({
+    required this.controller,
+    required this.direction,
+    required this.exporting,
+    required this.onQueryChanged,
+    required this.onDirectionChanged,
+    required this.onExport,
+  });
+
+  static const _chipSpecs = [
+    ('All', TxHistoryDirectionFilter.all),
+    ('Incoming', TxHistoryDirectionFilter.incoming),
+    ('Outgoing', TxHistoryDirectionFilter.outgoing),
+    ('Stealth', TxHistoryDirectionFilter.stealth),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  onChanged: onQueryChanged,
+                  textInputAction: TextInputAction.search,
+                  style: TextStyle(fontSize: 14, color: cs.onSurface),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    prefixIcon: Icon(Icons.search_rounded,
+                        size: 20, color: cs.onSurfaceVariant),
+                    hintText: 'Search address, memo or amount',
+                    hintStyle:
+                        TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+                    contentPadding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: cs.outlineVariant),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: cs.outlineVariant),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: cs.primary),
+                    ),
+                  ),
                 ),
               ),
-          ],
-        ),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: 'Export CSV',
+                onPressed: onExport,
+                icon: exporting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.file_download_outlined),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final (label, value) in _chipSpecs)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(label),
+                      selected: direction == value,
+                      showCheckmark: false,
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        color: direction == value
+                            ? cs.onPrimary
+                            : cs.onSurfaceVariant,
+                      ),
+                      onSelected: (_) => onDirectionChanged(value),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

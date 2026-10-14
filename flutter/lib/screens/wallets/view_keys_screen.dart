@@ -26,8 +26,19 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
 
   Future<void> _revealKey() async {
     if (!mounted) return;
-    setState(() => _loading = true);
     final ws = context.read<WalletService>();
+    final wallet = widget.walletId != null
+        ? ws.wallets.where((w) => w.id == widget.walletId).firstOrNull
+        : ws.activeWallet;
+    if (wallet?.watchOnly == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'Watch-only wallet has no private key on this device')),
+      );
+      return;
+    }
+    setState(() => _loading = true);
     final id = widget.walletId ?? ws.activeWallet?.id;
     if (id == null) {
       if (mounted) setState(() => _loading = false);
@@ -43,6 +54,20 @@ class _ViewKeysScreenState extends State<ViewKeysScreen> {
   }
 
   Future<void> _revealMnemonic() async {
+    if (widget.walletId != null) {
+      final ws0 = context.read<WalletService>();
+      final w = ws0.wallets.where((w) => w.id == widget.walletId).firstOrNull;
+      if (w?.watchOnly == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text(
+                    'Watch-only wallet has no seed phrase on this device')),
+          );
+        }
+        return;
+      }
+    }
     if (_mnemonic != null) {
       setState(() => _mnemonicRevealed = !_mnemonicRevealed);
       return;

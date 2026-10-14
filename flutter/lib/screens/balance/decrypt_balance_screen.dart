@@ -45,6 +45,14 @@ class _DecryptBalanceScreenState extends State<DecryptBalanceScreen> {
   }
 
   Future<void> _submit() async {
+    // Watch-only wallets can never move funds (hard block at entry).
+    if (context.read<WalletService>().activeWallet?.watchOnly == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(WalletService.watchOnlySendBlockMessage)),
+      );
+      return;
+    }
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     // Double-check PVAC availability

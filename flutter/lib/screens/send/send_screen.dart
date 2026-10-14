@@ -52,6 +52,14 @@ class _SendScreenState extends State<SendScreen> {
   }
 
   Future<void> _send() async {
+    // Watch-only wallets can never send funds (hard block at entry).
+    if (context.read<WalletService>().activeWallet?.watchOnly == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(WalletService.watchOnlySendBlockMessage)),
+      );
+      return;
+    }
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() {
       _loading = true;

@@ -12,6 +12,16 @@ class PollingSettingsScreen extends StatefulWidget {
 }
 
 class _PollingSettingsScreenState extends State<PollingSettingsScreen> {
+  /// Convenience quick-select presets for the interval field (seconds ->
+  /// label). Tapping a chip just fills the text field; validation and the
+  /// save flow are unchanged.
+  static const Map<int, String> _intervalPresets = {
+    30: '30s',
+    60: '1 min',
+    300: '5 min',
+    900: '15 min',
+  };
+
   final _intervalController = TextEditingController();
   final _sendThresholdController = TextEditingController();
   final _advancedThresholdController = TextEditingController();
@@ -105,6 +115,19 @@ class _PollingSettingsScreenState extends State<PollingSettingsScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final entry in _intervalPresets.entries)
+                      ActionChip(
+                        label: Text(entry.value),
+                        onPressed: () =>
+                            _intervalController.text = '${entry.key}',
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 const Divider(),
