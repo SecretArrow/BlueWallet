@@ -23,8 +23,8 @@ void main() {
     });
 
     test('rejects wrong prefix', () {
-      expect(OctAddress.isValid('xc' + goodAddress.substring(2)), isFalse);
-      expect(OctAddress.isValid('OCT' + goodAddress.substring(3)), isFalse);
+      expect(OctAddress.isValid('xc${goodAddress.substring(2)}'), isFalse);
+      expect(OctAddress.isValid('OCT${goodAddress.substring(3)}'), isFalse);
     });
 
     test('rejects wrong length', () {

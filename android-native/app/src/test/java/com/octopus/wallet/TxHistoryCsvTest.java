@@ -21,20 +21,20 @@ public class TxHistoryCsvTest {
   }
 
   @Test
-  public void emptyList_isHeaderOnly() {
+  public void emptyList_isHeaderOnly() throws Exception {
     assertEquals(HEADER_LINE + "\r\n", TxHistoryCsv.build(null));
     assertEquals(HEADER_LINE + "\r\n", TxHistoryCsv.build(new java.util.ArrayList<>()));
   }
 
   @Test
-  public void headerRow_isFirstLine_withCrlf() {
+  public void headerRow_isFirstLine_withCrlf() throws Exception {
     String csv = TxHistoryCsv.build(new java.util.ArrayList<>());
     assertTrue(csv.startsWith(HEADER_LINE));
     assertTrue(csv.endsWith("\r\n"));
   }
 
   @Test
-  public void rows_preserveInputOrder() {
+  public void rows_preserveInputOrder() throws Exception {
     JSONObject a = new JSONObject().put("amount", "1").put("type", "sent");
     JSONObject b = new JSONObject().put("amount", "2").put("type", "sent");
     String csv =
@@ -45,7 +45,7 @@ public class TxHistoryCsvTest {
   }
 
   @Test
-  public void everyRecordEndsWithCrlf_noBareLineFeeds() {
+  public void everyRecordEndsWithCrlf_noBareLineFeeds() throws Exception {
     JSONObject plain = new JSONObject().put("memo", "no special chars");
     String csv =
         TxHistoryCsv.build(
@@ -61,7 +61,7 @@ public class TxHistoryCsvTest {
   }
 
   @Test
-  public void fieldContainingComma_isQuoted() {
+  public void fieldContainingComma_isQuoted() throws Exception {
     JSONObject tx = new JSONObject().put("message", "lunch, coffee");
     String csv =
         TxHistoryCsv.build(java.util.Collections.singletonList(entity("h1", tx.toString(), 0L)));
@@ -69,7 +69,7 @@ public class TxHistoryCsvTest {
   }
 
   @Test
-  public void quotes_areDoubledInsideQuotedField() {
+  public void quotes_areDoubledInsideQuotedField() throws Exception {
     JSONObject tx = new JSONObject().put("message", "say \"hi\"");
     String csv =
         TxHistoryCsv.build(java.util.Collections.singletonList(entity("h1", tx.toString(), 0L)));
@@ -77,7 +77,7 @@ public class TxHistoryCsvTest {
   }
 
   @Test
-  public void newlineInsideField_isQuotedAndPreserved() {
+  public void newlineInsideField_isQuotedAndPreserved() throws Exception {
     JSONObject tx = new JSONObject().put("message", "line1\nline2");
     String csv =
         TxHistoryCsv.build(java.util.Collections.singletonList(entity("h1", tx.toString(), 0L)));
@@ -85,7 +85,7 @@ public class TxHistoryCsvTest {
   }
 
   @Test
-  public void plainFields_areEmittedUnquoted() {
+  public void plainFields_areEmittedUnquoted() throws Exception {
     JSONObject tx =
         new JSONObject()
             .put("type", "sent")
@@ -103,7 +103,7 @@ public class TxHistoryCsvTest {
   }
 
   @Test
-  public void direction_usesSelfAddressAndType() {
+  public void direction_usesSelfAddressAndType() throws Exception {
     JSONObject sent = new JSONObject().put("type", "sent").put("from", "oct_alice");
     JSONObject received = new JSONObject().put("type", "received").put("from", "oct_alice");
     String csv =
@@ -123,7 +123,7 @@ public class TxHistoryCsvTest {
   }
 
   @Test
-  public void amount_resolvesRawChainAndDefaults() {
+  public void amount_resolvesRawChainAndDefaults() throws Exception {
     JSONObject raw = new JSONObject().put("amount_raw", "2500000");
     JSONObject none = new JSONObject().put("hash", "h-none");
     String csv =
@@ -137,7 +137,7 @@ public class TxHistoryCsvTest {
   }
 
   @Test
-  public void date_isIso8601Utc_andEmptyWhenUnknown() {
+  public void date_isIso8601Utc_andEmptyWhenUnknown() throws Exception {
     java.util.Calendar cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"));
     cal.clear();
     cal.set(2026, java.util.Calendar.FEBRUARY, 2, 2, 40, 0);
@@ -152,7 +152,7 @@ public class TxHistoryCsvTest {
   }
 
   @Test
-  public void entityFields_usedWhenJsonLacksThem() {
+  public void entityFields_usedWhenJsonLacksThem() throws Exception {
     // txHash comes from the entity itself; type/op_type default to standard.
     String csv =
         TxHistoryCsv.build(
