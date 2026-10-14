@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../services/wallet_service.dart';
 import '../../services/network_service.dart';
 import '../../services/address_book_service.dart';
+import '../../services/oct_address.dart';
 import '../../widgets/tonal_button.dart';
 import '../../widgets/octra_card.dart';
 import '../../widgets/adaptive_body.dart';
@@ -216,9 +217,19 @@ class _SendScreenState extends State<SendScreen> {
                     prefixStyle: const TextStyle(fontFamily: 'monospace'),
                   ),
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Enter recipient address'
-                      : null,
+                  validator: (v) {
+                    final t = v?.trim() ?? '';
+                    if (t.isEmpty) return 'Enter recipient address';
+                    // Same rule the Android SendActivity enforces before it
+                    // signs: 47 chars, "oct" prefix — catch a typo here, not
+                    // after the funds leave.
+                    if (!OctAddress.isValid(t)) {
+                      return 'Invalid oct address '
+                          '(${OctAddress.expectedLength} characters, '
+                          'starts with "oct")';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 

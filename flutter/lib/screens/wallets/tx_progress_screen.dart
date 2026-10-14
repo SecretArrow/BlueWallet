@@ -275,7 +275,10 @@ class _TxProgressScreenState extends State<TxProgressScreen>
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => context.pop(),
+                          // This screen is reached via context.go() (the send
+                          // flows replace the stack), so there may be nothing
+                          // to pop — go() to /home is always well-defined.
+                          onPressed: () => context.go('/home'),
                           child: const Text('Return Home'),
                         ),
                       ),
@@ -298,7 +301,9 @@ class _TxProgressScreenState extends State<TxProgressScreen>
                   TonalButton(
                     label: 'Go to Home',
                     icon: Icons.home_rounded,
-                    onPressed: () => context.pop(),
+                    // See 'Return Home' above: the send flows context.go()
+                    // here, so navigate home explicitly instead of pop().
+                    onPressed: () => context.go('/home'),
                   ),
               ],
             ),

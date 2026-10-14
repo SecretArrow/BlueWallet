@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -920,6 +921,9 @@ class _DappBrowserScreenState extends State<DappBrowserScreen> {
       url = _currentUrl;
     }
     if (!mounted) return;
+    // The old implementation only showed the snackbar — the clipboard was
+    // never written, so "Copy URL" produced nothing to paste.
+    Clipboard.setData(ClipboardData(text: url));
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text('Copied: $url')));
   }

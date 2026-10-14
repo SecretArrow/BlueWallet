@@ -4,8 +4,12 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../widgets/octra_card.dart';
 import '../../widgets/adaptive_body.dart';
 
-const _kDonationAddress =
-    'oct7f3a8b2c1d9e4f6a0b5c2d7e1f3a8b2c1d9e4f6a0b5c2d7e1f3a8b2c1d9e4f6';
+// Donation address — MUST match the canonical address shown by the native
+// app (android-native AboutActivity.DONATION_ADDRESS). It is also a valid
+// oct address by the app-wide 47-char "oct" rule; the placeholder that used
+// to live here (67 hex chars) was unsendable — donations copied from the
+// Flutter app would have been lost.
+const _kDonationAddress = 'oct5ZPf49ZYNnA1hopXe9EcDbiBPhgwJyudxLaLhHefEmFt';
 
 /// About screen — version, donation address.  Matches AboutActivity.
 class AboutScreen extends StatefulWidget {

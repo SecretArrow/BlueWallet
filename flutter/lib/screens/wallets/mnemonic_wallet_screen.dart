@@ -35,6 +35,30 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    // The previewed address is derived from the path at generate time; if
+    // the user edits the path afterwards, drop the stale preview so the
+    // screen never shows an address the wallet will NOT get.
+    _pathCtrl.addListener(_onPathChanged);
+  }
+
+  void _onPathChanged() {
+    if (_previewAddress.isEmpty) return;
+    // Only react to real user edits (our own reset writes the same text).
+    if (_lastSyncedPath == _pathCtrl.text) return;
+    if (mounted) {
+      setState(() {
+        _previewAddress = '';
+        _error = 'Derivation path changed — press Generate to derive the '
+            'address for the new path before creating.';
+      });
+    }
+  }
+
+  String _lastSyncedPath = '';
+
+  @override
   void dispose() {
     _nameCtrl.dispose();
     _pathCtrl.dispose();
@@ -130,6 +154,7 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
         _previewAddress = address;
         _loading = false;
       });
+      _lastSyncedPath = _pathCtrl.text;
     } catch (e) {
       // This should never happen, but just in case
       if (!mounted) return;
@@ -162,6 +187,10 @@ class _MnemonicWalletScreenState extends State<MnemonicWalletScreen> {
         name: resolvedName,
         mnemonic: _mnemonic,
         path: path,
+        // Freshly generated phrase: no on-chain history to detect. Skipping
+        // the probe keeps the created address identical to the previewed
+        // one and avoids a blocking network round-trip at create time.
+        autoDetect: false,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

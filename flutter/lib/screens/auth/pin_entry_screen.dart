@@ -78,6 +78,9 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
   // ── Unlock mode ──────────────────────────────────────────────────────────
 
   Future<void> _submitUnlock() async {
+    // The submit button disables at the attempt cap, but the field's
+    // onSubmitted still fires — the gate must hold on EVERY entry path.
+    if (_attempts >= _maxAttempts) return;
     final pin = _pinCtrl.text.trim();
     // VERIFY: PIN 6-digit lama tetap lolos; batas bawah 6 agar pesan jelas.
     if (pin.length < 6) {
@@ -126,7 +129,19 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
       _loading = true;
       _error = null;
     });
-    await PinService.setPin(pin1);
+    try {
+      await PinService.setPin(pin1);
+    } catch (e) {
+      // Secure-storage failure (e.g. keyring unavailable): surface it —
+      // otherwise the loading state sticks and the button stays disabled.
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Failed to store PIN: $e';
+        });
+      }
+      return;
+    }
     if (mounted) context.go('/home');
   }
 

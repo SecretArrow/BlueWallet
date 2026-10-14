@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../services/recent_sites_service.dart';
+import '../../../services/wallet_service.dart';
 
 /// Settings tab — matches Android MainActivity settings view:
 /// flat rows with 44dp circle icon, title only, bottom divider.
@@ -70,6 +72,15 @@ class SettingsTab extends StatelessWidget {
       ),
     );
     if (confirmed != true || !context.mounted) return;
+    // Real caches live in SQLite (tx history, balance and token snapshots
+    // per wallet) — clear those through the service; the legacy prefs keys
+    // below are kept for older installs that still have them.
+    try {
+      await context.read<WalletService>().clearCaches();
+    } catch (_) {
+      // Cache clear must never crash the settings screen; a missing service
+      // ancestor or a failed DB open just leaves the cache in place.
+    }
     final prefs = await SharedPreferences.getInstance();
     final keys =
         prefs.getKeys().where((k) => k.startsWith('tx_history_')).toList();

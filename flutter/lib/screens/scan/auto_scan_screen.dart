@@ -34,6 +34,25 @@ class _AutoScanScreenState extends State<AutoScanScreen> {
     return '$m minutes';
   }
 
+  /// Preset items plus the current label when it is a custom value (e.g. a
+  /// legacy persisted interval like "7 minutes") — keeps the Dropdown's
+  /// value ∈ items invariant intact.
+  List<DropdownMenuItem<String>> _dropdownItems(String selectedLabel) {
+    final items = _kIntervals.keys
+        .map((label) => DropdownMenuItem(
+              value: label,
+              child: Text(label),
+            ))
+        .toList();
+    if (!_kIntervals.containsKey(selectedLabel)) {
+      items.insert(0, DropdownMenuItem(
+        value: selectedLabel,
+        child: Text(selectedLabel),
+      ));
+    }
+    return items;
+  }
+
   void _applyInterval(String label) {
     final minutes = _kIntervals[label] ?? 0;
     final ws = context.read<WalletService>();
@@ -97,12 +116,11 @@ class _AutoScanScreenState extends State<AutoScanScreen> {
                     isExpanded: true,
                     icon: Icon(Icons.keyboard_arrow_down_rounded,
                         color: cs.primary),
-                    items: _kIntervals.keys
-                        .map((label) => DropdownMenuItem(
-                              value: label,
-                              child: Text(label),
-                            ))
-                        .toList(),
+                    // A restored/legacy persisted interval that is not one of
+                    // the presets must still be selectable-looking (a value
+                    // missing from the items asserts in debug builds), so the
+                    // current label is appended when it is not in the map.
+                    items: _dropdownItems(selectedLabel),
                     onChanged: (v) {
                       if (v != null) _applyInterval(v);
                     },

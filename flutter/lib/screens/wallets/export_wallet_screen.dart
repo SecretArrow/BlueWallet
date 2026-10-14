@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
+import '../../models/wallet_profile.dart';
 import '../../services/wallet_service.dart';
 import '../../widgets/tonal_button.dart';
 import '../../widgets/adaptive_body.dart';
@@ -50,7 +51,9 @@ class _ExportWalletScreenState extends State<ExportWalletScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final ws = context.watch<WalletService>();
-    final wallet = ws.activeWallet;
+    // Resolve by id, not by "active": the row tapped in WalletsScreen may
+    // not be the active wallet.
+    final wallet = _resolveWallet(ws);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Export Wallet')),
@@ -144,10 +147,23 @@ class _ExportWalletScreenState extends State<ExportWalletScreen> {
     );
   }
 
+  /// The wallet being exported: the one addressed by `widget.walletId`,
+  /// falling back to the active wallet. Resolving the profile by id (like
+  /// ViewKeysScreen) matters — the display AND the shared backup must
+  /// describe the SAME wallet whose private key was loaded, never a mix of
+  /// the requested wallet's key with the active wallet's name/address.
+  WalletProfile? _resolveWallet(WalletService ws) {
+    final id = widget.walletId;
+    if (id != null && id.isNotEmpty) {
+      return ws.wallets.where((w) => w.id == id).firstOrNull;
+    }
+    return ws.activeWallet;
+  }
+
   void _shareBackup() {
     if (_sk == null || !mounted) return;
     final ws = context.read<WalletService>();
-    final wallet = ws.activeWallet;
+    final wallet = _resolveWallet(ws);
     final backup = jsonEncode({
       'name': wallet?.name ?? '',
       'address': wallet?.address ?? '',

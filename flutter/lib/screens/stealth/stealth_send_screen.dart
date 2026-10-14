@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../services/wallet_service.dart';
 import '../../services/network_service.dart';
+import '../../services/oct_address.dart';
 import '../../widgets/tonal_button.dart';
 import '../../widgets/octopus_card.dart';
 import '../../widgets/adaptive_body.dart';
@@ -151,9 +152,18 @@ class _StealthSendScreenState extends State<StealthSendScreen> {
                     ),
                   ),
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Enter stealth address'
-                      : null,
+                  validator: (v) {
+                    final t = v?.trim() ?? '';
+                    if (t.isEmpty) return 'Enter stealth address';
+                    // Same rule the Android StealthSendActivity enforces
+                    // before signing (mirrors SendScreen).
+                    if (!OctAddress.isValid(t)) {
+                      return 'Invalid oct address '
+                          '(${OctAddress.expectedLength} characters, '
+                          'starts with "oct")';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 14),
                 TextFormField(

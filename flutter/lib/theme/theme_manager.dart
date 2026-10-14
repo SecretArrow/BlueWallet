@@ -53,6 +53,17 @@ class ThemeManager extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
   }
 
+  /// Resolves a palette id for a brightness slot, keeping the slot's
+  /// brightness correct even for unknown/corrupt ids: the fallback is the
+  /// slot's default palette, NOT `AppPalette.byId`'s first-dark fallback
+  /// (which would silently put a DARK palette into the LIGHT slot and make
+  /// `themeMode` render the wrong brightness).
+  static AppPalette _resolveSlot(String? id, {required bool wantDark}) {
+    final p = _findPalette(id);
+    if (p != null && p.isDark == wantDark) return p;
+    return wantDark ? _firstDark : _firstLight;
+  }
+
   // ── Getters ────────────────────────────────────────────────────────────
 
   /// Current mode: 'system' | 'dark' | 'light'.
@@ -103,6 +114,11 @@ class ThemeManager extends ChangeNotifier with WidgetsBindingObserver {
     if (!_kModes.contains(mode)) {
       throw ArgumentError("mode must be 'system', 'dark' or 'light'");
     }
+    // Serialize behind the persisted-state load: a mutation issued before
+    // _loadSaved() resolves must never be clobbered by the stale values the
+    // load applies afterwards (the load would silently revert the user's
+    // just-made choice — reported as "theme doesn't work" on slow devices).
+    await ready;
     _mode = mode;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kModeKey, mode);
@@ -112,7 +128,8 @@ class ThemeManager extends ChangeNotifier with WidgetsBindingObserver {
   /// Set the dark-slot palette (rendered in dark mode, and in system mode
   /// whenever the platform is dark).
   Future<void> setDarkPalette(String id) async {
-    _darkPalette = AppPalette.byId(id);
+    await ready; // see setMode: never race the persisted-state load.
+    _darkPalette = _resolveSlot(id, wantDark: true);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kDarkPaletteKey, id);
     notifyListeners();
@@ -121,7 +138,8 @@ class ThemeManager extends ChangeNotifier with WidgetsBindingObserver {
   /// Set the light-slot palette (rendered in light mode, and in system
   /// mode whenever the platform is light).
   Future<void> setLightPalette(String id) async {
-    _lightPalette = AppPalette.byId(id);
+    await ready; // see setMode: never race the persisted-state load.
+    _lightPalette = _resolveSlot(id, wantDark: false);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kLightPaletteKey, id);
     notifyListeners();
@@ -131,7 +149,8 @@ class ThemeManager extends ChangeNotifier with WidgetsBindingObserver {
   /// behavior). Applies immediately — forces the palette's matching mode
   /// and stores it in its slot so system resolution honors it too.
   Future<void> setPalette(String id) async {
-    final p = AppPalette.byId(id);
+    await ready; // see setMode: never race the persisted-state load.
+    final p = _findPalette(id) ?? AppPalette.all.first;
     _mode = p.isDark ? 'dark' : 'light';
     if (p.isDark) {
       _darkPalette = p;
@@ -178,14 +197,21 @@ class ThemeManager extends ChangeNotifier with WidgetsBindingObserver {
 
     final darkSaved = _findPalette(prefs.getString(_kDarkPaletteKey));
     final lightSaved = _findPalette(prefs.getString(_kLightPaletteKey));
+    // Slot-brightness sanity: a corrupt or future-versioned id (or a palette
+    // whose isDark flag does not match its slot) must never flip a slot's
+    // brightness — MaterialApp would then render a dark ThemeData while
+    // themeMode says light (or vice versa).
+    final darkOk = (darkSaved != null && darkSaved.isDark) ? darkSaved : null;
+    final lightOk =
+        (lightSaved != null && !lightSaved.isDark) ? lightSaved : null;
 
     // Legacy single-palette pick (pre-upgrade installs).
     final legacy = _findPalette(prefs.getString(_kThemeKey));
     if (legacy != null) {
       if (legacy.isDark) {
-        _darkPalette = darkSaved ?? legacy;
+        _darkPalette = darkOk ?? legacy;
       } else {
-        _lightPalette = lightSaved ?? legacy;
+        _lightPalette = lightOk ?? legacy;
       }
       // No explicit mode saved yet: keep the user's visual choice instead
       // of silently flipping to the (possibly opposite) system theme.
@@ -193,8 +219,8 @@ class ThemeManager extends ChangeNotifier with WidgetsBindingObserver {
         _mode = legacy.isDark ? 'dark' : 'light';
       }
     } else {
-      _darkPalette = darkSaved ?? _firstDark;
-      _lightPalette = lightSaved ?? _firstLight;
+      _darkPalette = darkOk ?? _firstDark;
+      _lightPalette = lightOk ?? _firstLight;
     }
 
     notifyListeners();

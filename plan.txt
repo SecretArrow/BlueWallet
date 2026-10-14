@@ -388,6 +388,20 @@ CATATAN REALISASI (ditambahkan 2026-10-13; spec asli di atas utuh)
 #      PIN app tetap 6-16 digit skema wallet.oct)
 # - Versi 0.18.3-alpha+315 kedua sisi
 
+# - SESI 0.18.4 (UX flutter, audit per-fitur): header "Octra Wallet"
+#      + tombol reload DIHAPUS di mobile (hemat ruang; SafeArea top; desktop
+#      tetap bar refresh ramping). TEMA DIPERKUAT: MaterialApp kini pakai
+#      slot terpisah (theme=lightPalette, darkTheme=darkPalette) + race
+#      _loadSaved vs mutator DIPERBAIKI (pilihan tema pengguna bisa
+#      ter-reset diam-diam — akar laporan "theme ga works") + validasi
+#      slot korup. Audit subagent G (17 file flutter diperbaiki):
+#      alamat donasi placeholder (dana hilang) -> oct5ZPf...; export
+#      wallet salah identitas; validasi alamat oct di send/stealth/
+#      address book; lockout PIN bisa dilewati keyboard; Copy URL browser
+#      mati; Clear Cache kini benar (SQLite); explorer link mengikuti
+#      network aktif; race polling settings; 25 test baru (9 file).
+#      Versi 0.18.4-alpha+316.
+
 ## Daftar PR merge ke main: #48–#59 (semua CI hijau, main hijau)
 
 ## DITUNDA / butuh keputusan user

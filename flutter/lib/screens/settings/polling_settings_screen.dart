@@ -26,14 +26,38 @@ class _PollingSettingsScreenState extends State<PollingSettingsScreen> {
   final _sendThresholdController = TextEditingController();
   final _advancedThresholdController = TextEditingController();
 
+  /// True once the user (or a quick-chip) edits any field — guards the
+  /// post-`ready` re-sync below from clobbering live input.
+  bool _fieldsEdited = false;
+
   @override
   void initState() {
     super.initState();
     final ps = context.read<PollingService>();
+    // First sync may read defaults: PollingService._load() is async, so the
+    // persisted values can land after this screen mounted. Re-sync once the
+    // load completes — but never over fields the user already touched.
+    _syncFromService(ps);
+    for (final controller in [
+      _intervalController,
+      _sendThresholdController,
+      _advancedThresholdController,
+    ]) {
+      controller.addListener(() => _fieldsEdited = true);
+    }
+    ps.ready.then((_) {
+      if (mounted && !_fieldsEdited) _syncFromService(ps);
+    });
+  }
+
+  void _syncFromService(PollingService ps) {
     _intervalController.text = (ps.intervalMs ~/ 1000).toString();
     _sendThresholdController.text = (ps.thresholdSendMs ~/ 60000).toString();
     _advancedThresholdController.text =
         (ps.thresholdAdvancedMs ~/ 60000).toString();
+    // Our own programmatic writes fired the listeners above; they must not
+    // count as user edits.
+    _fieldsEdited = false;
   }
 
   @override
@@ -46,6 +70,11 @@ class _PollingSettingsScreenState extends State<PollingSettingsScreen> {
 
   Future<void> _save() async {
     final ps = context.read<PollingService>();
+    // Block on the persisted-state load: saving the (possibly stale)
+    // defaults while `_load()` is still in flight would overwrite the
+    // user's previously persisted settings.
+    await ps.ready;
+    if (!mounted) return;
     final intInterval = int.tryParse(_intervalController.text);
     final intSend = int.tryParse(_sendThresholdController.text);
     final intAdvanced = int.tryParse(_advancedThresholdController.text);

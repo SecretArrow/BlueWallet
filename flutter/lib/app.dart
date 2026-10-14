@@ -110,14 +110,16 @@ class _OctopusWalletAppState extends State<OctopusWalletApp> {
       child: Consumer<ThemeManager>(
         builder: (_, tm, __) {
           final router = AppRouter.router;
-          // Both light and dark ThemeData derive from the effective
-          // (mode-aware) palette; themeMode drives MaterialApp's platform
-          // brightness selection in System mode.
-          final themeData = AppTheme.fromPalette(tm.effectivePalette);
+          // Each MaterialApp slot gets its OWN palette-derived ThemeData.
+          // `themeMode` (system/dark/light) then selects the slot via
+          // MaterialApp's platform-brightness resolution — the two slots are
+          // never the same object, so a stale platformBrightness read or a
+          // mid-switch rebuild can never render the wrong brightness.
+          // (ThemeManager.effectivePalette remains for previews/legacy use.)
           return MaterialApp.router(
             title: 'Octopus Wallet',
-            theme: themeData,
-            darkTheme: themeData,
+            theme: AppTheme.fromPalette(tm.lightPalette),
+            darkTheme: AppTheme.fromPalette(tm.darkPalette),
             themeMode: tm.themeMode,
             routerConfig: router,
             debugShowCheckedModeBanner: false,

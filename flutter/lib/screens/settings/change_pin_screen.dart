@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/pin_service.dart';
 import '../../widgets/tonal_button.dart';
@@ -127,6 +128,7 @@ class _PinField extends StatelessWidget {
       keyboardType: TextInputType.number,
       maxLength: 16,
       obscureText: true,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       style: const TextStyle(fontSize: 24, letterSpacing: 10),
       decoration: InputDecoration(
         labelText: label,

@@ -197,20 +197,24 @@ class _MainScreenState extends State<MainScreen> {
                   : Brightness.dark,
         ),
         child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Octra Wallet'),
-            centerTitle: true,
-            automaticallyImplyLeading: false,
-            actions: [
-              // Refresh button — always visible, essential on desktop
-              // where pull-to-refresh doesn't work with a mouse
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded),
-                onPressed: _refresh,
-                tooltip: 'Refresh',
-              ),
-            ],
-          ),
+          // Mobile: no global header. Tabs own their content top-to-bottom and
+          // refresh is pull-to-refresh — a shared "Octra Wallet" bar only
+          // wasted vertical space. Desktop keeps a slim refresh-only bar
+          // because pull-to-refresh needs a touchscreen and the rail has no
+          // refresh affordance.
+          appBar: _isDesktop
+              ? AppBar(
+                  automaticallyImplyLeading: false,
+                  toolbarHeight: 48,
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded),
+                      onPressed: _refresh,
+                      tooltip: 'Refresh',
+                    ),
+                  ],
+                )
+              : null,
           body: _isDesktop
               ? Row(
                   children: [
@@ -227,7 +231,14 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                   ],
                 )
-              : IndexedStack(index: _tabIndex, children: _tabs),
+              // Consumes the status-bar inset that the removed AppBar used to
+              // absorb; AdaptiveBody's SafeArea(top: false) still fits (nested
+              // SafeAreas are idempotent — inner sees zero padding).
+              : SafeArea(
+                  top: true,
+                  bottom: false,
+                  child: IndexedStack(index: _tabIndex, children: _tabs),
+                ),
           bottomNavigationBar: _isDesktop
               ? null
               : NavigationBar(

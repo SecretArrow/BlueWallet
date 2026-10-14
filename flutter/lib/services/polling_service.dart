@@ -39,8 +39,14 @@ class PollingService extends ChangeNotifier {
   int get thresholdSendMs => _thresholdSendMs;
   int get thresholdAdvancedMs => _thresholdAdvancedMs;
 
+  /// Completes when persisted settings have been loaded. UIs that read the
+  /// current values synchronously on mount should re-sync (or await this)
+  /// afterwards — the constructor's `_load()` is asynchronous, so an early
+  /// read sees the defaults, not the persisted values.
+  late final Future<void> ready;
+
   PollingService() {
-    _load();
+    ready = _load();
   }
 
   Future<void> _load() async {
@@ -61,6 +67,9 @@ class PollingService extends ChangeNotifier {
     required int thresholdSendMs,
     required int thresholdAdvancedMs,
   }) async {
+    // Serialize behind the persisted-state load so a late `_load()` can
+    // never re-apply stale values over a save that just ran.
+    await ready;
     if (intervalMs < minIntervalMs || intervalMs > maxIntervalMs) {
       throw ArgumentError(
           'intervalMs must be 1000..86400000 (got $intervalMs)');

@@ -266,15 +266,25 @@ class WalletService extends ChangeNotifier {
   }
 
   /// Creates a wallet from a BIP-39 mnemonic phrase at the given derivation path.
+  ///
+  /// [autoDetect] controls the "HD version autodetect" probe (RPC balance +
+  /// history lookups for the two standard paths). It exists for IMPORTED
+  /// mnemonics that may hold funds at either path. A freshly generated
+  /// phrase (MnemonicWalletScreen) can never have history, so it passes
+  /// `autoDetect: false` — the probe would only waste a blocking network
+  /// round-trip and could otherwise flip the path away from the address the
+  /// screen just previewed to the user.
   Future<WalletProfile> createFromMnemonic({
     required String name,
     required String mnemonic,
     required String path,
+    bool autoDetect = true,
   }) async {
     String chosenPath = path;
 
     // HD Version Autodetect: Probe RPC nodes parallelly when importing mnemonics
-    if (path == "m/44'/540'/0'/0'/0'" || path == "m/44'/540'/0'/0'") {
+    if (autoDetect &&
+        (path == "m/44'/540'/0'/0'/0'" || path == "m/44'/540'/0'/0'")) {
       try {
         final prefs = await SharedPreferences.getInstance();
         String nodeUrl = 'https://rpc.octrascan.io';
@@ -525,6 +535,33 @@ class WalletService extends ChangeNotifier {
     await prefs.setString(_kActiveWalletKey, _activeId!);
     notifyListeners();
     return profile;
+  }
+
+  /// Clears every on-device CACHE (SQLite tx history, balance and token
+  /// snapshots for all wallets) and resets the in-memory copies, so the
+  /// "Clear Cache" settings action really drops cached data. Keys, wallet
+  /// profiles and the address book are NOT touched. SQLite failures (e.g.
+  /// sqflite unavailable on a platform without FFI) are swallowed — a cache
+  /// clear must never crash, and the next refresh simply re-populates.
+  Future<void> clearCaches() async {
+    for (final w in _wallets) {
+      try {
+        await DatabaseService.instance.clearTxHistory(w.id);
+        await DatabaseService.instance.clearTokenCache(w.id);
+      } catch (e) {
+        debugPrint('clearCaches(${w.id}) skipped: $e');
+      }
+    }
+    _history = [];
+    _tokens = [];
+    _publicBalance = '0.000000';
+    _encryptedBalance = '0.000000';
+    _totalBalance = '0.000000';
+    _balanceRaw = 0;
+    _encryptedBalanceRaw = 0;
+    _encryptedBalanceCipher = null;
+    _accountNotFound = false;
+    notifyListeners();
   }
 
   Future<void> removeWallet(String id) async {

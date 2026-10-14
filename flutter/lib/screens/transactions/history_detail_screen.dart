@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/tx_record.dart';
+import '../../services/network_service.dart';
 import '../../widgets/octopus_card.dart';
 
 /// History Detail screen — shows all fields of a TxRecord.
@@ -160,12 +162,18 @@ class HistoryDetailScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Explorer link
+              // Explorer link — follows the ACTIVE network profile so a
+              // devnet transaction does not link to the mainnet explorer
+              // ("tx not found" there).
               OutlinedButton.icon(
                 onPressed: () async {
                   final hash = t.hash.trim();
                   if (hash.isEmpty || !context.mounted) return;
-                  final url = Uri.tryParse('https://octra.network/tx/$hash');
+                  final explorer = context
+                      .read<NetworkService>()
+                      .activeExplorerUrl
+                      .replaceAll(RegExp(r'/+$'), '');
+                  final url = Uri.tryParse('$explorer/tx/$hash');
                   if (url == null) return;
                   try {
                     await launchUrl(url, mode: LaunchMode.externalApplication);

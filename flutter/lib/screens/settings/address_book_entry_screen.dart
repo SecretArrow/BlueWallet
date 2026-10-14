@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../services/address_book_service.dart';
+import '../../services/oct_address.dart';
 import '../../models/address_entry.dart';
 import '../../widgets/tonal_button.dart';
 
@@ -51,19 +52,44 @@ class _AddressBookEntryScreenState extends State<AddressBookEntryScreen> {
       setState(() => _error = 'Please fill all fields');
       return;
     }
+    // Same rule the Android AddressBookEntryActivity enforces before
+    // saving: a well-formed oct address (47 chars, "oct" prefix).
+    if (!OctAddress.isValid(addr)) {
+      setState(() => _error = 'Invalid oct address '
+          '(${OctAddress.expectedLength} characters, starts with "oct")');
+      return;
+    }
     setState(() => _loading = true);
     final abs = context.read<AddressBookService>();
     final editId = widget.editId;
-    if (editId != null) {
-      await abs.update(AddressEntry(id: editId, label: label, address: addr));
-    } else {
-      await abs.add(AddressEntry(
-        id: 'addr_${DateTime.now().millisecondsSinceEpoch}',
-        label: label,
-        address: addr,
-      ));
+    try {
+      if (editId != null) {
+        final ok = await abs.update(
+            AddressEntry(id: editId, label: label, address: addr));
+        if (!mounted) return;
+        if (!ok) {
+          setState(() {
+            _error = 'Entry no longer exists — nothing was saved.';
+            _loading = false;
+          });
+          return;
+        }
+      } else {
+        await abs.add(AddressEntry(
+          id: 'addr_${DateTime.now().millisecondsSinceEpoch}',
+          label: label,
+          address: addr,
+        ));
+      }
+      if (mounted) context.pop();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString().replaceFirst('Exception: ', '');
+          _loading = false;
+        });
+      }
     }
-    if (mounted) context.pop();
   }
 
   @override
