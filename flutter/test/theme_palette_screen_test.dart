@@ -52,7 +52,16 @@ void main() {
     // the 600px test viewport). scrollUntilVisible also BUILDS lazily-
     // deferred ListView children (ensureVisible throws "Bad state: No
     // element" on widgets the ListView has not materialized yet).
-    await tester.scrollUntilVisible(find.text('Ivory Circuit'), 200.0);
+    // scrollable MUST be pinned: this screen nests two shrinkWrap
+    // GridViews (each a Scrollable) inside the outer ListView, and the
+    // auto-detected `find.byType(Scrollable)` calls .single internally →
+    // "Bad state: Too many elements". The outer ListView is the first
+    // Scrollable in tree order.
+    await tester.scrollUntilVisible(
+      find.text('Ivory Circuit'),
+      200.0,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ivory Circuit'));
     await tester.pumpAndSettle();
@@ -69,7 +78,7 @@ void main() {
     expect(prefs.getString('light_palette_id'), 'ivorycircuit');
 
     tm.dispose();
-  });
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   testWidgets('switching the mode to Dark renders the dark slot '
       '(palette + brightness)', (WidgetTester tester) async {
@@ -92,7 +101,11 @@ void main() {
         AppPalette.byId('zenith').background);
 
     // Pick a different dark palette and verify the dark slot moves.
-    await tester.scrollUntilVisible(find.text('Moonbloom'), 200.0);
+    await tester.scrollUntilVisible(
+      find.text('Moonbloom'),
+      200.0,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Moonbloom'));
     await tester.pumpAndSettle();
@@ -101,7 +114,7 @@ void main() {
         AppPalette.byId('moonbloom').background);
 
     tm.dispose();
-  });
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   testWidgets('system mode keeps both slots editable and independent',
       (WidgetTester tester) async {
@@ -114,11 +127,19 @@ void main() {
     expect(appOf(tester).darkTheme!.brightness, Brightness.dark);
 
     // Both grids are shown in system mode; pick from each.
-    await tester.scrollUntilVisible(find.text('Moonbloom'), 200.0);
+    await tester.scrollUntilVisible(
+      find.text('Moonbloom'),
+      200.0,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Moonbloom'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Solar Paper'), 200.0);
+    await tester.scrollUntilVisible(
+      find.text('Solar Paper'),
+      200.0,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Solar Paper'));
     await tester.pumpAndSettle();
@@ -130,5 +151,5 @@ void main() {
     expect(AppTheme.fromPalette(tm.darkPalette).brightness, Brightness.dark);
 
     tm.dispose();
-  });
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }

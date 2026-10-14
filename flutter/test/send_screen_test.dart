@@ -43,7 +43,10 @@ void main() {
   /// Wallets are seeded through SharedPreferences exactly like a real
   /// install (secure storage is never touched for these paths, so the JVM
   /// test needs no keyring).
-  Future<WalletService> bootWallets({required bool watchOnly}) async {
+  Future<WalletService> bootWallets(
+    WidgetTester tester, {
+    required bool watchOnly,
+  }) async {
     final id = watchOnly ? 'wallet_watch' : 'wallet_main';
     final profile = {
       'id': id,
@@ -57,8 +60,12 @@ void main() {
       'active_wallet_id': id,
     });
     final ws = WalletService();
-    // Let the async _init() settle before driving the UI.
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    // Settle the fire-and-forget _init() on the REAL event loop. A bare
+    // `await Future.delayed(...)` inside testWidgets waits on a fake timer
+    // that never fires while the body is suspended — that FakeAsync
+    // deadlock is what hung every send test for 10 minutes on CI.
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)));
     return ws;
   }
 
@@ -103,7 +110,7 @@ void main() {
 
   testWidgets('malformed recipient address is rejected client-side',
       (WidgetTester tester) async {
-    final ws = await bootWallets(watchOnly: false);
+    final ws = await bootWallets(tester, watchOnly: false);
     await openSend(tester, ws);
 
     await tester.enterText(find.byType(TextFormField).at(0), 'notanaddress');
@@ -116,11 +123,11 @@ void main() {
     expect(find.textContaining('Invalid oct address'), findsOneWidget);
     // Still on the send screen — nothing was signed or submitted.
     expect(find.text('Recipient Address'), findsOneWidget);
-  });
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   testWidgets('empty recipient address keeps the empty-field error',
       (WidgetTester tester) async {
-    final ws = await bootWallets(watchOnly: false);
+    final ws = await bootWallets(tester, watchOnly: false);
     await openSend(tester, ws);
 
     await tester.enterText(find.byType(TextFormField).at(1), '1');
@@ -130,11 +137,11 @@ void main() {
     await settle(tester);
 
     expect(find.text('Enter recipient address'), findsOneWidget);
-  });
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   testWidgets('watch-only wallet is hard-blocked with the canonical message',
       (WidgetTester tester) async {
-    final ws = await bootWallets(watchOnly: true);
+    final ws = await bootWallets(tester, watchOnly: true);
     await openSend(tester, ws);
 
     // Fully valid inputs — the guard must fire before anything else.
@@ -148,11 +155,11 @@ void main() {
     expect(find.text(WalletService.watchOnlySendBlockMessage), findsOneWidget);
     // No navigation to the tx-progress screen.
     expect(find.text('Transaction submitted!'), findsNothing);
-  });
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   testWidgets('deep-link prefill (address + amount) lands in the fields',
       (WidgetTester tester) async {
-    final ws = await bootWallets(watchOnly: false);
+    final ws = await bootWallets(tester, watchOnly: false);
     await tester.pumpWidget(MultiProvider(
       providers: [
         ChangeNotifierProvider<WalletService>.value(value: ws),
@@ -171,5 +178,5 @@ void main() {
     expect(find.text(goodAddress), findsOneWidget);
     expect(find.text('2.5'), findsOneWidget);
     expect(ws.canSend, isTrue);
-  });
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }

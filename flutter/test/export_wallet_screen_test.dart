@@ -39,7 +39,7 @@ void main() {
     }
   }
 
-  Future<WalletService> bootTwoWallets() async {
+  Future<WalletService> bootTwoWallets(WidgetTester tester) async {
     const mainId = 'wallet_main';
     const otherId = 'wallet_other';
     SharedPreferences.setMockInitialValues({
@@ -57,7 +57,12 @@ void main() {
       'active_wallet_id': mainId,
     });
     final ws = WalletService();
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    // Settle the fire-and-forget _init() on the REAL event loop. A bare
+    // `await Future.delayed(...)` inside testWidgets waits on a fake timer
+    // that never fires while the body is suspended — that FakeAsync
+    // deadlock is what hung both export tests for 10 minutes on CI.
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)));
     return ws;
   }
 
@@ -72,7 +77,7 @@ void main() {
 
   testWidgets('exporting a NON-active wallet shows that wallet\'s identity',
       (WidgetTester tester) async {
-    final ws = await bootTwoWallets();
+    final ws = await bootTwoWallets(tester);
     expect(ws.activeWallet?.name, 'Main'); // precondition
 
     await tester.pumpWidget(harness(ws, walletId: 'wallet_other'));
@@ -91,16 +96,16 @@ void main() {
     await tester.tap(find.text('Reveal Private Key'));
     await settle(tester);
     expect(find.text('Not found'), findsOneWidget);
-  });
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   testWidgets('no wallet id falls back to the active wallet',
       (WidgetTester tester) async {
-    final ws = await bootTwoWallets();
+    final ws = await bootTwoWallets(tester);
 
     await tester.pumpWidget(harness(ws));
     await settle(tester);
 
     expect(find.text('Main'), findsOneWidget);
     expect(find.text(mainAddr), findsOneWidget);
-  });
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }
