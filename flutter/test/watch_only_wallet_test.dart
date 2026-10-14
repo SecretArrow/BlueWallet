@@ -29,7 +29,7 @@ void main() {
 
     test('rejects wrong length', () {
       expect(OctAddress.isValid(goodAddress.substring(0, 46)), isFalse);
-      expect(OctAddress.isValid('$goodAddressx'), isFalse);
+      expect(OctAddress.isValid('${goodAddress}x'), isFalse);
       expect(OctAddress.isValid('oct'), isFalse);
     });
 

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../models/wallet_profile.dart';
 import '../../services/backup_reminder.dart';
 import '../../services/verify_backup_logic.dart';
 import '../../services/wallet_service.dart';
@@ -66,21 +67,28 @@ class _VerifyBackupScreenState extends State<VerifyBackupScreen> {
 
     // Same access path as ViewKeysScreen: child wallets read the parent seed.
     var mnemonic = await ws.getMnemonic(wallet.parentId ?? wallet.id);
+    // Non-null local that flow analysis can promote safely across the
+    // fallback loop below (re-assigning `wallet` would cancel its promotion).
+    var target = wallet;
 
     // When the requested wallet has no seed phrase (e.g. an imported key
     // wallet reached via Settings), fall back to the newest mnemonic wallet.
     if (mnemonic == null || mnemonic.trim().isEmpty) {
       final mnemonicWallets = ws.wallets.where((w) => w.isMnemonicWallet);
       DateTime? newest;
+      WalletProfile? fallback;
       for (final w in mnemonicWallets) {
         final created = BackupReminder.walletCreatedAt(w.parentId ?? w.id);
         if (created != null && (newest == null || created.isAfter(newest))) {
           newest = created;
-          wallet = w;
+          fallback = w;
         }
       }
-      if (wallet.isMnemonicWallet) {
-        mnemonic = await ws.getMnemonic(wallet.parentId ?? wallet.id);
+      if (fallback != null) {
+        target = fallback;
+      }
+      if (target.isMnemonicWallet) {
+        mnemonic = await ws.getMnemonic(target.parentId ?? target.id);
       }
     }
 
@@ -103,7 +111,7 @@ class _VerifyBackupScreenState extends State<VerifyBackupScreen> {
     }
 
     // Stable within a day, different across days (see VerifyBackupLogic).
-    final seed = VerifyBackupLogic.seedFor(wallet.id, DateTime.now());
+    final seed = VerifyBackupLogic.seedFor(target.id, DateTime.now());
     final positions =
         VerifyBackupLogic.pickPositions(words.length, Random(seed));
     _controllers.clear();

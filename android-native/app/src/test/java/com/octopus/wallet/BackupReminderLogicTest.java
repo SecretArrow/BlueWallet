@@ -209,6 +209,14 @@ public class BackupReminderLogicTest {
     }
 
     @Override
+    public void registerOnSharedPreferenceChangeListener(
+        OnSharedPreferenceChangeListener listener) {}
+
+    @Override
+    public void unregisterOnSharedPreferenceChangeListener(
+        OnSharedPreferenceChangeListener listener) {}
+
+    @Override
     public String getString(String key, String defValue) {
       Object value = values.get(key);
       return value instanceof String ? (String) value : defValue;
