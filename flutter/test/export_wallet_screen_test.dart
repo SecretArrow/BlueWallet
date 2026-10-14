@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +19,35 @@ void main() {
 
   const mainAddr = 'oct5ZPf49ZYNnA1hopXe9EcDbiBPhgwJyudxLaLhHefEmFt';
   const otherAddr = 'oct5ZPf49ZYNnA1hopXe9EcDbiBPhgwJyudxLaLhHefEmFu';
+
+  setUp(() {
+    // _loadKey() awaits a FlutterSecureStorage read: without a mock the
+    // platform channel never resolves inside FakeAsync, _loading stays
+    // true and the CircularProgressIndicator's infinite ticker keeps
+    // pumpAndSettle alive until the 10-minute test timeout. Reads must
+    // COMPLETE (null) — success paths are integration-covered.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('plugins.it_nomad.com/flutter_secure_storage'),
+      (call) async {
+        switch (call.method) {
+          case 'readAll':
+            return <String, String>{};
+          case 'containsKey':
+            return false;
+        }
+        return null;
+      },
+    );
+  });
+
+  /// Bounded settle — never waits on open-ended animations (the loading
+  /// spinner is the one that hung CI for two full runs).
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
 
   Future<WalletService> bootTwoWallets() async {
     const mainId = 'wallet_main';
@@ -56,7 +86,7 @@ void main() {
     expect(ws.activeWallet?.name, 'Main'); // precondition
 
     await tester.pumpWidget(harness(ws, walletId: 'wallet_other'));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     // Identity resolves by id: Cold Storage + its own address.
     expect(find.text('Cold Storage'), findsOneWidget);
@@ -69,7 +99,7 @@ void main() {
     // identity and the loaded key belong to the same wallet id.
     await tester.ensureVisible(find.text('Reveal Private Key'));
     await tester.tap(find.text('Reveal Private Key'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.text('Not found'), findsOneWidget);
   });
 
@@ -78,7 +108,7 @@ void main() {
     final ws = await bootTwoWallets();
 
     await tester.pumpWidget(harness(ws));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(find.text('Main'), findsOneWidget);
     expect(find.text(mainAddr), findsOneWidget);

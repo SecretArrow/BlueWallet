@@ -66,7 +66,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.flutter == 'true' || needs.changes.outputs.webcli == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: flutter

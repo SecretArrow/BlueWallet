@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +19,34 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const goodAddress = 'oct5ZPf49ZYNnA1hopXe9EcDbiBPhgwJyudxLaLhHefEmFt';
+
+  setUp(() {
+    // Every secure-storage call must COMPLETE in the FakeAsync zone — an
+    // unmocked platform channel never resolves and any widget awaiting it
+    // (loaders, key reads) hangs the suite until the 10-minute timeout.
+    // Success paths are integration-covered; here reads resolve to null.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('plugins.it_nomad.com/flutter_secure_storage'),
+      (call) async {
+        switch (call.method) {
+          case 'readAll':
+            return <String, String>{};
+          case 'containsKey':
+            return false;
+        }
+        return null;
+      },
+    );
+  });
+
+  /// Bounded settle: renders the post-action state without waiting on
+  /// open-ended animations/timers (pumpAndSettle hung CI twice here).
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
 
   /// Wallets are seeded through SharedPreferences exactly like a real
   /// install (secure storage is never touched for these paths, so the JVM
@@ -75,7 +104,7 @@ void main() {
   Future<void> openSend(WidgetTester tester, WalletService ws) async {
     await tester.pumpWidget(harness(ws));
     await tester.tap(find.text('Open Send'));
-    await tester.pumpAndSettle();
+    await settle(tester);
   }
 
   Finder sendButton() => find.widgetWithText(ElevatedButton, 'Send');
@@ -88,9 +117,9 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(0), 'notanaddress');
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.ensureVisible(sendButton());
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(sendButton());
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(find.textContaining('Invalid oct address'), findsOneWidget);
     // Still on the send screen — nothing was signed or submitted.
@@ -104,9 +133,9 @@ void main() {
 
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.ensureVisible(sendButton());
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(sendButton());
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(find.text('Enter recipient address'), findsOneWidget);
   });
@@ -120,9 +149,9 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(0), goodAddress);
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.ensureVisible(sendButton());
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(sendButton());
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(find.text(WalletService.watchOnlySendBlockMessage), findsOneWidget);
     // No navigation to the tx-progress screen.
@@ -145,7 +174,7 @@ void main() {
         ),
       ),
     ));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(find.text(goodAddress), findsOneWidget);
     expect(find.text('2.5'), findsOneWidget);
