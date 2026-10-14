@@ -96,8 +96,8 @@ public class TxHistoryCsvTest {
             .put("status", "confirmed");
     String csv =
         TxHistoryCsv.build(java.util.Collections.singletonList(entity("hash1", tx.toString(), 0L)));
-    // date empty (timestamp 0) → row starts with the direction column.
-    assertTrue(csv.contains("\r\noutgoing,sent,standard,1500000,oct_from,oct_to,"));
+    // date empty (timestamp 0) → row starts with an empty date field (leading comma).
+    assertTrue(csv.contains("\r\n,outgoing,sent,standard,1500000,oct_from,oct_to,"));
     assertTrue(csv.contains(",confirmed,hash1,"));
     assertFalse(csv.contains("\""));
   }
