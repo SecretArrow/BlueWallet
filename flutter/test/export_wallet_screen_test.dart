@@ -1,8 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
+import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -21,24 +22,13 @@ void main() {
   const otherAddr = 'oct5ZPf49ZYNnA1hopXe9EcDbiBPhgwJyudxLaLhHefEmFu';
 
   setUp(() {
-    // _loadKey() awaits a FlutterSecureStorage read: without a mock the
-    // platform channel never resolves inside FakeAsync, _loading stays
-    // true and the CircularProgressIndicator's infinite ticker keeps
-    // pumpAndSettle alive until the 10-minute test timeout. Reads must
-    // COMPLETE (null) — success paths are integration-covered.
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-      const MethodChannel('plugins.it_nomad.com/flutter_secure_storage'),
-      (call) async {
-        switch (call.method) {
-          case 'readAll':
-            return <String, String>{};
-          case 'containsKey':
-            return false;
-        }
-        return null;
-      },
-    );
+    // Official in-memory secure-storage platform: _loadKey() awaits a
+    // FlutterSecureStorage read; unmocked platform channels never resolve
+    // inside FakeAsync, _loading stays true and the loading spinner's
+    // infinite ticker keeps pumpAndSettle alive until the 10-minute test
+    // timeout. With the shim, reads resolve (null) and the screen renders.
+    FlutterSecureStoragePlatform.instance =
+        TestFlutterSecureStoragePlatform(<String, String>{});
   });
 
   /// Bounded settle — never waits on open-ended animations (the loading

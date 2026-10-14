@@ -48,9 +48,11 @@ void main() {
     expect(appOf(tester).theme!.scaffoldBackgroundColor,
         AppPalette.byId('frostline').background);
 
-    // Tap the "Ivory Circuit" cell (light palette grid — may be below the
-    // fold in the test viewport, so scroll it into view first).
-    await tester.ensureVisible(find.text('Ivory Circuit'));
+    // Tap the "Ivory Circuit" cell (light palette grid, below the fold in
+    // the 600px test viewport). scrollUntilVisible also BUILDS lazily-
+    // deferred ListView children (ensureVisible throws "Bad state: No
+    // element" on widgets the ListView has not materialized yet).
+    await tester.scrollUntilVisible(find.text('Ivory Circuit'), 200.0);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ivory Circuit'));
     await tester.pumpAndSettle();
@@ -76,7 +78,10 @@ void main() {
     await tester.pumpWidget(harness(tm));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Dark'));
+    // Tap the Dark MODE segment. find.text('Dark') is ambiguous (every
+    // dark palette cell carries a "Dark" label) — the segment's icon is
+    // unique.
+    await tester.tap(find.byIcon(Icons.dark_mode_outlined));
     await tester.pumpAndSettle();
 
     expect(tm.mode, 'dark');
@@ -87,7 +92,7 @@ void main() {
         AppPalette.byId('zenith').background);
 
     // Pick a different dark palette and verify the dark slot moves.
-    await tester.ensureVisible(find.text('Moonbloom'));
+    await tester.scrollUntilVisible(find.text('Moonbloom'), 200.0);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Moonbloom'));
     await tester.pumpAndSettle();
@@ -109,11 +114,11 @@ void main() {
     expect(appOf(tester).darkTheme!.brightness, Brightness.dark);
 
     // Both grids are shown in system mode; pick from each.
-    await tester.ensureVisible(find.text('Moonbloom'));
+    await tester.scrollUntilVisible(find.text('Moonbloom'), 200.0);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Moonbloom'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Solar Paper'));
+    await tester.scrollUntilVisible(find.text('Solar Paper'), 200.0);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Solar Paper'));
     await tester.pumpAndSettle();

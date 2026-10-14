@@ -1,8 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
+import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,23 +22,14 @@ void main() {
   const goodAddress = 'oct5ZPf49ZYNnA1hopXe9EcDbiBPhgwJyudxLaLhHefEmFt';
 
   setUp(() {
-    // Every secure-storage call must COMPLETE in the FakeAsync zone — an
-    // unmocked platform channel never resolves and any widget awaiting it
-    // (loaders, key reads) hangs the suite until the 10-minute timeout.
-    // Success paths are integration-covered; here reads resolve to null.
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-      const MethodChannel('plugins.it_nomad.com/flutter_secure_storage'),
-      (call) async {
-        switch (call.method) {
-          case 'readAll':
-            return <String, String>{};
-          case 'containsKey':
-            return false;
-        }
-        return null;
-      },
-    );
+    // Official in-memory secure-storage platform. Unmocked platform
+    // channels NEVER resolve inside FakeAsync — any storage read (key
+    // lookups during screen builds) then hangs the suite until the
+    // 10-minute timeout. (A MethodChannel mock is brittle: the real
+    // channel is 'plugins.it_nomads.com/flutter_secure_storage' — note
+    // "nomads" — and renames silently break it.)
+    FlutterSecureStoragePlatform.instance =
+        TestFlutterSecureStoragePlatform(<String, String>{});
   });
 
   /// Bounded settle: renders the post-action state without waiting on

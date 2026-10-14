@@ -46,6 +46,10 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   integration_test:
     sdk: flutter
+  # Official in-memory platform for FlutterSecureStorage in widget tests
+  # (matches the transitive lock entry; direct import avoids the
+  # depend_on_referenced_packages lint).
+  flutter_secure_storage_platform_interface: ^1.1.2
 
 flutter:
   uses-material-design: true
